@@ -1,0 +1,102 @@
+<UserControl x:Class="ThreeDScan.Controls.CoordinatePanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             x:Name="Root">
+    <UserControl.Resources>
+        <!-- 軸小卡：三張 X/Y/Z 等寬獨立卡 -->
+        <Style x:Key="AxisCardStyle" TargetType="Border" BasedOn="{StaticResource CardStyle}">
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="Margin" Value="0"/>
+        </Style>
+        <Style x:Key="AxisHeaderStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeSmall}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style x:Key="AxisValueStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeLarge}"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="FontFamily" Value="Consolas,Microsoft JhengHei UI"/>
+        </Style>
+
+        <!-- 三欄格：三張等寬小卡、中間留間距（以 Margin 形成 gap） -->
+        <Style x:Key="AxisRowStyle" TargetType="Grid">
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Padding="16" Background="Transparent">
+        <StackPanel>
+            <!-- 機械座標 (Machine) — 依 SA §1.4 機台參考座標系 -->
+            <TextBlock Text="機械座標 (Machine)" Style="{StaticResource PanelTitleStyle}"
+                       FontSize="{StaticResource FontSizeMedium}" Margin="0,0,0,8"/>
+            <Grid Style="{StaticResource AxisRowStyle}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource AxisCardStyle}" Margin="0,0,6,0">
+                    <StackPanel>
+                        <TextBlock Text="X (mm)" Style="{StaticResource AxisHeaderStyle}"/>
+                        <TextBlock Style="{StaticResource AxisValueStyle}"
+                                   Text="{Binding MachineCoord.X, ElementName=Root, StringFormat={}{0:F3}, FallbackValue=-}"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource AxisCardStyle}" Margin="3,0,3,0">
+                    <StackPanel>
+                        <TextBlock Text="Y (mm)" Style="{StaticResource AxisHeaderStyle}"/>
+                        <TextBlock Style="{StaticResource AxisValueStyle}"
+                                   Text="{Binding MachineCoord.Y, ElementName=Root, StringFormat={}{0:F3}, FallbackValue=-}"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource AxisCardStyle}" Margin="6,0,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Z (mm)" Style="{StaticResource AxisHeaderStyle}"/>
+                        <TextBlock Style="{StaticResource AxisValueStyle}"
+                                   Text="{Binding MachineCoord.Z, ElementName=Root, StringFormat={}{0:F3}, FallbackValue=-}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- 工件座標 (Workpiece) — 依 SA §1.4 工件參考座標系 / UC-02 -->
+            <TextBlock Text="工件座標 (Workpiece)" Style="{StaticResource PanelTitleStyle}"
+                       FontSize="{StaticResource FontSizeMedium}" Margin="0,0,0,8"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource AxisCardStyle}" Margin="0,0,6,0">
+                    <StackPanel>
+                        <TextBlock Text="X (mm)" Style="{StaticResource AxisHeaderStyle}"/>
+                        <TextBlock Style="{StaticResource AxisValueStyle}"
+                                   Text="{Binding WorkpieceCoord.X, ElementName=Root, StringFormat={}{0:F3}, FallbackValue=-}"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource AxisCardStyle}" Margin="3,0,3,0">
+                    <StackPanel>
+                        <TextBlock Text="Y (mm)" Style="{StaticResource AxisHeaderStyle}"/>
+                        <TextBlock Style="{StaticResource AxisValueStyle}"
+                                   Text="{Binding WorkpieceCoord.Y, ElementName=Root, StringFormat={}{0:F3}, FallbackValue=-}"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource AxisCardStyle}" Margin="6,0,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Z (mm)" Style="{StaticResource AxisHeaderStyle}"/>
+                        <TextBlock Style="{StaticResource AxisValueStyle}"
+                                   Text="{Binding WorkpieceCoord.Z, ElementName=Root, StringFormat={}{0:F3}, FallbackValue=-}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

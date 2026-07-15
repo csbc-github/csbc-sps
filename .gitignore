@@ -1,0 +1,60 @@
+## Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+dist/
+_verify_build/
+
+## Visual Studio / VS Code / Cursor
+.vs/
+.vscode/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.rsuser
+.cursor/
+
+## NuGet
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Publish / tooling
+*.pubxml.user
+PublishScripts/
+
+## OS / temp
+Thumbs.db
+Desktop.ini
+*.tmp
+*.temp
+*.log
+debug-*.log
+
+## Test / coverage
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.coverage
+*.coveragexml
+coverage*/
+
+## Local / generated notes
+_manual_*.txt
+_peak_*.txt
+_setsetting_example.txt
+
+## Scan / runtime outputs
+**/ScanOutput/
+*.ply
+
+## Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/

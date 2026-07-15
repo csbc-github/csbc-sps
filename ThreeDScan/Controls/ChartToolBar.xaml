@@ -1,0 +1,25 @@
+<UserControl x:Class="ThreeDScan.Controls.ChartToolBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             x:Name="Root">
+    <Border Background="{StaticResource SurfaceAltBrush}"
+            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+            CornerRadius="6"
+            Padding="4">
+        <StackPanel Orientation="Horizontal">
+            <Button Style="{StaticResource ToolBarIconButtonStyle}" Content="⌂"   ToolTip="首頁 / 重置視圖" Command="{Binding HomeCommand,     ElementName=Root}"/>
+            <Button Style="{StaticResource ToolBarIconButtonStyle}" Content="←"   ToolTip="上一個視圖"     Command="{Binding BackCommand,     ElementName=Root}"/>
+            <Button Style="{StaticResource ToolBarIconButtonStyle}" Content="→"   ToolTip="下一個視圖"     Command="{Binding ForwardCommand,  ElementName=Root}"/>
+            <Rectangle Width="1" Margin="4,6" Fill="{StaticResource BorderBrush}"/>
+            <Button Style="{StaticResource ToolBarIconButtonStyle}" Content="✥"   ToolTip="平移"           Command="{Binding PanCommand,      ElementName=Root}"/>
+            <Button Style="{StaticResource ToolBarIconButtonStyle}" Content="⌕"   ToolTip="縮放"           Command="{Binding ZoomCommand,     ElementName=Root}"/>
+            <Rectangle Width="1" Margin="4,6" Fill="{StaticResource BorderBrush}"/>
+            <Button Style="{StaticResource ToolBarIconButtonStyle}" Content="⚙"   ToolTip="設定"           Command="{Binding SettingsCommand, ElementName=Root}"/>
+            <Button Style="{StaticResource ToolBarIconButtonStyle}" Content="≣"   ToolTip="疊加比較"       Command="{Binding CompareCommand,  ElementName=Root}"/>
+            <Button Style="{StaticResource ToolBarIconButtonStyle}" Content="⤓"   ToolTip="儲存截圖"       Command="{Binding SaveCommand,     ElementName=Root}"/>
+        </StackPanel>
+    </Border>
+</UserControl>

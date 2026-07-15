@@ -1,0 +1,22 @@
+@ThreeDScan.Api_HostAddress = http://localhost:5295
+
+### 儀器校正（量測按鈕）— 會推送 SignalR CalibrationPreview
+POST {{ThreeDScan.Api_HostAddress}}/api/calibration/instrument
+Content-Type: application/json
+
+{
+  "scannerId": "SURF-CAM-01",
+  "machineArea": "printing",
+  "cameraExpectedPosition": { "x": 1000.0, "y": 2000.0, "z": 500.0 },
+  "standardBalls": [
+    { "ballId": "BALL-01", "knownX": 183.2, "knownY": 410.0, "knownZ": 102.7 }
+  ]
+}
+
+### Ref 建立（校正按鈕，文件外）— 寫入 ScannerConfig
+POST {{ThreeDScan.Api_HostAddress}}/api/calibration/reference-setup
+Content-Type: application/json
+
+{
+  "scannerId": "SURF-CAM-01"
+}

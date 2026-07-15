@@ -1,0 +1,74 @@
+<UserControl x:Class="ThreeDScan.Views.GrindingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:ThreeDScan.Controls"
+             xmlns:conv="clr-namespace:ThreeDScan.Converters"
+             xmlns:vm="clr-namespace:ThreeDScan.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:GrindingViewModel, IsDesignTimeCreatable=True}"
+             d:DesignWidth="1200" d:DesignHeight="680">
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+
+    <controls:AdaptiveSplitView Background="{StaticResource BackgroundBrush}"
+                                Threshold="820"
+                                PrimaryRatio="2" SecondaryRatio="1"
+                                PrimaryMinWidth="460" SecondaryMinWidth="340"
+                                PrimaryMinHeight="280" SecondaryMinHeight="260">
+        <controls:AdaptiveSplitView.PrimaryContent>
+            <DockPanel Margin="12">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                    <RadioButton Content="2D 高度圖" GroupName="GrindingViewMode"
+                                 IsChecked="{Binding Is2DMode}"
+                                 Style="{StaticResource ToggleButtonStyle}"/>
+                    <RadioButton Content="3D 點雲" GroupName="GrindingViewMode"
+                                 IsChecked="{Binding Is3DMode}"
+                                 Style="{StaticResource ToggleButtonStyle}" Margin="6,0,0,0"/>
+                </StackPanel>
+
+                <controls:ChartToolBar DockPanel.Dock="Top" Margin="0,0,0,8"/>
+
+                <Grid>
+                    <controls:PreviewPlaceholder
+                        Visibility="{Binding Is2DMode, Converter={StaticResource BoolToVis}}"
+                        Title="2D 高度圖"
+                        SubTitle="研磨區面掃描特徵（UC-05）"/>
+                    <controls:PreviewPlaceholder
+                        Visibility="{Binding Is3DMode, Converter={StaticResource BoolToVis}}"
+                        Title="3D 研磨視圖"
+                        SubTitle="研磨區面掃描特徵（UC-05）"/>
+                </Grid>
+            </DockPanel>
+        </controls:AdaptiveSplitView.PrimaryContent>
+
+        <controls:AdaptiveSplitView.SecondaryContent>
+            <Border Background="{StaticResource SurfaceBrush}">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="16,12" LastChildFill="False">
+                        <TextBlock Text="研磨路徑座標序列" Style="{StaticResource PanelTitleStyle}"/>
+                        <Border DockPanel.Dock="Right" Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="12" Padding="10,3">
+                            <TextBlock Text="{Binding PathPoints.Count, StringFormat={}{0} 節點}"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="{StaticResource FontSizeSmall}"/>
+                        </Border>
+                    </DockPanel>
+
+                    <DataGrid ItemsSource="{Binding PathPoints}"
+                              SelectedItem="{Binding SelectedPathPoint}"
+                              Margin="16,0,16,16">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="節點" Binding="{Binding NodeId}" Width="64"/>
+                            <DataGridTextColumn Header="X (mm)" Binding="{Binding X, StringFormat={}{0:F2}}" Width="*"/>
+                            <DataGridTextColumn Header="Y (mm)" Binding="{Binding Y, StringFormat={}{0:F2}}" Width="*"/>
+                            <DataGridTextColumn Header="Z (mm)" Binding="{Binding Z, StringFormat={}{0:F2}}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
+        </controls:AdaptiveSplitView.SecondaryContent>
+    </controls:AdaptiveSplitView>
+</UserControl>

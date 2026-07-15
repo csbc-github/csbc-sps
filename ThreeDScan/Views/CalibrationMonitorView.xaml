@@ -1,0 +1,89 @@
+<UserControl x:Class="ThreeDScan.Views.CalibrationMonitorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:lj3d="clr-namespace:ThreeDScan.Lj3DViewHost;assembly=ThreeDScan.Lj3DViewHost"
+             mc:Ignorable="d"
+             d:DesignHeight="500" d:DesignWidth="1000"
+             Background="{StaticResource BackgroundBrush}">
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" MinWidth="260"/>
+            <ColumnDefinition Width="*" MinWidth="360"/>
+        </Grid.ColumnDefinitions>
+
+        <Grid Grid.Column="0" Margin="0,0,12,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                <TextBlock Text="儀器校正監看（LJ 3D）"
+                           Style="{StaticResource PanelTitleStyle}"/>
+                <TextBlock Text="對齊 LJScanWinform 量測按鈕：Lj3DView + SetToolInfo。"
+                           FontSize="{StaticResource FontSizeSmall}"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <Border Grid.Row="1" Padding="12" CornerRadius="8"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="{Binding ConnectionState, StringFormat=SignalR：{0}}"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="{Binding LastScannerId, StringFormat=掃描器：{0}}"
+                               Margin="0,4,0,0"/>
+                    <TextBlock Text="{Binding StatusText}"
+                               FontWeight="SemiBold"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="{Binding DetailText}"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               FontFamily="Consolas"
+                               FontSize="{StaticResource FontSizeSmall}"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="2" Padding="12" CornerRadius="8"
+                    Visibility="{Binding DebugPanelVisibility}"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Balls}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Line}" Margin="0,2"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Border Grid.Column="1" Padding="12" CornerRadius="8"
+                Visibility="{Binding DebugPanelVisibility}"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+            <Grid>
+                <lj3d:Lj3DViewportHost x:Name="Lj3DHost"/>
+                <TextBlock Text="{Binding ViewportStatus}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           FontSize="{StaticResource FontSizeSmall}"
+                           Margin="16"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

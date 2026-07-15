@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- LjDev* (Keyence) 參考 PresentationCore 4.0；與 LJScanWinform 相同需 WPF 執行環境 -->
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ThreeDScan.Domain\ThreeDScan.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="LjDevCommon">
+      <HintPath>..\..\LJScanTest\dll\LjDevCommon.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="LjDevCommunication">
+      <HintPath>..\..\LJScanTest\dll\LjDevCommunication.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="LjDevMeasure">
+      <HintPath>..\..\LJScanTest\dll\LjDevMeasure.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

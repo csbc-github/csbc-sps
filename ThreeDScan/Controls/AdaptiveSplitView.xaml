@@ -1,0 +1,23 @@
+<UserControl x:Class="ThreeDScan.Controls.AdaptiveSplitView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d">
+    <!--
+        自適應分割容器：
+          - 寬度 >= Threshold：左右分欄（Primary | Splitter | Secondary）
+          - 寬度 <  Threshold：上下分列（Primary / Splitter / Secondary）
+        依 WPF 架構規劃 §8.2；SA／SD 未限制斷點，預設 Threshold=820。
+    -->
+    <Grid x:Name="PART_Grid">
+        <ContentPresenter x:Name="PART_Primary"
+                          Content="{Binding PrimaryContent, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+        <GridSplitter x:Name="PART_Splitter"
+                      Background="{StaticResource BorderBrush}"
+                      HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                      ShowsPreview="False"/>
+        <ContentPresenter x:Name="PART_Secondary"
+                          Content="{Binding SecondaryContent, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+    </Grid>
+</UserControl>

@@ -1,0 +1,96 @@
+<UserControl x:Class="ThreeDScan.Controls.LidarScanView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:ThreeDScan.Controls"
+             mc:Ignorable="d"
+             x:Name="Root"
+             Background="Transparent"
+             Focusable="True"
+             ClipToBounds="True"
+             d:DesignWidth="800" d:DesignHeight="500">
+    <!--
+        進料區掃描視覺化（仿介面草稿 01_進料區_light.jpg）
+        - 折線圖：X-SCAN DISTANCE (mm) ／ Z-PROFILE HEIGHT (mm)
+        - 由 LidarScanRenderer 自動以資料範圍縮放
+        - 物料分區半透明色塊（依 Materials 集合的左/右角點 X 位置）
+        - 滑鼠 hover 顯示 X / Z 座標
+    -->
+    <Border BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            ClipToBounds="True"
+            Background="{StaticResource BackgroundBrush}">
+
+        <Grid Margin="6">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="72"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左側：說明「高度 Z」是什麼（與螢幕左上角無關；Z 是圖上的上下刻度） -->
+            <StackPanel Grid.Row="0" Grid.Column="0"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Margin="2,0,6,0">
+                <TextBlock Text="高度 Z" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="(mm)" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center"
+                           FontSize="9" LineHeight="13"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Text="圖裡愈往上，數字愈大＝離參考面愈高（愈靠近雷達）。"/>
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center"
+                           FontSize="9" LineHeight="13" Margin="0,4,0,0"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Text="刻度 0：用整圈有效距離的中位數當「平面」參考，不是螢幕左上角。"/>
+            </StackPanel>
+
+            <!-- 主繪圖區 -->
+            <local:LidarScanRenderer x:Name="Renderer"
+                                     Grid.Row="0" Grid.Column="1"
+                                     ClipToBounds="True"/>
+
+            <!-- 空狀態提示（疊在 Renderer 之上） -->
+            <StackPanel x:Name="EmptyHint"
+                        Grid.Row="0" Grid.Column="1"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        IsHitTestVisible="False">
+                <TextBlock Text="LiDAR 即時掃描 — 高度剖面圖"
+                           FontSize="{StaticResource FontSizeLarge}"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                <TextBlock Text="尚未取得資料 — 請按「開始掃描」"
+                           FontSize="{StaticResource FontSizeSmall}"
+                           HorizontalAlignment="Center"
+                           Margin="0,4,0,0"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+            </StackPanel>
+
+            <!-- X 軸標題 -->
+            <TextBlock Grid.Row="1" Grid.Column="1"
+                       Text="X-SCAN DISTANCE (mm)"
+                       HorizontalAlignment="Center"
+                       Margin="0,4,0,2"
+                       FontSize="11" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextSecondaryBrush}"/>
+
+            <!-- 滑鼠座標 readout -->
+            <TextBlock x:Name="ReadoutText"
+                       Grid.Row="2" Grid.Column="1"
+                       Margin="6,4,6,0"
+                       FontSize="11"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Text="X: —   Z: —   滑鼠移入顯示座標"/>
+        </Grid>
+    </Border>
+</UserControl>

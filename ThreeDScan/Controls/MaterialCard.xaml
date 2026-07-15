@@ -1,0 +1,66 @@
+<UserControl x:Class="ThreeDScan.Controls.MaterialCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:conv="clr-namespace:ThreeDScan.Converters"
+             mc:Ignorable="d"
+             x:Name="Root">
+    <UserControl.Resources>
+        <conv:ScanStatusToTextConverter x:Key="StatusTextConv"/>
+        <conv:ScanStatusToBackgroundConverter x:Key="StatusBgConv"/>
+        <conv:ScanStatusToForegroundConverter x:Key="StatusFgConv"/>
+    </UserControl.Resources>
+
+    <Border Style="{StaticResource CardStyle}" DataContext="{Binding ElementName=Root}">
+        <StackPanel>
+            <DockPanel LastChildFill="False" Margin="0,0,0,8">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Fill="{StaticResource SuccessTextBrush}" Margin="0,0,8,0"/>
+                    <TextBlock Text="{Binding Item.Name}" FontWeight="Bold" FontSize="{StaticResource FontSizeMedium}"/>
+                </StackPanel>
+                <Border DockPanel.Dock="Right"
+                        Background="{Binding Item.Status, Converter={StaticResource StatusBgConv}}"
+                        CornerRadius="10" Padding="10,3">
+                    <TextBlock Text="{Binding Item.Status, Converter={StaticResource StatusTextConv}}"
+                               Foreground="{Binding Item.Status, Converter={StaticResource StatusFgConv}}"
+                               FontSize="{StaticResource FontSizeSmall}" FontWeight="SemiBold"/>
+                </Border>
+            </DockPanel>
+
+            <Grid Margin="0,6,0,0">
+                <Grid.Resources>
+                    <Style x:Key="FieldLabel" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                        <Setter Property="Margin" Value="0,3,12,3"/>
+                    </Style>
+                    <Style x:Key="FieldValue" TargetType="TextBlock">
+                        <Setter Property="FontFamily" Value="Consolas,Microsoft JhengHei UI"/>
+                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                        <Setter Property="Margin" Value="0,3"/>
+                    </Style>
+                </Grid.Resources>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="左邊角點" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Item.LeftCorner}" Style="{StaticResource FieldValue}"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="右邊角點" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Item.RightCorner}" Style="{StaticResource FieldValue}"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="頂點" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Item.TopPoint}" Style="{StaticResource FieldValue}"/>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

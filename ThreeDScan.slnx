@@ -1,0 +1,15 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="ThreeDScan.Api/ThreeDScan.Api.csproj">
+    <Platform Solution="Debug|x64" Project="x64" />
+  </Project>
+  <Project Path="ThreeDScan.Application/ThreeDScan.Application.csproj" />
+  <Project Path="ThreeDScan.Domain/ThreeDScan.Domain.csproj" />
+  <Project Path="ThreeDScan.Infrastructure/ThreeDScan.Infrastructure.csproj" />
+  <Project Path="ThreeDScan/ThreeDScan.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+  </Project>
+</Solution>

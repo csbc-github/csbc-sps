@@ -1,0 +1,58 @@
+<Window x:Class="ThreeDScan.Views.FrameInspectorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="LMX 原始數據檢視" Width="780" Height="640"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BackgroundBrush}">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                Padding="14,10">
+            <StackPanel>
+                <TextBlock x:Name="HeaderText" FontWeight="SemiBold"
+                           Text="尚未開始掃描"/>
+                <TextBlock x:Name="StatsText" Margin="0,4,0,0"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Text="距離 — / X — / Y —"/>
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0" Padding="12,8" Background="{StaticResource SurfaceBrush}">
+            <DockPanel>
+                <CheckBox x:Name="OnlyValidCheck" Content="僅顯示有效點 (排除 0 與 999999)"
+                          IsChecked="False" VerticalAlignment="Center"
+                          Checked="OnFilterChanged" Unchecked="OnFilterChanged"/>
+                <CheckBox x:Name="PauseCheck" Content="暫停更新"
+                          Margin="20,0,0,0" VerticalAlignment="Center"/>
+                <Button DockPanel.Dock="Right" Content="匯出 CSV"
+                        Padding="14,4" Click="OnExportCsv"/>
+                <Button DockPanel.Dock="Right" Content="複製選取"
+                        Padding="14,4" Margin="0,0,8,0" Click="OnCopySelection"/>
+                <TextBlock/>
+            </DockPanel>
+        </Border>
+
+        <DataGrid x:Name="Grid"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column"
+                  AlternatingRowBackground="{StaticResource BackgroundBrush}"
+                  RowHeight="22"
+                  FontFamily="Consolas">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="#"        Binding="{Binding Index}"        Width="60"/>
+                <DataGridTextColumn Header="角度 (°)"  Binding="{Binding AngleText}"    Width="90"/>
+                <DataGridTextColumn Header="距離 (mm)" Binding="{Binding DistanceMm}"   Width="100"/>
+                <DataGridTextColumn Header="X (mm)"   Binding="{Binding XText}"        Width="110"/>
+                <DataGridTextColumn Header="Y (mm)"   Binding="{Binding YText}"        Width="110"/>
+                <DataGridTextColumn Header="狀態"     Binding="{Binding StatusText}"   Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>
