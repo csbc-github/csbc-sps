@@ -15,11 +15,32 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.15.0" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.15.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ThreeDScan.Infrastructure\ThreeDScan.Infrastructure.csproj" />
     <ProjectReference Include="..\ThreeDScan.Lj3DViewHost\ThreeDScan.Lj3DViewHost.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="DAS.Authentication">
+      <HintPath>..\libs\DAS.Authentication\DAS.Authentication.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="DAS.Repository">
+      <HintPath>..\libs\DAS.Authentication\DAS.Repository.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="DAS.Core.Shared">
+      <HintPath>..\libs\DAS.Authentication\DAS.Core.Shared.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="DAS.Models">
+      <HintPath>..\libs\DAS.Authentication\DAS.Models.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

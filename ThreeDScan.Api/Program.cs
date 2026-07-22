@@ -1,4 +1,5 @@
 using Microsoft.Extensions.FileProviders;
+using ThreeDScan.Api.Auth;
 using ThreeDScan.Api.Hubs;
 using ThreeDScan.Api.Services;
 using ThreeDScan.Application.Calibration;
@@ -15,6 +16,8 @@ builder.Services.AddCors(options =>
         policy.AllowAnyHeader().AllowAnyMethod().SetIsOriginAllowed(_ => true).AllowCredentials());
 });
 
+// IdP：註冊 JwtBearer（Enabled=true 時）與 DAS AuthenticationManager（交叉驗證用）
+builder.Services.AddThreeDScanAuthentication(builder.Configuration);
 builder.Services.Configure<CalibrationSettings>(builder.Configuration.GetSection("Calibration"));
 builder.Services.AddThreeDScanInfrastructure(builder.Configuration);
 builder.Services.AddSingleton<InstrumentCalibrationService>();
@@ -41,7 +44,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 app.UseHttpsRedirection();
-app.MapControllers();
-app.MapHub<CalibrationPreviewHub>(CalibrationPreviewHub.HubPath);
+// IdP：啟用時掛 Authentication／Authorization 中介軟體
+app.UseThreeDScanAuthentication();
+// IdP：對應 Controllers／Hub；Enabled=true 時 RequireAuthorization
+app.MapThreeDScanAuthenticatedEndpoints();
 
 app.Run();

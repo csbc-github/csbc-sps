@@ -74,7 +74,15 @@ public class CalibrationMonitorViewModel : ViewModelBase, IAsyncDisposable
         set => SetProperty(ref _viewportStatus, value);
     }
 
-    public async Task ConnectAsync(string hubUrl, string? apiBaseUrl = null)
+    /// <summary>
+    /// 連線校正 Preview SignalR Hub。
+    /// <paramref name="accessTokenFactory"/> 非 null 時作為 <c>AccessTokenProvider</c>，
+    /// 將 IdP Access Token 帶給需授權的 Hub（Api 端自 query <c>access_token</c> 讀取）。
+    /// </summary>
+    public async Task ConnectAsync(
+        string hubUrl,
+        string? apiBaseUrl = null,
+        Func<Task<string?>>? accessTokenFactory = null)
     {
         if (_hub is not null) return;
 
@@ -84,7 +92,12 @@ public class CalibrationMonitorViewModel : ViewModelBase, IAsyncDisposable
             _apiBaseUrl = DeriveApiBaseUrl(hubUrl);
 
         _hub = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
+            .WithUrl(hubUrl, options =>
+            {
+                // IdP 啟用時由呼叫端傳入 GetAccessTokenAsync（含 refresh）
+                if (accessTokenFactory is not null)
+                    options.AccessTokenProvider = accessTokenFactory;
+            })
             .WithAutomaticReconnect()
             .Build();
 

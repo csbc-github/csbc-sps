@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using Microsoft.Extensions.Configuration;
+using ThreeDScan.Auth;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.ViewModels;
 using ThreeDScan.Views;
@@ -9,16 +10,18 @@ namespace ThreeDScan;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm = new();
+    private readonly IConfigurationRoot _config;
     private ScannerTestScanWindow? _testScanWindow;
+    private OidcDesktopLoginService? _loginService;
 
     public MainWindow()
     {
-        var config = AppConfiguration.Load();
+        _config = AppConfiguration.Load();
 
         var calibrationParams = new LjCalibrationParameters();
-        var contentsRoot = config["Storage:ContentsRoot"] ?? @"D:\3DScan\contents";
+        var contentsRoot = _config["Storage:ContentsRoot"] ?? @"D:\3DScan\contents";
         var isDebugMode = string.Equals(
-            config["Calibration:ResponseMode"], "Debug", StringComparison.OrdinalIgnoreCase);
+            _config["Calibration:ResponseMode"], "Debug", StringComparison.OrdinalIgnoreCase);
         _vm.ShowCalibrationMonitorTab = isDebugMode;
         _vm.CalibrationMonitorVM = new CalibrationMonitorViewModel(calibrationParams, contentsRoot, isDebugMode);
 
@@ -28,20 +31,32 @@ public partial class MainWindow : Window
         Closed += OnClosedAsync;
     }
 
+    /// <summary>
+    /// 視窗載入後連線校正監看 Hub。
+    /// 若 Authentication 已啟用，透過 <see cref="OidcDesktopLoginService.GetAccessTokenAsync"/>
+    /// 提供 SignalR <c>AccessTokenProvider</c>（必要時會自動 Refresh）。
+    /// </summary>
     private async void OnLoadedAsync(object sender, RoutedEventArgs e)
     {
-        var config = AppConfiguration.Load();
-
         if (!_vm.ShowCalibrationMonitorTab) return;
-        if (!config.GetValue("CalibrationMonitor:Enabled", true)) return;
+        if (!_config.GetValue("CalibrationMonitor:Enabled", true)) return;
 
-        var hubUrl = config["CalibrationMonitor:HubUrl"]
+        var hubUrl = _config["CalibrationMonitor:HubUrl"]
             ?? "http://localhost:5295/hubs/calibration-preview";
-        var apiBaseUrl = config["CalibrationMonitor:ApiBaseUrl"];
+        var apiBaseUrl = _config["CalibrationMonitor:ApiBaseUrl"];
+
+        // 啟用 IdP 時，Hub 連線需帶 Bearer（Api 端從 query access_token 取出）
+        Func<Task<string?>>? accessTokenFactory = null;
+        var auth = _config.GetSection(AuthenticationOptions.SectionName).Get<AuthenticationOptions>();
+        if (auth?.Enabled == true)
+        {
+            _loginService ??= new OidcDesktopLoginService(auth);
+            accessTokenFactory = () => _loginService.GetAccessTokenAsync();
+        }
 
         try
         {
-            await _vm.CalibrationMonitorVM.ConnectAsync(hubUrl, apiBaseUrl);
+            await _vm.CalibrationMonitorVM.ConnectAsync(hubUrl, apiBaseUrl, accessTokenFactory);
         }
         catch (Exception ex)
         {
@@ -58,22 +73,20 @@ public partial class MainWindow : Window
 
     private void OnOpenScannerSettings(object sender, RoutedEventArgs e)
     {
-        var config = AppConfiguration.Load();
         var window = new ScannerSettingsWindow
         {
             Owner = this,
-            DataContext = new ScannerSettingsViewModel(config),
+            DataContext = new ScannerSettingsViewModel(_config),
         };
         window.ShowDialog();
     }
 
     private void OnOpenScannerGroupNames(object sender, RoutedEventArgs e)
     {
-        var config = AppConfiguration.Load();
         var window = new ScannerGroupNameWindow
         {
             Owner = this,
-            DataContext = new ScannerGroupNameViewModel(config),
+            DataContext = new ScannerGroupNameViewModel(_config),
         };
         window.ShowDialog();
     }
@@ -88,11 +101,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        var config = AppConfiguration.Load();
         _testScanWindow = new ScannerTestScanWindow
         {
             Owner = this,
-            DataContext = new ScannerTestScanViewModel(config),
+            DataContext = new ScannerTestScanViewModel(_config),
         };
         _testScanWindow.Closed += (_, _) => _testScanWindow = null;
         _testScanWindow.Show();
