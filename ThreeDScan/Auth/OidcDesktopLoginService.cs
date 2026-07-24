@@ -13,7 +13,7 @@ namespace ThreeDScan.Auth;
 /// 以 loopback 接 code 後透過 <see cref="OidcCodeFlowService"/> 換取 Token，
 /// 並寫入 <see cref="AuthSession"/>；另支援 Refresh Token 續期。
 /// </summary>
-public sealed class OidcDesktopLoginService
+public sealed class OidcDesktopLoginService : IAccessTokenSource
 {
     private readonly AuthenticationOptions _options;
     private readonly OidcCodeFlowService _oidc = new();
@@ -155,11 +155,8 @@ public sealed class OidcDesktopLoginService
         return true;
     }
 
-    /// <summary>
-    /// 取得可用的 Access Token；若接近過期則先嘗試 Refresh。
-    /// 供 HttpClient／SignalR <c>AccessTokenProvider</c> 呼叫。
-    /// </summary>
-    /// <returns>有效 Access Token；無 token 或 refresh 失敗時為 <c>null</c>。</returns>
+    /// <inheritdoc />
+    /// <remarks>若接近過期則先嘗試 Refresh。供 HttpClient／SignalR <c>AccessTokenProvider</c> 呼叫。</remarks>
     public async Task<string?> GetAccessTokenAsync(CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(AuthSession.Current.AccessToken))

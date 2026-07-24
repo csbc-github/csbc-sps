@@ -12,7 +12,7 @@ public partial class MainWindow : Window
     private readonly MainViewModel _vm = new();
     private readonly IConfigurationRoot _config;
     private ScannerTestScanWindow? _testScanWindow;
-    private OidcDesktopLoginService? _loginService;
+    private IAccessTokenSource? _tokenSource;
 
     public MainWindow()
     {
@@ -33,8 +33,8 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// 視窗載入後連線校正監看 Hub。
-    /// 若 Authentication 已啟用，透過 <see cref="OidcDesktopLoginService.GetAccessTokenAsync"/>
-    /// 提供 SignalR <c>AccessTokenProvider</c>（必要時會自動 Refresh）。
+    /// 若 Authentication 已啟用，依 Flow 提供 SignalR <c>AccessTokenProvider</c>
+    ///（Interactive 會 Refresh；ClientCredentials 會重新換票）。
     /// </summary>
     private async void OnLoadedAsync(object sender, RoutedEventArgs e)
     {
@@ -50,8 +50,8 @@ public partial class MainWindow : Window
         var auth = _config.GetSection(AuthenticationOptions.SectionName).Get<AuthenticationOptions>();
         if (auth?.Enabled == true)
         {
-            _loginService ??= new OidcDesktopLoginService(auth);
-            accessTokenFactory = () => _loginService.GetAccessTokenAsync();
+            _tokenSource ??= AuthTokenServiceFactory.Create(auth);
+            accessTokenFactory = () => _tokenSource.GetAccessTokenAsync();
         }
 
         try

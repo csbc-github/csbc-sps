@@ -5,17 +5,17 @@ namespace ThreeDScan.Auth;
 
 /// <summary>
 /// HttpClient <see cref="DelegatingHandler"/>：送出請求前自動附加 <c>Authorization: Bearer</c>。
-/// Token 由 <see cref="OidcDesktopLoginService.GetAccessTokenAsync"/> 取得（含必要時 Refresh）。
+/// Token 由 <see cref="IAccessTokenSource.GetAccessTokenAsync"/> 取得（含必要時續期／重換）。
 /// </summary>
 public sealed class BearerAuthorizedHandler : DelegatingHandler
 {
-    private readonly OidcDesktopLoginService _login;
+    private readonly IAccessTokenSource _tokens;
 
-    /// <summary>以登入服務建立 Handler（內層為預設 <see cref="HttpClientHandler"/>）。</summary>
-    public BearerAuthorizedHandler(OidcDesktopLoginService login)
+    /// <summary>以 token 來源建立 Handler（內層為預設 <see cref="HttpClientHandler"/>）。</summary>
+    public BearerAuthorizedHandler(IAccessTokenSource tokens)
         : base(new HttpClientHandler())
     {
-        _login = login;
+        _tokens = tokens;
     }
 
     /// <summary>附加 Bearer Token 後轉交內層 Handler 送出請求。</summary>
@@ -23,7 +23,7 @@ public sealed class BearerAuthorizedHandler : DelegatingHandler
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        var token = await _login.GetAccessTokenAsync(cancellationToken);
+        var token = await _tokens.GetAccessTokenAsync(cancellationToken);
         if (!string.IsNullOrEmpty(token))
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
