@@ -241,6 +241,8 @@ public sealed class CalibrationAppService : ICalibrationAppService
             var setup = await _measureEngine.SetupReferenceAsync(
                 request.ScannerId, existing, capture, effectiveParams, contentsFolder, ct);
 
+            // ExpectedBallDiameter 維持 DB／種子的名義球徑，不以本次量測 discoveredDiameter 覆寫
+            //（量測有噪聲時覆寫會把錯誤標準鎖進後續 instrument）。
             var record = new ScannerConfigRecord
             {
                 ScannerId = request.ScannerId,
@@ -252,7 +254,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
                 UpdatedAt = DateTimeOffset.Now,
                 UpdatedBy = request.Operator,
                 TraceId = traceId,
-                ExpectedBallDiameter = setup.DiscoveredDiameter,
+                ExpectedBallDiameter = existing?.ExpectedBallDiameter ?? effectiveParams.ExpectedBallDiameter,
                 DiameterTolerance = existing?.DiameterTolerance,
                 MaxDiameterError = existing?.MaxDiameterError,
                 BallCount = existing?.BallCount,

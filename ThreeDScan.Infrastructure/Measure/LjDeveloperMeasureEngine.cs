@@ -118,25 +118,25 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
                 throw new InvalidOperationException(validateMessage + " 已取消覆蓋 ref_*.png。");
             }
 
-            var result = measure.Execute(height, gray);
-
-            if (measure.TryGetFirstKeptSphere(
-                    result, out var ballX, out var ballY, out _, out var ballD, out _))
-            {
-                measure.SetReferenceCenters(ballX, ballY, ballX, ballY);
-                measure.UpdatePattern(height, gray);
-                measure.UpdateReference(height, gray);
-
-                if (!measure.TryValidateCalibrationProbe(
-                        height, out _, out _, out _, out _, out validateMessage))
-                {
-                    throw new InvalidOperationException(
-                        "以量測球心重訓後驗證失敗：" + validateMessage + " 已取消覆蓋 ref_*.png。");
-                }
-
-                result = measure.Execute(height, gray);
-                discoverD = ballD;
-            }
+            // 樣板／Ref 以尋球成功後的 UpdatePattern（上段）為準，不再依 Execute
+            // 直徑排序第一顆重寫，避免視野內有多球時樣板被換成 B/C。
+            // var result = measure.Execute(height, gray);
+            // if (measure.TryGetFirstKeptSphere(
+            //         result, out var ballX, out var ballY, out _, out var ballD, out _))
+            // {
+            //     measure.SetReferenceCenters(ballX, ballY, ballX, ballY);
+            //     measure.UpdatePattern(height, gray);
+            //     measure.UpdateReference(height, gray);
+            //
+            //     if (!measure.TryValidateCalibrationProbe(
+            //             height, out _, out _, out _, out _, out validateMessage))
+            //     {
+            //         throw new InvalidOperationException(
+            //             "以量測球心重訓後驗證失敗：" + validateMessage + " 已取消覆蓋 ref_*.png。");
+            //     }
+            //
+            //     result = measure.Execute(height, gray);
+            // }
 
             // 對齊 Winform PersistReferenceCenters + PersistCalibration
             PersistRefImages(contentsFolder, height, gray);

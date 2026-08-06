@@ -25,7 +25,8 @@ internal sealed class LjDeveloperMeasureCore
             EndAngle = 40,
             ScoreThreshold = 30,
             Timeout = 5,
-            DetectCount = BallCount,
+            // 略多於 BallCount：同一顆球常佔多個角度槽，多抓再於 PM 階段去重。
+            DetectCount = PatternDetectCount,
             FitDeformation = LPatternMatchFitDeformation.None,
         };
         patternMatchParam.PatternSetting.PatternRegion =
@@ -58,7 +59,7 @@ internal sealed class LjDeveloperMeasureCore
 
     private void EnsureSphereRegionsAtRef()
     {
-        for (var i = 0; i < BallCount; i++)
+        for (var i = 0; i < _spheres.Length; i++)
         {
             var sphereParam = _spheres[i].Param;
             sphereParam.Name = $"[002]球_{i}";
@@ -93,7 +94,7 @@ internal sealed class LjDeveloperMeasureCore
             _datumPlane.UpdateReference(referenceHeightImage);
         }
 
-        for (var i = 0; i < BallCount; i++)
+        for (var i = 0; i < _spheres.Length; i++)
             _spheres[i].UpdateReference(referenceHeightImage);
     }
 
@@ -150,16 +151,20 @@ internal sealed class LjDeveloperMeasureCore
         var patternMatchToolInfo = CreatePatternMatchToolInfo(unitDic);
         var pmEach = patternMatchToolInfo.ToolMeasureValues().EachValues;
         var eachResults = _patternMatch.Result?.EachResults;
-        var detectedCount = Math.Min(BallCount, eachResults?.Length ?? 0);
+        var rawPmCount = Math.Min(PatternDetectCount, eachResults?.Length ?? 0);
 
-        log.AppendLine($"PatternMatch 候選 {detectedCount} 個:");
-        for (var i = 0; i < detectedCount; i++)
+        log.AppendLine($"PatternMatch 原始候選 {rawPmCount} 個 (DetectCount={PatternDetectCount}):");
+        for (var i = 0; i < rawPmCount; i++)
         {
             var pos = eachResults[i].AbsolutePosition;
             var scoreText = GetPmScoreText(pmEach, i);
             log.AppendLine(
                 $"  [{i}] score={scoreText}, X={pos.CenterPosition.X:F2}, Y={pos.CenterPosition.Y:F2}, θ={pos.Angle:F2}");
         }
+
+        var uniquePmIndices = SelectUniquePatternMatchIndices(eachResults, pmEach, rawPmCount);
+        log.AppendLine(
+            $"PatternMatch 位置去重後 {uniquePmIndices.Count} 個: [{string.Join(", ", uniquePmIndices)}]");
 
         results.Add(patternMatchToolInfo);
 
@@ -170,7 +175,7 @@ internal sealed class LjDeveloperMeasureCore
         log.AppendLine("Sphere 擬合:");
         EnsureSphereRegionsAtRef();
 
-        for (var i = 0; i < detectedCount; i++)
+        foreach (var i in uniquePmIndices)
         {
             var pmScore = GetPmScore(pmEach, i);
             if (pmScore <= 0)
@@ -255,8 +260,8 @@ internal sealed class LjDeveloperMeasureCore
         };
 
     /// <summary>
-    /// 對單一 PM 候選嘗試多種 delta，選直徑最接近預期且可接受的結果。
-    /// log 顯示尋球 D≈25 但 Result.DeltaPosition 常出現 D≈90，故 Zero@Ref 優先。
+    /// 對單一 PM 候選依固定優先序嘗試 delta，取第一個直徑可接受的結果。
+    /// 不用「多策略比最接近預期直徑」——噪聲會讓各次選到不同 delta，造成球不動但 D/座標飄。
     /// </summary>
     private bool TryFitSphereCandidate(
         int candidateIndex,
@@ -284,12 +289,9 @@ internal sealed class LjDeveloperMeasureCore
         var maxCenterDriftSq = maxCenterDriftMm * maxCenterDriftMm;
 
         var deltas = BuildSphereDeltaCandidates(candidateIndex, eachResults);
-        var bestAcceptableError = double.MaxValue;
-        var bestAcceptable = (
-            X: 0.0, Y: 0.0, Z: 0.0, D: 0.0, Src: "", Info: (LSphereToolInfo)null);
-
         var bestAnyError = double.MaxValue;
-        var bestAny = bestAcceptable;
+        var bestAny = (
+            X: 0.0, Y: 0.0, Z: 0.0, D: 0.0, Src: "", Info: (LSphereToolInfo)null);
 
         foreach (var (delta, src) in deltas)
         {
@@ -315,20 +317,14 @@ internal sealed class LjDeveloperMeasureCore
                 bestAny = (cx, cy, cz, cd, src, candidateInfo);
             }
 
-            if (!BallSettings.IsAcceptableSphereDiameter(cd) || err >= bestAcceptableError) continue;
+            if (!BallSettings.IsAcceptableSphereDiameter(cd)) continue;
 
-            bestAcceptableError = err;
-            bestAcceptable = (cx, cy, cz, cd, src, candidateInfo);
-        }
-
-        if (bestAcceptable.Info != null)
-        {
-            x = bestAcceptable.X;
-            y = bestAcceptable.Y;
-            z = bestAcceptable.Z;
-            d = bestAcceptable.D;
-            deltaSrc = bestAcceptable.Src;
-            info = bestAcceptable.Info;
+            x = cx;
+            y = cy;
+            z = cz;
+            d = cd;
+            deltaSrc = src;
+            info = candidateInfo;
             logLine =
                 $"  [{candidateIndex}] delta={deltaSrc}, X={x:F2}, Y={y:F2}, Z={z:F2}, D={d:F3}, score={pmScore:F1} -> 候選保留";
             return true;
@@ -361,11 +357,7 @@ internal sealed class LjDeveloperMeasureCore
             deltas.Add((d, source));
         }
 
-        Add(CreateZeroDeltaAt(_activeRefPatternX, _activeRefPatternY), "Zero@Ref");
-
-        if (candidateIndex == 0 && _patternMatch.Result != null)
-            Add(_patternMatch.Result.DeltaPosition, "Result.DeltaPosition");
-
+        // 優先序固定，讓「球不動」時較常走同一條 delta。
         if (eachResults != null && candidateIndex < eachResults.Length)
         {
             var rel = eachResults[candidateIndex].RegionRelatedPosition;
@@ -392,6 +384,11 @@ internal sealed class LjDeveloperMeasureCore
                 },
                 $"Each[{candidateIndex}]→Ref");
         }
+
+        Add(CreateZeroDeltaAt(_activeRefPatternX, _activeRefPatternY), "Zero@Ref");
+
+        if (candidateIndex == 0 && _patternMatch.Result != null)
+            Add(_patternMatch.Result.DeltaPosition, "Result.DeltaPosition");
 
         return deltas;
     }
@@ -811,6 +808,46 @@ internal sealed class LjDeveloperMeasureCore
         return double.IsNaN(score) ? "?" : score.ToString("F1");
     }
 
+    /// <summary>
+    /// PatternMatch 常對同一顆球回傳多個角度命中。依分數高→低貪婪選取，
+    /// 與已選中心距離 &lt; MinSphereCenterSeparation 視為同一顆，只留最高分。
+    /// </summary>
+    private static List<int> SelectUniquePatternMatchIndices(
+        LEachPatternMatchResult[]? eachResults,
+        ILEachMeasureValue[] pmEach,
+        int rawCount)
+    {
+        var unique = new List<int>();
+        if (eachResults is null || rawCount <= 0)
+            return unique;
+
+        var minSepSq = BallSettings.MinSphereCenterSeparationMm * BallSettings.MinSphereCenterSeparationMm;
+        var ranked = Enumerable.Range(0, rawCount)
+            .Select(i => (Index: i, Score: GetPmScore(pmEach, i)))
+            .Where(t => t.Score > 0 && !double.IsNaN(t.Score))
+            .OrderByDescending(t => t.Score)
+            .ToList();
+
+        var keptCenters = new List<(double X, double Y)>();
+        foreach (var (index, _) in ranked)
+        {
+            var p = eachResults[index].AbsolutePosition.CenterPosition;
+            var isDup = keptCenters.Any(k =>
+            {
+                var dx = p.X - k.X;
+                var dy = p.Y - k.Y;
+                return dx * dx + dy * dy < minSepSq;
+            });
+            if (isDup) continue;
+
+            keptCenters.Add((p.X, p.Y));
+            unique.Add(index);
+        }
+
+        unique.Sort();
+        return unique;
+    }
+
     #endregion
 
     #region 建構函數
@@ -826,7 +863,7 @@ internal sealed class LjDeveloperMeasureCore
         _activeRefSphereX = RefSphereX;
         _activeRefSphereY = RefSphereY;
 
-        _spheres = Enumerable.Range(0, BallCount).Select(_ => new LSphereTool()).ToArray();
+        _spheres = Enumerable.Range(0, PatternDetectCount).Select(_ => new LSphereTool()).ToArray();
 
         var rootFolder = Path.GetDirectoryName(contentsFolderPath.TrimEnd(Path.DirectorySeparatorChar));
         var logDir = Path.Combine(rootFolder ?? contentsFolderPath, "logs");
@@ -861,6 +898,8 @@ internal sealed class LjDeveloperMeasureCore
     #region 實例
 
     private readonly int BallCount = BallSettings.BallCount;
+    /// <summary>PM 偵測上限：略多於 BallCount，留給同一顆球的重複角度命中。</summary>
+    private readonly int PatternDetectCount = Math.Min(10, BallSettings.BallCount + 2);
     private readonly double RefPatternX = BallSettings.RefPatternX;
     private readonly double RefPatternY = BallSettings.RefPatternY;
     private readonly double RefSphereX = BallSettings.RefSphereX;

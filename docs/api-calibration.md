@@ -430,11 +430,12 @@ SET ExpectedBallDiameter = 40,
 WHERE ScannerId = N'SURF-CAM-01';
 ```
 
-`reference-setup` 成功後會將量到的 `discoveredDiameter` **寫回** `ExpectedBallDiameter`。
+`reference-setup` 成功後**不會**覆寫 `ExpectedBallDiameter`；名義球徑仍以 DB／種子為準。  
+回應中的 `discoveredDiameter` 僅表示本次尋球量到的直徑，供比對偏差。
 
 | DB 欄位 | 說明 |
 |---------|------|
-| `ExpectedBallDiameter` | 預期球直徑 (mm) |
+| `ExpectedBallDiameter` | 預期（名義）球直徑 (mm)；由種子／人工維護 |
 | `DiameterTolerance` | 回傳 `balls[].ok` 門檻 |
 | `MaxDiameterError` | SDK 保留球直徑門檻 |
 | `BallCount` | Ref 建立時 PatternMatch 上限 |
