@@ -1,231 +1,300 @@
 using System.Diagnostics;
-using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http;
-using System.Security.Claims;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using DAS.Authentication.Models;
 using DAS.Authentication.Providers;
 using DAS.Authentication.Services;
-using Microsoft.IdentityModel.Protocols;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace ThreeDScan.Auth;
 
 /// <summary>
-/// WPF Client Credentials 全自動登入：以 client_id／secret 向 IdP 換 Access Token，寫入 <see cref="AuthSession"/>。
-/// 不開瀏覽器、不需人員操作。過期時重新以 Client Credentials 換票（通常無 Refresh Token）。
+/// WPF Client Credentials 自動登入（以客戶 DAS sample 為主體）。
 /// </summary>
 /// <remarks>
-/// DAS <see cref="ClientCredentialsProvider"/> 只回 <see cref="ClaimsPrincipal"/>、不暴露 access_token 字串，
-/// 故此處自行呼叫 token_endpoint 以保留 Bearer 字串供 Api／SignalR 使用；並以 DAS 驗證／組 principal。
+/// 甲方 IdP 只接受 <c>client_secret_basic</c>；DAS 的 <see cref="ClientCredentialsProvider"/>
+/// 只把 client_id／client_secret 放在 form body，直接使用會被回 401 invalid_client，
+/// 因此改由外部注入已帶 Basic 標頭的 HttpClient。
 /// </remarks>
 public sealed class ClientCredentialsLoginService : IAccessTokenSource, IDisposable
 {
     private readonly AuthenticationOptions _options;
-    private readonly AuthenticationManager _authManager = new();
-    private readonly ClientCredentialsProvider _provider;
     private bool _disposed;
 
     public ClientCredentialsLoginService(AuthenticationOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
-        if (string.IsNullOrWhiteSpace(_options.Authority))
-            throw new InvalidOperationException("請先在 appsettings 設定 Authentication:Authority。");
-
-        // validateToken: false — 我們已自行解析 JWT；principal 另由讀取 claims 或 DAS 組出
-        _provider = new ClientCredentialsProvider(_options.Authority.TrimEnd('/'), validateToken: false, CreateHttpClient());
-        _authManager.RegisterProvider("ClientCredentials", _provider);
+        ValidateOptions(_options);
     }
 
     /// <summary>
-    /// 向 IdP 執行 Client Credentials，成功則寫入 <see cref="AuthSession"/>。
-    /// 目前暫以客戶範例 + 診斷 Log 排查 AuthenticateAsync 卡住位置。
+    /// 依客戶提供的 AuthenticationManager + ClientCredentialsProvider sample 執行認證。
     /// </summary>
     public async Task<bool> LoginAsync(CancellationToken cancellationToken = default)
     {
+        _ = cancellationToken;
         AuthDebugLog.Clear();
-        AuthDebugLog.Write($"LoginAsync 開始；Log 檔：{AuthDebugLog.FilePath}");
-        AuthDebugLog.Write($"Authority={_options.Authority}");
+        AuthDebugLog.Write($"Client Credentials（DAS sample）；Authority={_options.Authority}");
+        AuthDebugLog.Write($"ClientId={_options.ClientId}；Scope={ResolveScope() ?? "(未指定)"}");
 
-        // 客戶範例：AuthenticationManager + ClientCredentialsProvider
-        // 加上 Logging HttpClient，才能看到卡在 discovery 還是 token_endpoint
-        var authManager = new AuthenticationManager();
-        var authority = string.IsNullOrWhiteSpace(_options.Authority)
-            ? "https://idpapi.testk8s.csbcmis.corp"
-            : _options.Authority.TrimEnd('/');
-
-        AuthDebugLog.Write("建立 ClientCredentialsProvider（validateToken=true）…");
-        var clientCredProvider = new ClientCredentialsProvider(
-            authority: authority,
-            validateToken: true,
-            httpClient: CreateLoggingHttpClient());
-        authManager.RegisterProvider("ClientCredentials", clientCredProvider);
-        AuthDebugLog.Write("RegisterProvider 完成");
-
-        var request = new ClientCredentialsRequest
-        {
-            ClientId = "73a05119",
-            ClientSecret = "51f3197f-867d-41a6-bf65-40498af724da",
-            Scope = "api1.read api1.write",
-        };
-        AuthDebugLog.Write($"準備 AuthenticateAsync；ClientId={request.ClientId}；Scope={request.Scope}");
-        AuthDebugLog.Write("→ AuthenticateAsync 內部通常會：1) 打 /.well-known/openid-configuration  2) POST token_endpoint");
-
-        // Provider 內部 discovery 不一定走我們傳入的 HttpClient；先自行探活並寫 Log
         try
         {
-            AuthDebugLog.Write("Preflight：自行打 discovery…");
-            var swDiscovery = Stopwatch.StartNew();
-            var discovery = await GetConfigurationAsync(authority, cancellationToken).ConfigureAwait(false);
-            AuthDebugLog.Write(
-                $"Preflight discovery OK（{swDiscovery.ElapsedMilliseconds} ms）；token_endpoint={discovery.TokenEndpoint}");
-        }
-        catch (Exception ex)
-        {
-            AuthDebugLog.Write($"Preflight discovery 失敗：{ex.GetType().Name}: {ex.Message}");
-            AuthDebugLog.Write("若卡在這裡／失敗，代表連不上 IdP metadata（網路／VPN／DNS／SSL）。");
-            throw;
-        }
+            var manager = new AuthenticationManager();
 
-        var sw = Stopwatch.StartNew();
-        ClaimsPrincipal? principal;
-        try
-        {
-            principal = await authManager.AuthenticateAsync("ClientCredentials", request)
+            // 1. 建立 ClientCredentialsProvider 並注冊（HttpClient 補 Basic 認證並攔存 token）
+            using var tokenHandler = new BasicAuthTokenHandler(_options.ClientId, _options.ClientSecret);
+            using var httpClient = new HttpClient(tokenHandler, disposeHandler: false)
+            {
+                Timeout = TimeSpan.FromSeconds(30),
+            };
+            using var provider = new ClientCredentialsProvider(
+                authority: _options.Authority.TrimEnd('/'),
+                validateToken: true,
+                httpClient: httpClient);
+            manager.RegisterProvider("clientcredentials", provider);
+
+            // 2. 準備請求憑證
+            var request = new ClientCredentialsRequest
+            {
+                ClientId = _options.ClientId,
+                ClientSecret = _options.ClientSecret,
+                Scope = ResolveScope(),
+            };
+
+            // 3. 執行認證（向 token_endpoint 取得 Access Token）
+            AuthDebugLog.Write("呼叫 AuthenticateAsync(\"clientcredentials\")…");
+            var principal = await manager.AuthenticateAsync("clientcredentials", request)
                 .ConfigureAwait(false);
-            AuthDebugLog.Write($"← AuthenticateAsync 返回（{sw.ElapsedMilliseconds} ms）；principal={(principal is null ? "null" : "有值")}");
+
+            AuthDebugLog.Write(tokenHandler.LastStatusLine ?? "未取得 token_endpoint 回應。");
+
+            if (principal is not null)
+            {
+                AuthDebugLog.Write(
+                    $"認證成功；Name={principal.Identity?.Name ?? "（無 name claim）"}；expires_in={tokenHandler.ExpiresIn?.ToString() ?? "(未提供)"}");
+                Debug.WriteLine($"認證成功：{principal.Identity?.Name ?? "（無 name claim）"}");
+
+                // DAS provider 不公開 access_token 字串，改由 handler 攔存供 SignalR／API 帶 Bearer。
+                if (tokenHandler.AccessToken is not { Length: > 0 } accessToken)
+                {
+                    AuthDebugLog.Write("認證成功但未攔存到 access_token，無法提供 Bearer。");
+                    return false;
+                }
+
+                AuthSession.Current.SetTokens(
+                    accessToken,
+                    refreshToken: null,
+                    idToken: null,
+                    tokenHandler.ExpiresIn,
+                    principal);
+                return true;
+            }
+
+            AuthDebugLog.Write(
+                tokenHandler.AccessToken is null
+                    ? "認證失敗：未取得 access_token（憑證或 client 認證方式被拒）。"
+                    : "認證失敗：已取得 access_token，但 validateToken 驗簽／issuer 檢查未通過。");
+            Debug.WriteLine("認證失敗。");
+            return false;
+
+            #region 原自寫 token_endpoint 換票（已改用客戶 sample，暫時註解）
+            /*
+            AuthDebugLog.Write("取得 OIDC discovery…");
+            var config = await _configurationManager
+                .GetConfigurationAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var tokenEndpoint = config.TokenEndpoint
+                ?? throw new InvalidOperationException("OIDC discovery 未提供 token_endpoint。");
+            AuthDebugLog.Write($"discovery 成功；token_endpoint={tokenEndpoint}");
+
+            var fields = new Dictionary<string, string>
+            {
+                ["grant_type"] = "client_credentials",
+                ["client_id"] = _options.ClientId,
+                ["client_secret"] = _options.ClientSecret,
+            };
+
+            var scope = ResolveScope();
+            if (!string.IsNullOrWhiteSpace(scope))
+                fields["scope"] = scope;
+
+            AuthDebugLog.Write($"POST token_endpoint；ClientId={_options.ClientId}；Scope={scope ?? "(未指定)"}");
+            using var response = await _httpClient
+                .PostAsync(tokenEndpoint, new FormUrlEncodedContent(fields), cancellationToken)
+                .ConfigureAwait(false);
+
+            var body = await response.Content
+                .ReadAsStringAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                AuthDebugLog.Write(
+                    $"token_endpoint 失敗：{(int)response.StatusCode} {response.ReasonPhrase}；{ReadOAuthError(body)}");
+                return false;
+            }
+
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            var accessToken = root.TryGetProperty("access_token", out var access)
+                ? access.GetString()
+                : null;
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                AuthDebugLog.Write("token_endpoint 成功，但回應缺少 access_token。");
+                return false;
+            }
+
+            var expiresIn = root.TryGetProperty("expires_in", out var expires)
+                && expires.TryGetInt32(out var seconds)
+                    ? seconds
+                    : (int?)null;
+
+            AuthSession.Current.SetTokens(
+                accessToken,
+                refreshToken: null,
+                idToken: null,
+                expiresIn,
+                BuildPrincipal(accessToken));
+
+            AuthDebugLog.Write($"取得 Access Token 成功；expires_in={expiresIn?.ToString() ?? "(未提供)"}");
+            return true;
+            */
+            #endregion
         }
         catch (Exception ex)
         {
-            AuthDebugLog.Write($"← AuthenticateAsync 例外（{sw.ElapsedMilliseconds} ms）：{ex.GetType().Name}: {ex.Message}");
-            if (ex.InnerException is not null)
-                AuthDebugLog.Write($"  Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+            AuthDebugLog.Write($"Client Credentials 例外：{ex.GetType().Name}: {ex.Message}");
             throw;
         }
-
-        if (principal != null)
-        {
-            AuthDebugLog.Write($"驗證成功；Name={principal.Identity?.Name ?? "(無)"}；IsAuthenticated={principal.Identity?.IsAuthenticated}");
-            Debug.WriteLine($"驗證成功！Identity Name: {principal.Identity?.Name}");
-        }
-        else
-        {
-            AuthDebugLog.Write("驗證失敗或 Token 無效（principal=null）。常見：token 端點 4xx、或 validateToken 驗簽失敗。");
-            Debug.WriteLine("驗證失敗或 Token 無效。");
-        }
-
-        AuthDebugLog.Write("LoginAsync 結束（診斷用暫不寫入 AuthSession）");
-        // 診斷階段：先確認 AuthenticateAsync 能跑完；正式流程需寫入 AuthSession.AccessToken
-        return principal != null;
-
-        // --- 原正式換票流程（需 access_token 字串）暫時註解 ---
-        // ...
-    }
-
-    /// <summary>帶請求 Log + 略過私有 CA 憑證 + Timeout，避免卡死時完全無訊息。</summary>
-    private static HttpClient CreateLoggingHttpClient()
-    {
-        var ssl = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback =
-                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
-        };
-        var logging = new AuthLoggingHandler(ssl);
-        return new HttpClient(logging)
-        {
-            Timeout = TimeSpan.FromSeconds(30),
-        };
     }
 
     /// <inheritdoc />
-    /// <remarks>接近過期時重新 Client Credentials 換票（無 refresh_token）。</remarks>
+    /// <remarks>Client Credentials 沒有 Refresh Token；接近過期時重新換票。</remarks>
     public async Task<string?> GetAccessTokenAsync(CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(AuthSession.Current.AccessToken) || AuthSession.Current.AccessTokenNearExpiry)
+        if (string.IsNullOrEmpty(AuthSession.Current.AccessToken)
+            || AuthSession.Current.AccessTokenNearExpiry)
         {
-            if (!await LoginAsync(cancellationToken))
+            if (!await LoginAsync(cancellationToken).ConfigureAwait(false))
                 return null;
         }
 
         return AuthSession.Current.AccessToken;
     }
 
-    /// <summary>
-    /// 以 DAS <see cref="AuthenticationManager.AuthenticateAsync"/> 走 Client Credentials（僅取 principal，供診斷）。
-    /// 正式寫入 session 請用 <see cref="LoginAsync"/>（需保留 access_token 字串）。
-    /// </summary>
-    public Task<ClaimsPrincipal?> AuthenticatePrincipalAsync(CancellationToken cancellationToken = default)
-    {
-        _ = cancellationToken;
-        var request = new ClientCredentialsRequest
-        {
-            ClientId = _options.ClientId,
-            ClientSecret = _options.ClientSecret,
-            Scope = ResolveScope(),
-        };
-        return _authManager.AuthenticateAsync("ClientCredentials", request);
-    }
-
-    private async Task<ClaimsPrincipal?> BuildPrincipalAsync(string accessToken)
-    {
-        try
-        {
-            var principal = await _provider.ValidateTokenAsync(accessToken);
-            if (principal?.Identity?.IsAuthenticated == true)
-                return principal;
-        }
-        catch
-        {
-            // 部分 IdP 的 access_token 非 JWT 或驗簽規則不同；改為讀取 claims
-        }
-
-        var handler = new JwtSecurityTokenHandler();
-        if (!handler.CanReadToken(accessToken))
-            return new ClaimsPrincipal(new ClaimsIdentity("ClientCredentials"));
-
-        var jwt = handler.ReadJwtToken(accessToken);
-        var identity = new ClaimsIdentity(jwt.Claims, "ClientCredentials", "name", "role");
-        return new ClaimsPrincipal(identity);
-    }
-
+    /// <summary>Scope：設定有值用設定；否則依客戶 sample 用 <c>das.api</c>。</summary>
     private string? ResolveScope()
     {
         if (!string.IsNullOrWhiteSpace(_options.ClientCredentialsScope))
             return _options.ClientCredentialsScope.Trim();
 
-        // Client Credentials 通常不需 openid／offline_access；若只設了互動用 Scope，仍原樣送出由 IdP 決定
-        return string.IsNullOrWhiteSpace(_options.Scope) ? null : _options.Scope.Trim();
+        return "das.api";
     }
 
-    private static async Task<OpenIdConnectConfiguration> GetConfigurationAsync(
-        string authority,
-        CancellationToken cancellationToken)
+    private static void ValidateOptions(AuthenticationOptions options)
     {
-        var key = authority.TrimEnd('/');
-        var http = CreateLoggingHttpClient();
-        var retriever = new HttpDocumentRetriever(http) { RequireHttps = true };
-        var manager = new ConfigurationManager<OpenIdConnectConfiguration>(
-            key + "/.well-known/openid-configuration",
-            new OpenIdConnectConfigurationRetriever(),
-            retriever);
-        return await manager.GetConfigurationAsync(cancellationToken);
-    }
-
-    /// <summary>略過 SSL 憑證驗證（對齊既有 OIDC：私有 CA／K8s 內部環境）。</summary>
-    private static HttpClient CreateHttpClient()
-    {
-        var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback =
-                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
-        };
-        return new HttpClient(handler);
+        if (string.IsNullOrWhiteSpace(options.Authority))
+            throw new InvalidOperationException("請設定 Authentication:Authority。");
+        if (string.IsNullOrWhiteSpace(options.ClientId))
+            throw new InvalidOperationException("請設定 Authentication:ClientId。");
+        if (string.IsNullOrWhiteSpace(options.ClientSecret))
+            throw new InvalidOperationException("請設定 Authentication:ClientSecret。");
     }
 
     public void Dispose()
     {
         if (_disposed) return;
-        _provider.Dispose();
         _disposed = true;
+    }
+
+    /// <summary>
+    /// 為 token 請求補上 <c>Authorization: Basic</c>，並攔存回應內容。
+    /// </summary>
+    private sealed class BasicAuthTokenHandler : DelegatingHandler
+    {
+        private readonly string _basicCredentials;
+
+        public BasicAuthTokenHandler(string clientId, string clientSecret)
+            : base(new HttpClientHandler())
+        {
+            _basicCredentials = Convert.ToBase64String(
+                System.Text.Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
+        }
+
+        /// <summary>token_endpoint 回應摘要，供診斷 Log 使用。</summary>
+        public string? LastStatusLine { get; private set; }
+
+        public string? AccessToken { get; private set; }
+
+        public int? ExpiresIn { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicCredentials);
+
+            var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            LastStatusLine = response.IsSuccessStatusCode
+                ? $"token_endpoint：{(int)response.StatusCode} {response.ReasonPhrase}"
+                : $"token_endpoint 失敗：{(int)response.StatusCode} {response.ReasonPhrase}；{ReadOAuthError(body)}";
+
+            if (response.IsSuccessStatusCode)
+                ReadTokenResponse(body);
+
+            // 內容已讀出，補回可重複讀取的內容讓 provider 繼續解析。
+            var mediaType = response.Content.Headers.ContentType?.MediaType ?? "application/json";
+            response.Content = new StringContent(body, System.Text.Encoding.UTF8, mediaType);
+            return response;
+        }
+
+        private void ReadTokenResponse(string body)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(body);
+                var root = document.RootElement;
+
+                if (root.TryGetProperty("access_token", out var access)
+                    && access.GetString() is { Length: > 0 } token)
+                {
+                    AccessToken = token;
+                }
+
+                if (root.TryGetProperty("expires_in", out var expires)
+                    && expires.TryGetInt32(out var seconds))
+                {
+                    ExpiresIn = seconds;
+                }
+            }
+            catch (JsonException)
+            {
+                // 交由 provider 回報格式問題。
+            }
+        }
+
+        private static string ReadOAuthError(string body)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(body);
+                var root = document.RootElement;
+                var error = root.TryGetProperty("error", out var errorValue)
+                    ? errorValue.GetString()
+                    : null;
+                var description = root.TryGetProperty("error_description", out var descriptionValue)
+                    ? descriptionValue.GetString()
+                    : null;
+                return $"error={error ?? "(無)"}；description={description ?? "(無)"}";
+            }
+            catch (JsonException)
+            {
+                return "回應不是標準 OAuth JSON。";
+            }
+        }
     }
 }

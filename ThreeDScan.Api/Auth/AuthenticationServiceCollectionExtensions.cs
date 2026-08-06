@@ -98,7 +98,8 @@ public static class AuthenticationServiceCollectionExtensions
 
     /// <summary>
     /// 對應 Controllers 與校正 Preview Hub；
-    /// 啟用驗證時對兩者套用 <c>RequireAuthorization</c>（皆需有效 Bearer）。
+    /// 啟用驗證時僅對 Controllers 套用 <c>RequireAuthorization</c>。
+    /// Hub 暫不強制授權（見下方註解）。
     /// </summary>
     public static void MapThreeDScanAuthenticatedEndpoints(this WebApplication app)
     {
@@ -108,6 +109,7 @@ public static class AuthenticationServiceCollectionExtensions
         if (!enabled) return;
 
         controllers.RequireAuthorization();
-        hub.RequireAuthorization();
+        // 監看 Hub 暫不強制 Bearer（預覽推播；業務 API 仍要授權）
+        // hub.RequireAuthorization();
     }
 }

@@ -14,7 +14,7 @@ public partial class App : Application
     /// <item><c>Flow=Interactive</c>：顯示登入視窗（授權碼）。</item>
     /// </list>
     /// </summary>
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -26,7 +26,7 @@ public partial class App : Application
         {
             if (auth.IsClientCredentialsFlow)
             {
-                if (!TryClientCredentialsLogin(auth))
+                if (!await TryClientCredentialsLoginAsync(auth))
                 {
                     Shutdown();
                     return;
@@ -50,14 +50,13 @@ public partial class App : Application
     }
 
     /// <summary>Client Credentials 全自動換票；失敗時提示並回 <c>false</c>。</summary>
-    private static bool TryClientCredentialsLogin(AuthenticationOptions auth)
+    private static async Task<bool> TryClientCredentialsLoginAsync(AuthenticationOptions auth)
     {
         try
         {
             using var service = new ClientCredentialsLoginService(auth);
-            // 診斷中：LoginAsync 可能只回傳 principal、尚未寫入 AuthSession
-            var ok = service.LoginAsync().GetAwaiter().GetResult();
-            if (ok)
+            var ok = await service.LoginAsync();
+            if (ok && !string.IsNullOrEmpty(AuthSession.Current.AccessToken))
                 return true;
 
             MessageBox.Show(
