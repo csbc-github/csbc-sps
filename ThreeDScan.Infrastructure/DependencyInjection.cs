@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<IScannerProgramGroupStore, ScannerProgramGroupStore>();
         services.AddScoped<IScannerProgramSettingsService, ScannerProgramSettingsService>();
         services.AddScoped<IOperationLogStore, OperationLogStore>();
+        services.AddScoped<IInstrumentCalibrationTaskStore, InstrumentCalibrationTaskStore>();
 
         return services;
     }

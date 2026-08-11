@@ -1,15 +1,29 @@
 @ThreeDScan.Api_HostAddress = http://localhost:5295
 
-### 儀器校正（量測按鈕）— 會推送 SignalR CalibrationPreview
+### 儀器校正 Seq=1（建立 taskId；回 status=AwaitingNextShot）
 POST {{ThreeDScan.Api_HostAddress}}/api/calibration/instrument
 Content-Type: application/json
 
 {
   "scannerId": "SURF-CAM-01",
-  "machineArea": "printing",
+  "final": false,
   "cameraExpectedPosition": { "x": 1000.0, "y": 2000.0, "z": 500.0 },
   "standardBalls": [
-    { "ballId": "BALL-01", "knownX": 183.2, "knownY": 410.0, "knownZ": 102.7 }
+    { "ballId": "BALL-01", "knownX": 169.477, "knownY": 404.771, "knownZ": 12.5 }
+  ]
+}
+
+### 儀器校正 Seq=2（帶第一次回傳的 taskId；平台換高度後）
+POST {{ThreeDScan.Api_HostAddress}}/api/calibration/instrument
+Content-Type: application/json
+
+{
+  "scannerId": "SURF-CAM-01",
+  "taskId": "REPLACE_WITH_SEQ1_TASK_ID",
+  "final": true,
+  "cameraExpectedPosition": { "x": 1000.0, "y": 2000.0, "z": 500.0 },
+  "standardBalls": [
+    { "ballId": "BALL-01", "knownX": 169.477, "knownY": 404.771, "knownZ": 50.0 }
   ]
 }
 

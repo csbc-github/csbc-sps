@@ -25,14 +25,18 @@ dotnet run --project ThreeDScan.Api\ThreeDScan.Api.csproj
 ```json
 "Calibration": {
   "ResponseMode": "Production",
-  "ClientId": "台船"
+  "ClientId": "台船",
+  "ZDeviationThresholdMm": 1.0,
+  "InstrumentTaskTtlMinutes": 30
 }
 ```
 
 | 欄位 | 預設 | 說明 |
 |------|------|------|
-| `ResponseMode` | `Production` | `Production`＝正式回應（僅補償等）；`Debug`＝含診斷欄位 |
+| `ResponseMode` | `Production` | `Production`＝正式回應（僅規格必要欄位）；`Debug`＝含診斷欄位 |
 | `ClientId` | `台船` | 寫入 `OperationLog.ClientId` |
+| `ZDeviationThresholdMm` | `1.0` | 兩次 Z 差（`zDeviation`）寫入門檻；規格標示待實測 |
+| `InstrumentTaskTtlMinutes` | `30` | 第一次拍攝 task 暫存有效分鐘 |
 
 **本機 vs 正式（不必改來改去）**
 
@@ -193,7 +197,7 @@ curl -X POST "http://localhost:5295/api/calibration/reference-setup" ^
 ## 2. 儀器校正 UC-01
 
 對應 LJScanWinform **量測** + 台船傳入預期位置與標準球絕對座標。  
-成功時寫入 `CompensationHistory`；`ResponseMode: Debug` 時經 SignalR 推送完整內容至 WPF **校正監看**。
+依《各站別量測方式確認方案》：須**兩次拍攝**（平台換高度），各自反推掃描器 Z 後取平均；品質通過才寫入 `CompensationHistory`。
 
 | 項目 | 值 |
 |------|-----|
@@ -201,13 +205,22 @@ curl -X POST "http://localhost:5295/api/calibration/reference-setup" ^
 | 路徑 | `/api/calibration/instrument` |
 | Content-Type | `application/json` |
 
-### Request
+### 兩次拍攝流程
+
+1. **第一次**（`final: false`，省略 `taskId`）：掃描 → 計算單幀補償 → 結果寫入 DB 表 `InstrumentCalibrationTask` → 回傳 `taskId`、`seq=1`、`status=AwaitingNextShot`、`traceId`
+2. 台船**移動平台**（換高度）；第二次可帶該高度的 `cameraExpectedPosition`／`knownZ`
+3. **第二次**（同一 `taskId`，`final: true`）：再掃描 → 與 Seq1 合併（Z 平均）→ 回傳 `compensation`、`rmseXY`、`zDeviation`（品質未過則 `CAL_002`）
+
+> 無 `taskId` 且 `final=true` → `CAL_001`（不再支援單次寫入）。  
+> 部署須執行 [`database/schema-v1.7-instrument-calibration-task.sql`](../database/schema-v1.7-instrument-calibration-task.sql)。
+
+### Request（第一次）
 
 ```json
 {
   "scannerId": "SURF-CAM-01",
-  "machineArea": "printing",
   "navigatorScanNo": 1,
+  "final": false,
   "operator": "test",
   "cameraExpectedPosition": {
     "x": 1000.0,
@@ -237,18 +250,23 @@ curl -X POST "http://localhost:5295/api/calibration/reference-setup" ^
 }
 ```
 
+### Request（第二次）
+
+在第一次 body 基礎上加上 `"taskId": "<第一次回傳>"`、`"final": true`；`knownZ`／預期位置可依當下高度調整，**球數須與第一次相同**。
+
 ### 欄位說明
 
 | 欄位 | 必填 | 說明 |
 |------|------|------|
-| `scannerId` | 是 | 面掃描器 ID |
-| `machineArea` | 是 | `grinding` / `printing` / `cutting` |
+| `scannerId` | 是 | 面掃描器 ID（工作區由 `Scanners:{id}.MachineArea` 對應，不另傳） |
 | `navigatorScanNo` | 否 | Scan **1～16**；省略用設定檔。決定**掃描用拍攝群組**，Ref 仍為該台唯一一筆 `ScannerConfig` |
 | `cameraExpectedPosition` | 是 | 掃描器**預期**絕對位置 (mm) |
 | `standardBalls` | 是 | 標準球**已知絕對座標**，1～10 顆，**以台船傳入數量為準** |
 | `standardBalls[].ballId` | 是 | 英數大寫 + 連字號，如 `BALL-01` |
 | `standardBalls[].knownX/Y/Z` | 是 | 該球在機台/工件座標系的絕對位置 (mm) |
 | `operator` | 否 | 操作者 |
+| `final` | 是* | 第一次 `false`；第二次 `true`（預設 `false`） |
+| `taskId` | 第二次必填 | 第一次省略；第二次帶第一次回傳值 |
 
 > 儀器校正時 SDK 的 `DetectCount` = `standardBalls` 數量（1～10）；Ref 建立時 `BallCount` 取自 `ScannerConfig`。
 >
@@ -256,99 +274,96 @@ curl -X POST "http://localhost:5295/api/calibration/reference-setup" ^
 
 ### 補償計算概念
 
+**單幀**（每次拍攝各自計算）：
+
 1. Api 驅動掃描器擷取影像，量得各球心與滾輪基準面（`datumPlane`）。
 2. 將量測球與 `standardBalls` 配對。
-3. **XY**：僅用配對球的 x/y 做 2D 剛體對齊反推掃描器水平位置（**不可**把 knownZ/measuredZ 納入 3D Kabsch，否則 XY 會錯）→ `offsetX/Y = d.xy − a.xy`。
-4. **Z（滾輪／地板模型）**：  
-   `scannerToFloorZ = c.z − (b.z − a.z)`（多球取平均）  
-   `offsetZ = scannerToFloorZ − a.z`  
-   `actualScannerPosition.z = scannerToFloorZ`  
-   球心 Z 參與 Z 補償；`datumPlane` 僅 Debug 觀察。
+3. **XY**：2D 剛體對齊 → 反推掃描器水平位置。
+4. **Z（地板模型）**：`scannerToFloorZ = mean[c.z − (b.z − a.z)]`
 
-> Z 語意：反推掃描器到滾輪面距離；預期 1100、量到 1089 → `offsetZ = −11`（比預期低 11 mm）。  
-> 基準面量測失敗不影響 Z 補償（仍走球心模型）。  
-> `rmse` 為**標準球兩兩 XY 球距誤差**之均方根 (mm)；Z 不計入 RMSE。
+**兩幀合併**（第二次）：
 
-### 成功回應（節錄）
+```
+scannerToFloorZ = (Z1 + Z2) / 2
+zDeviation      = |Z1 − Z2|
+actualXY        = 兩幀 actual XY 平均
+offset          = 相對第二次 cameraExpectedPosition
+rmseXY          = max(rmse1, rmse2)
+```
+
+寫入條件：`rmseXY < 1.0` **且** `zDeviation < Calibration:ZDeviationThresholdMm`（預設 1.0）。  
+品質未過則 HTTP 400、`success=false`、`errorCode=CAL_002`，不回成功結構；原補償不受影響。
+
+> `datumPlane` 僅 Debug 觀察，不參與 Z 補償。
+
+### 成功回應（第一次，Production）
+
+```json
+{
+  "success": true,
+  "data": {
+    "taskId": "a1b2c3...",
+    "seq": 1,
+    "status": "AwaitingNextShot",
+    "traceId": "d4e5f6..."
+  }
+}
+```
+
+### 成功回應（第二次，Production）
 
 ```json
 {
   "success": true,
   "data": {
     "scannerId": "SURF-CAM-01",
-    "traceId": "a1b2c3...",
     "compensation": {
       "offsetX": 1.234,
       "offsetY": -0.567,
       "offsetZ": 0.089
     },
-    "actualScannerPosition": {
-      "x": 1001.234,
-      "y": 1999.433,
-      "z": 500.089
-    },
-    "rmse": 0.08,
+    "rmseXY": 0.08,
+    "zDeviation": 0.12,
     "calibratedAt": "2026-06-04T10:30:00+08:00",
-    "balls": [ ],
-    "matchedBalls": [
-      {
-        "ballId": "BALL-01",
-        "measuredX": 159.5,
-        "measuredY": 388.2,
-        "measuredZ": 12.4,
-        "knownX": 159.735,
-        "knownY": 388.755,
-        "knownZ": 12.5,
-        "residualMm": 0.08
-      }
-    ]
+    "traceId": "d4e5f6..."
   }
 }
 ```
 
 ### Response 欄位（`data`）
 
-**`ResponseMode: Production`（預設，給台船）** 僅回傳：`scannerId`、`traceId`、`compensation`、`rmse`、`calibratedAt`。
+**`ResponseMode: Production`（預設，給台船）** 第一次為 `taskId`／`seq`／`status`／`traceId`；第二次為 `scannerId`／`compensation`／`rmseXY`／`zDeviation`／`calibratedAt`／`traceId`。
 
-**`ResponseMode: Debug`** 另含下方診斷欄位；失敗 `CAL_FEED_003` 時也會在 `data` 附診斷明細。
+**`ResponseMode: Debug`** 另含下方診斷欄位；球數／配對失敗時也可在 `data` 附診斷明細。
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | `scannerId` | string | 掃描器 ID |
 | `traceId` | string | 本次請求追溯 ID（寫入 `CompensationHistory.TraceId`） |
-| `compensation` | object | **台船主要採用**：補償 offset (mm)，見下表 |
+| `taskId` | string | 兩次拍攝任務 ID |
+| `seq` | number | `1`＝第一幀暫存；`2`＝合併完成 |
+| `status` | string / null | Seq=1 固定 `AwaitingNextShot` |
+| `compensation` | object | 補償 offset (mm)；Seq=2 為合併結果 |
 | `compensation.offsetX` | number | X 軸補償 = 實際掃描器 X − `cameraExpectedPosition.x` |
 | `compensation.offsetY` | number | Y 軸補償 |
 | `compensation.offsetZ` | number | Z 軸補償 = `scannerToFloorZ − cameraExpectedPosition.z` |
-| `actualScannerPosition` | object | **Debug**：反推掃描器實際位置；`x`/`y` 由 **2D** 球配對反推，`z` = `scannerToFloorZ` |
-| `rmse` | number | 球距誤差 RMSE (mm)；寫入 `CompensationHistory.Rmse` |
-| `calibratedAt` | string | **校正完成時間**（ISO 8601）；業務上記錄「何時算出此組補償」 |
-| `balls` | array | **Debug**：直徑在容差內的量測球（`ok: true`）；不合格球暫不回傳 |
-| `balls[].index` | number | 球序號（0 起） |
-| `balls[].x` / `y` / `z` | number | 球心座標 (mm)，**掃描器座標系** |
-| `balls[].diameter` | number | 擬合直徑 (mm) |
-| `balls[].ok` | boolean | 固定為 `true`（僅回傳合格球） |
-| `matchedBalls` | array | **Debug**：與 `standardBalls` 配對後的明細 |
-| `matchedBalls[].ballId` | string | 對應 Request 的 `standardBalls[].ballId` |
-| `matchedBalls[].measuredX/Y/Z` | number | 該顆量測球心 (掃描器座標系) |
-| `matchedBalls[].knownX/Y/Z` | number | 台船傳入的已知絕對座標 |
-| `matchedBalls[].residualMm` | number | 該球參與之球距誤差最大值 (mm) |
-| `datumPlane` | object / null | **Debug**：滾輪基準面（`LPlaneTool`）；僅觀察，不參與 Z 補償 |
-| `datumPlane.ok` | boolean | 平面量測是否成功 |
-| `datumPlane.planeA/B/C` | number | 平面方程式係數 |
-| `datumPlane.planeZAtRegionCenter` | number | ROI 中心處基準面 Z (mm) |
-| `datumPlane.firstBallRelativeZ` | number | 第一顆球心 Z − 該 XY 處基準面 Z (mm) |
-| `scannerToFloorZ` | number | **Debug**：由配對球心 Z 反推（地板模型）；見下 |
+| `rmseXY` | number | XY 球距誤差 RMSE (mm)；Seq=2 為 `max(rmse1,rmse2)`，門檻 &lt; 1.0 |
+| `zDeviation` | number / null | 兩次反推 Z 差 (mm)；Seq=1 為 null；門檻見 `ZDeviationThresholdMm` |
+| `calibratedAt` | string | 校正完成時間（ISO 8601） |
+| `actualScannerPosition` | object | **Debug**：反推掃描器實際位置 |
+| `balls` | array | **Debug**：直徑合格量測球 |
+| `matchedBalls` | array | **Debug**：與 `standardBalls` 配對明細 |
+| `datumPlane` | object / null | **Debug**：基準面；不參與 Z 補償 |
+| `scannerToFloorZ` | number | **Debug**：地板模型反推 Z（Seq=2 為兩幀平均） |
 
-**`scannerToFloorZ`（地板模型）**
+**`scannerToFloorZ`（單幀地板模型）**
 
 ```
 scannerToFloorZ = measuredZ − (knownZ − cameraExpectedPosition.z)
-                = c.z − (b.z − a.z)        （單球）
-compensation.offsetZ = scannerToFloorZ − cameraExpectedPosition.z
+                = c.z − (b.z − a.z)        （單球；多球取平均）
 ```
 
-多球時 `scannerToFloorZ` 對配對結果取平均。
+多球時單幀對配對結果取平均；兩幀再對 Z1／Z2 取平均。
 
 ### 補償值驗證（手動對照）
 
@@ -457,7 +472,7 @@ reference-setup 時會對平面 `UpdateReference`；instrument 量測時可選�
 ```bash
 curl -X POST "http://localhost:5295/api/calibration/instrument" ^
   -H "Content-Type: application/json" ^
-  -d "{\"scannerId\":\"SURF-CAM-01\",\"machineArea\":\"printing\",\"cameraExpectedPosition\":{\"x\":1000,\"y\":2000,\"z\":500},\"standardBalls\":[{\"ballId\":\"BALL-01\",\"knownX\":159.735,\"knownY\":388.755,\"knownZ\":12.5}]}"
+  -d "{\"scannerId\":\"SURF-CAM-01\",\"final\":false,\"cameraExpectedPosition\":{\"x\":1000,\"y\":2000,\"z\":500},\"standardBalls\":[{\"ballId\":\"BALL-01\",\"knownX\":159.735,\"knownY\":388.755,\"knownZ\":12.5}]}"
 ```
 
 ### 操作稽核（OperationLog）
@@ -480,10 +495,13 @@ curl -X POST "http://localhost:5295/api/calibration/instrument" ^
 |-----------|------|------|
 | `CAL_CFG_001` | 400 | 未知 `scannerId` |
 | `CAL_CFG_003` | 400 | 無 `ScannerConfig`；請先執行 `seed-scannerconfig.sql`，再 `reference-setup` |
+| `CAL_001` | 400 | taskId 不存在／已逾時／兩次拍攝契約錯誤 |
+| `CAL_002` | 400 | 品質未過（rmseXY／zDeviation），未寫入補償 |
 | `CAL_FEED_001` | 400 | 標準球未偵測到、數量不足或配對失敗 |
-| `CAL_FEED_003` | 400 | RMSE ≥ 1.0 mm，不寫入 `CompensationHistory`；`ResponseMode: Debug` 時 `data` 含診斷明細 |
 | `CAL_SDK_001` | 500 | LJ SDK / 掃描失敗 |
 | `CAL_SYS_001` | 500 | 其他系統錯誤 |
+
+> 品質未過（`rmseXY`／`zDeviation`）→ `CAL_002`；task 契約錯誤 → `CAL_001`。
 
 ---
 

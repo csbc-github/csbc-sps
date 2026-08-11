@@ -4,7 +4,7 @@
 
 | 方法 | 路徑 | 對應 |
 |------|------|------|
-| POST | `/api/calibration/instrument` | 儀器校正 UC-01：台船傳 `cameraExpectedPosition` + `standardBalls[]` → 補償 offset → `CompensationHistory` + SignalR |
+| POST | `/api/calibration/instrument` | 儀器校正 UC-01：兩次拍攝 → Z 平均；品質通過才寫入 `CompensationHistory`，未過回 `CAL_002` |
 | POST | `/api/calibration/reference-setup` | Ref 建立（LJScanWinform **校正**，文件外）→ `ScannerConfig` + ref 圖檔 |
 
 ## 資料庫
@@ -20,6 +20,7 @@
 | `schema-v1.4-scanner-program-settings.sql` | 拍攝群組參數備份 blob |
 | `schema-v1.5-scanner-program-group-names.sql` | 群組顯示名稱 |
 | `schema-v1.6-scannerconfig-per-scanner.sql` | `ScannerConfig` 改為每台掃描器一筆 |
+| `schema-v1.7-instrument-calibration-task.sql` | UC-01 兩次拍攝暫存 `InstrumentCalibrationTask` |
 | `seed-scannerconfig.sql` | Ref 種子（每台掃描器一筆） |
 
 ### 資料模型（Ref vs 拍攝群組）

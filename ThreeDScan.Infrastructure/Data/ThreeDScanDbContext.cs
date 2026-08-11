@@ -13,6 +13,7 @@ public sealed class ThreeDScanDbContext : DbContext
     public DbSet<ScannerProgramSettingsHistoryEntity> ScannerProgramSettingsHistory => Set<ScannerProgramSettingsHistoryEntity>();
     public DbSet<ScannerProgramGroupNameEntity> ScannerProgramGroupNames => Set<ScannerProgramGroupNameEntity>();
     public DbSet<OperationLogEntity> OperationLogs => Set<OperationLogEntity>();
+    public DbSet<InstrumentCalibrationTaskEntity> InstrumentCalibrationTasks => Set<InstrumentCalibrationTaskEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -81,6 +82,18 @@ public sealed class ThreeDScanDbContext : DbContext
             e.HasIndex(x => x.Timestamp);
             e.HasIndex(x => x.TraceId);
             e.HasIndex(x => new { x.Action, x.Timestamp });
+        });
+
+        modelBuilder.Entity<InstrumentCalibrationTaskEntity>(e =>
+        {
+            e.ToTable("InstrumentCalibrationTask");
+            e.HasKey(x => x.TaskId);
+            e.Property(x => x.TaskId).HasMaxLength(64);
+            e.Property(x => x.ScannerId).HasMaxLength(50);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.TraceIdSeq1).HasMaxLength(64);
+            e.HasIndex(x => new { x.ScannerId, x.Status });
+            e.HasIndex(x => x.ExpiresAt);
         });
     }
 }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using ThreeDScan.Application.Calibration.Dtos;
 using ThreeDScan.Domain.Abstractions;
@@ -12,6 +13,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
     private readonly IScannerConfigStore _configStore;
     private readonly ICompensationStore _compensationStore;
     private readonly IOperationLogStore _operationLogStore;
+    private readonly IInstrumentCalibrationTaskStore _taskStore;
     private readonly IScannerCaptureFactory _captureFactory;
     private readonly ILjSphereMeasureEngine _measureEngine;
     private readonly ICalibrationPreviewPublisher _previewPublisher;
@@ -26,6 +28,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         IScannerConfigStore configStore,
         ICompensationStore compensationStore,
         IOperationLogStore operationLogStore,
+        IInstrumentCalibrationTaskStore taskStore,
         IScannerCaptureFactory captureFactory,
         ILjSphereMeasureEngine measureEngine,
         ICalibrationPreviewPublisher previewPublisher,
@@ -38,6 +41,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         _configStore = configStore;
         _compensationStore = compensationStore;
         _operationLogStore = operationLogStore;
+        _taskStore = taskStore;
         _captureFactory = captureFactory;
         _measureEngine = measureEngine;
         _previewPublisher = previewPublisher;
@@ -52,123 +56,296 @@ public sealed class CalibrationAppService : ICalibrationAppService
         InstrumentCalibrationRequest request,
         CancellationToken ct = default)
     {
-        // 本次校正追蹤 ID；失敗時 catch 區塊亦需推送預覽，故預先宣告可為 null 的掃描產物。
         var traceId = Guid.NewGuid().ToString("N");
         ScannerCaptureResult? capture = null;
         ScannerConfigRecord? config = null;
         string? previewGrayPath = null;
         string? previewHeightPath = null;
-        byte programNo = 0;
 
         try
         {
-            // ── 1. 掃描器與設定檢查 ──────────────────────────────────────────
-            // 確認 ScannerId 已註冊，並解析本次使用的 Navigator Scan 群組編號。
+            if (request.Final && string.IsNullOrWhiteSpace(request.TaskId))
+            {
+                return await InstrumentFailAsync(
+                    request, traceId, "CAL_001",
+                    "儀器校正須兩次拍攝：第一次 final=false（取得 taskId），平台移動後帶 taskId 且 final=true。",
+                    null, ct);
+            }
+
+            if (!request.Final && !string.IsNullOrWhiteSpace(request.TaskId))
+            {
+                return await InstrumentFailAsync(
+                    request, traceId, "CAL_001",
+                    "第一次拍攝請省略 taskId，並設 final=false。",
+                    null, ct);
+            }
+
             if (!_registry.TryGetEndpoint(request.ScannerId, out var endpoint))
                 return await InstrumentFailAsync(request, traceId, "CAL_CFG_001", $"未知 ScannerId: {request.ScannerId}", null, ct);
 
-            programNo = _registry.ResolveProgramNo(request.ScannerId, request.NavigatorScanNo ?? endpoint.NavigatorScanNo);
+            var programNo = _registry.ResolveProgramNo(request.ScannerId, request.NavigatorScanNo ?? endpoint.NavigatorScanNo);
 
-            // Ref 建立後寫入的 ScannerConfig（含 Ref 座標、球徑等）；無資料則無法量測。
             config = await _configStore.GetAsync(request.ScannerId, ct);
             if (config is null)
                 return await InstrumentFailAsync(request, traceId, "CAL_CFG_003",
                     $"找不到 ScannerConfig（{request.ScannerId}）。請先執行 seed-scannerconfig.sql，再執行 Ref 建立 API。", null, ct);
 
-            // ── 2. 觸發掃描並儲存預覽影像 ────────────────────────────────────
-            // 向 LJ SDK 取一幀灰階／高度圖；複製至 ContentsRoot 供靜態檔與 WPF 3D 監看。
-            capture = await _captureFactory.GetCapture(request.ScannerId).CaptureAsync(programNo, ct);
-            var previewPaths = SavePreviewImages(capture, request.ScannerId, programNo, traceId);
-            previewGrayPath = previewPaths.GrayRelativePath;
-            previewHeightPath = previewPaths.HeightRelativePath;
-
-            // ── 3. 組合量測參數並執行 SDK 尋球 ───────────────────────────────
-            // 合併 appsettings 與 ScannerConfig 的球徑／基準面設定；
-            // DetectCount 以台船傳入的 standardBalls 數量為準（1～10），與 Ref 建立的 BallCount 無關。
-            var effectiveParams = LjCalibrationMerge.ForScanner(config, _calibrationParams);
-            var detectCount = Math.Clamp(request.StandardBalls.Count, 1, 10);
-            var measureParams = WithDetectCount(effectiveParams, detectCount);
-
-            var measure = await _measureEngine.MeasureAsync(request.ScannerId, config, capture, measureParams, ct);
-
-            // KeptCount = 直徑在容許範圍內且通過 SDK 篩選的球數；0 顆表示完全無法辨識標準球。
-            if (measure.KeptCount == 0)
+            InstrumentCalibrationTaskRecord? pendingTask = null;
+            if (request.Final)
             {
-                var feedMsg =
-                    $"標準球未偵測到或無法識別（需 {detectCount} 顆，量得 0 顆；" +
-                    $"ExpectedBallDiameter={measureParams.ExpectedBallDiameter:F1} mm）。";
-                await PublishPreviewAsync(
-                    request.ScannerId, traceId, false, measure.Balls, config, capture,
-                    previewGrayPath, previewHeightPath,
-                    null, null, null, null, feedMsg, ct,
-                    measureParams, detectCount);
-                return await InstrumentFailAsync(request, traceId, "CAL_FEED_001", feedMsg, null, ct);
+                pendingTask = await _taskStore.GetAsync(request.TaskId!, ct);
+                var taskError = ValidatePendingTask(pendingTask, request);
+                if (taskError is not null)
+                {
+                    var (code, message) = taskError.Value;
+                    return await InstrumentFailAsync(request, traceId, code, message, null, ct);
+                }
             }
 
-            // ── 4. 領域計算：已知座標 ↔ 量測球心配對，反推補償 offset ─────────
-            // 優先使用直徑合格球配對；數量不足時退回全部量測球（由 Compute 再檢查球數）。
-            var pairingBalls = SelectBallsForPairing(measure.Balls, request.StandardBalls.Count);
-
-            InstrumentCalibrationComputeResult computed;
-            try
+            var frame = await CaptureAndComputeFrameAsync(
+                request, config, programNo, traceId, ct);
+            if (frame.Error is not null)
             {
-                computed = _instrumentCalibration.Compute(
-                    request.CameraExpectedPosition,  // 台船宣告的掃描器預期絕對位置
-                    request.StandardBalls,             // 標準球在機台座標系的已知 (X,Y,Z)
-                    pairingBalls);                     // SDK 量得的球心（掃描器座標系）
-            }
-            catch (InstrumentCalibrationException ex)
-            {
-                // 球數不足或 1:1 配對失敗（CAL_FEED_001 等）
+                var (errorCode, errorMessage) = frame.Error.Value;
+                capture = frame.Capture;
+                previewGrayPath = frame.PreviewGrayPath;
+                previewHeightPath = frame.PreviewHeightPath;
                 await PublishPreviewAsync(
-                    request.ScannerId, traceId, false, measure.Balls, config, capture,
+                    request.ScannerId, traceId, false, frame.Balls, config, capture,
                     previewGrayPath, previewHeightPath,
-                    null, null, null, null, ex.Message, ct);
-                return await InstrumentFailAsync(request, traceId, ex.ErrorCode, ex.Message, null, ct);
-            }
-
-            // ── 5. RMSE 品質門檻 ─────────────────────────────────────────────
-            // RMSE 為配對後標準球間「相對距離」誤差；≥ 1.0 mm 視為量測不可靠，不寫入補償。
-            if (computed.Rmse >= InstrumentCalibrationService.RmseThresholdMm)
-            {
-                var rmseMsg = InstrumentCalibrationDiagnostics.FormatRmseFailure(computed);
-                await PublishPreviewAsync(
-                    request.ScannerId, traceId, false, measure.Balls, config, capture,
-                    previewGrayPath, previewHeightPath,
-                    computed.Compensation.OffsetX, computed.Compensation.OffsetY, computed.Compensation.OffsetZ,
-                    computed.Rmse, rmseMsg, ct,
-                    measureParams, detectCount, computed.MatchedBalls);
+                    null, null, null, null, errorMessage, ct,
+                    frame.MeasureParams, frame.DetectCount);
                 return await InstrumentFailAsync(
-                    request, traceId, "CAL_FEED_003", rmseMsg,
-                    BuildDiagnosticData(request, traceId, measure.Balls, computed, measure.DatumPlane), ct);
+                    request, traceId, errorCode, errorMessage,
+                    frame.DiagnosticData, ct);
             }
 
-            // ── 6. 寫入補償歷程 ──────────────────────────────────────────────
-            // offset = 實際掃描器位置 − 台船預期位置；後續量測套用此補償修正座標。
-            var offset = new CompensationOffset
-            {
-                ScannerId = request.ScannerId,
-                OffsetX = computed.Compensation.OffsetX,
-                OffsetY = computed.Compensation.OffsetY,
-                OffsetZ = computed.Compensation.OffsetZ,
-                Rmse = computed.Rmse,
-                MachineArea = request.MachineArea,
-                CalibratedAt = DateTimeOffset.Now,
-                Operator = request.Operator,
-                TraceId = traceId,
-            };
-            await _compensationStore.AppendAsync(offset, ct);
+            capture = frame.Capture;
+            previewGrayPath = frame.PreviewGrayPath;
+            previewHeightPath = frame.PreviewHeightPath;
 
-            // ── 7. 組裝回應並推送成功預覽 ────────────────────────────────────
-            var data = new InstrumentCalibrationData
+            if (!request.Final)
+                return await BeginTaskAsync(request, traceId, frame, config, ct);
+
+            return await FinalizeTaskAsync(request, traceId, pendingTask!, frame, config, endpoint.MachineArea, ct);
+        }
+        catch (InstrumentCalibrationException ex)
+        {
+            await PublishPreviewAsync(
+                request.ScannerId, traceId, false, Array.Empty<MeasuredBall>(), config, capture,
+                previewGrayPath, previewHeightPath,
+                null, null, null, null, ex.Message, ct);
+            return await InstrumentFailAsync(request, traceId, ex.ErrorCode, ex.Message, null, ct);
+        }
+        catch (NotImplementedException ex)
+        {
+            await PublishPreviewAsync(
+                request.ScannerId, traceId, false, Array.Empty<MeasuredBall>(), config, capture,
+                previewGrayPath, previewHeightPath,
+                null, null, null, null, ex.Message, ct);
+            return await InstrumentFailAsync(request, traceId, "CAL_SDK_001", ex.Message, null, ct);
+        }
+        catch (Exception ex)
+        {
+            await PublishPreviewAsync(
+                request.ScannerId, traceId, false, Array.Empty<MeasuredBall>(), config, capture,
+                previewGrayPath, previewHeightPath,
+                null, null, null, null, ex.Message, ct);
+            return await InstrumentFailAsync(request, traceId, "CAL_SYS_001", ex.Message, null, ct);
+        }
+    }
+
+    private static (string Code, string Message)? ValidatePendingTask(
+        InstrumentCalibrationTaskRecord? task,
+        InstrumentCalibrationRequest request)
+    {
+        // 規格 CAL_001：taskId 不存在或已逾時（其餘契約錯誤一併對齊此碼）
+        if (task is null)
+            return ("CAL_001", $"找不到校正任務 taskId={request.TaskId}。");
+
+        if (!string.Equals(task.ScannerId, request.ScannerId, StringComparison.OrdinalIgnoreCase))
+            return ("CAL_001", "taskId 與 scannerId 不符。");
+
+        if (!string.Equals(task.Status, InstrumentCalibrationTaskRecord.StatusPending, StringComparison.Ordinal))
+            return ("CAL_001", $"校正任務已結束（Status={task.Status}），請重新開始第一次拍攝。");
+
+        if (task.ExpiresAt <= DateTimeOffset.Now)
+            return ("CAL_001", "校正任務已逾時，請重新開始第一次拍攝。");
+
+        if (task.BallCount != request.StandardBalls.Count)
+            return ("CAL_001",
+                $"第二次 standardBalls 數量（{request.StandardBalls.Count}）須與第一次（{task.BallCount}）相同。");
+
+        return null;
+    }
+
+    private async Task<FrameComputeResult> CaptureAndComputeFrameAsync(
+        InstrumentCalibrationRequest request,
+        ScannerConfigRecord config,
+        byte programNo,
+        string traceId,
+        CancellationToken ct)
+    {
+        var capture = await _captureFactory.GetCapture(request.ScannerId).CaptureAsync(programNo, ct);
+        var previewPaths = SavePreviewImages(capture, request.ScannerId, programNo, traceId);
+
+        var effectiveParams = LjCalibrationMerge.ForScanner(config, _calibrationParams);
+        var detectCount = Math.Clamp(request.StandardBalls.Count, 1, 10);
+        var measureParams = WithDetectCount(effectiveParams, detectCount);
+
+        var measure = await _measureEngine.MeasureAsync(request.ScannerId, config, capture, measureParams, ct);
+
+        if (measure.KeptCount == 0)
+        {
+            var feedMsg =
+                $"標準球未偵測到或無法識別（需 {detectCount} 顆，量得 0 顆；" +
+                $"ExpectedBallDiameter={measureParams.ExpectedBallDiameter:F1} mm）。";
+            return new FrameComputeResult
+            {
+                Capture = capture,
+                PreviewGrayPath = previewPaths.GrayRelativePath,
+                PreviewHeightPath = previewPaths.HeightRelativePath,
+                Balls = measure.Balls,
+                MeasureParams = measureParams,
+                DetectCount = detectCount,
+                Error = ("CAL_FEED_001", feedMsg),
+            };
+        }
+
+        var pairingBalls = SelectBallsForPairing(measure.Balls, request.StandardBalls.Count);
+
+        InstrumentCalibrationComputeResult computed;
+        try
+        {
+            computed = _instrumentCalibration.Compute(
+                request.CameraExpectedPosition,
+                request.StandardBalls,
+                pairingBalls);
+        }
+        catch (InstrumentCalibrationException ex)
+        {
+            return new FrameComputeResult
+            {
+                Capture = capture,
+                PreviewGrayPath = previewPaths.GrayRelativePath,
+                PreviewHeightPath = previewPaths.HeightRelativePath,
+                Balls = measure.Balls,
+                MeasureParams = measureParams,
+                DetectCount = detectCount,
+                Error = (ex.ErrorCode, ex.Message),
+            };
+        }
+
+        return new FrameComputeResult
+        {
+            Capture = capture,
+            PreviewGrayPath = previewPaths.GrayRelativePath,
+            PreviewHeightPath = previewPaths.HeightRelativePath,
+            Balls = measure.Balls,
+            MeasureParams = measureParams,
+            DetectCount = detectCount,
+            Computed = computed,
+            DatumPlane = measure.DatumPlane,
+        };
+    }
+
+    private async Task<ApiResponse<InstrumentCalibrationData>> BeginTaskAsync(
+        InstrumentCalibrationRequest request,
+        string traceId,
+        FrameComputeResult frame,
+        ScannerConfigRecord config,
+        CancellationToken ct)
+    {
+        var computed = frame.Computed!;
+        var now = DateTimeOffset.Now;
+        var ttl = Math.Max(1, _calibrationSettings.InstrumentTaskTtlMinutes);
+        var taskId = Guid.NewGuid().ToString("N");
+
+        await _taskStore.CreateAsync(new InstrumentCalibrationTaskRecord
+        {
+            TaskId = taskId,
+            ScannerId = request.ScannerId,
+            Status = InstrumentCalibrationTaskRecord.StatusPending,
+            CreatedAt = now,
+            UpdatedAt = now,
+            ExpiresAt = now.AddMinutes(ttl),
+            ExpectedX = request.CameraExpectedPosition.X,
+            ExpectedY = request.CameraExpectedPosition.Y,
+            ExpectedZ = request.CameraExpectedPosition.Z,
+            BallCount = request.StandardBalls.Count,
+            ScannerToFloorZ = computed.ScannerToFloorZ,
+            ActualX = computed.ActualScannerPosition.X,
+            ActualY = computed.ActualScannerPosition.Y,
+            Rmse = computed.Rmse,
+            FrameJson = JsonSerializer.Serialize(new
+            {
+                matchedBalls = computed.MatchedBalls,
+                scannerToFloorZ = computed.ScannerToFloorZ,
+                rmse = computed.Rmse,
+            }),
+            TraceIdSeq1 = traceId,
+        }, ct);
+
+        var data = BuildInstrumentData(
+            request, traceId, frame, computed,
+            taskId: taskId,
+            seq: 1,
+            zDeviation: null,
+            calibratedAt: now,
+            status: InstrumentCalibrationData.StatusAwaitingNextShot);
+
+        await PublishPreviewAsync(
+            request.ScannerId, traceId, true, frame.Balls, config, frame.Capture,
+            frame.PreviewGrayPath, frame.PreviewHeightPath,
+            computed.Compensation.OffsetX, computed.Compensation.OffsetY, computed.Compensation.OffsetZ,
+            computed.Rmse, null, ct,
+            frame.MeasureParams, frame.DetectCount, computed.MatchedBalls);
+
+        return await InstrumentOkAsync(request, traceId, data, ct);
+    }
+
+    private async Task<ApiResponse<InstrumentCalibrationData>> FinalizeTaskAsync(
+        InstrumentCalibrationRequest request,
+        string traceId,
+        InstrumentCalibrationTaskRecord seq1,
+        FrameComputeResult frame,
+        ScannerConfigRecord config,
+        string machineArea,
+        CancellationToken ct)
+    {
+        var seq2 = frame.Computed!;
+        var merged = InstrumentTwoShotMerge.Merge(
+            seq1.ScannerToFloorZ,
+            seq1.ActualX,
+            seq1.ActualY,
+            seq1.Rmse,
+            seq2,
+            request.CameraExpectedPosition,
+            _calibrationSettings.ZDeviationThresholdMm);
+
+        var now = DateTimeOffset.Now;
+        await _taskStore.CompleteAsync(seq1.TaskId, ct);
+
+        // 規格：品質未過 → 不回成功結構，直接 CAL_002；原補償不受影響
+        if (!merged.QualityOk)
+        {
+            var failMsg =
+                $"品質未通過（rmseXY={merged.RmseXY:F3}, zDeviation={merged.ZDeviation:F3}），未寫入補償。";
+            await PublishPreviewAsync(
+                request.ScannerId, traceId, false, frame.Balls, config, frame.Capture,
+                frame.PreviewGrayPath, frame.PreviewHeightPath,
+                merged.Compensation.OffsetX, merged.Compensation.OffsetY, merged.Compensation.OffsetZ,
+                merged.RmseXY, failMsg, ct,
+                frame.MeasureParams, frame.DetectCount, seq2.MatchedBalls);
+
+            var diagnostic = new InstrumentCalibrationData
             {
                 ScannerId = request.ScannerId,
                 TraceId = traceId,
-                Compensation = computed.Compensation,
-                ActualScannerPosition = computed.ActualScannerPosition,
-                CalibratedAt = offset.CalibratedAt.ToString("O"),
-                // API 回傳僅含直徑合格球；失敗診斷時由 BuildDiagnosticData 回傳全部球。
-                Balls = measure.Balls
+                Compensation = merged.Compensation,
+                ActualScannerPosition = merged.ActualScannerPosition,
+                CalibratedAt = now.ToString("O"),
+                Balls = frame.Balls
                     .Where(b => b.IsWithinTolerance)
                     .Select(b => new MeasuredBallDto
                     {
@@ -179,46 +356,118 @@ public sealed class CalibrationAppService : ICalibrationAppService
                         Diameter = b.Diameter,
                         Ok = true,
                     }).ToList(),
-                MatchedBalls = computed.MatchedBalls,
-                DatumPlane = MapDatumPlane(measure.DatumPlane),
-                ScannerToFloorZ = computed.ScannerToFloorZ,
-                Rmse = computed.Rmse,
+                MatchedBalls = seq2.MatchedBalls,
+                DatumPlane = MapDatumPlane(frame.DatumPlane),
+                ScannerToFloorZ = merged.ScannerToFloorZ,
+                RmseXY = merged.RmseXY,
+                TaskId = seq1.TaskId,
+                Seq = 2,
+                ZDeviation = merged.ZDeviation,
             };
+            return await InstrumentFailAsync(request, traceId, "CAL_002", failMsg, diagnostic, ct);
+        }
 
-            await PublishPreviewAsync(
-                request.ScannerId, traceId, true, measure.Balls, config, capture,
-                previewGrayPath, previewHeightPath,
-                offset.OffsetX, offset.OffsetY, offset.OffsetZ, computed.Rmse, null, ct,
-                measureParams, detectCount);
-            return await InstrumentOkAsync(request, traceId, data, ct);
-        }
-        catch (InstrumentCalibrationException ex)
+        await _compensationStore.AppendAsync(new CompensationOffset
         {
-            // 掃描前階段拋出的領域例外（理論上多數已在 try 內攔截）
-            await PublishPreviewAsync(
-                request.ScannerId, traceId, false, Array.Empty<MeasuredBall>(), config, capture,
-                previewGrayPath, previewHeightPath,
-                null, null, null, null, ex.Message, ct);
-            return await InstrumentFailAsync(request, traceId, ex.ErrorCode, ex.Message, null, ct);
-        }
-        catch (NotImplementedException ex)
+            ScannerId = request.ScannerId,
+            OffsetX = merged.Compensation.OffsetX,
+            OffsetY = merged.Compensation.OffsetY,
+            OffsetZ = merged.Compensation.OffsetZ,
+            Rmse = merged.RmseXY,
+            MachineArea = machineArea,
+            CalibratedAt = now,
+            Operator = request.Operator,
+            TraceId = traceId,
+        }, ct);
+
+        var data = new InstrumentCalibrationData
         {
-            // SDK 尚未實作（開發／模擬環境）
-            await PublishPreviewAsync(
-                request.ScannerId, traceId, false, Array.Empty<MeasuredBall>(), config, capture,
-                previewGrayPath, previewHeightPath,
-                null, null, null, null, ex.Message, ct);
-            return await InstrumentFailAsync(request, traceId, "CAL_SDK_001", ex.Message, null, ct);
-        }
-        catch (Exception ex)
+            ScannerId = request.ScannerId,
+            TraceId = traceId,
+            Compensation = merged.Compensation,
+            ActualScannerPosition = merged.ActualScannerPosition,
+            CalibratedAt = now.ToString("O"),
+            Balls = frame.Balls
+                .Where(b => b.IsWithinTolerance)
+                .Select(b => new MeasuredBallDto
+                {
+                    Index = b.Index,
+                    X = b.X,
+                    Y = b.Y,
+                    Z = b.Z,
+                    Diameter = b.Diameter,
+                    Ok = true,
+                }).ToList(),
+            MatchedBalls = seq2.MatchedBalls,
+            DatumPlane = MapDatumPlane(frame.DatumPlane),
+            ScannerToFloorZ = merged.ScannerToFloorZ,
+            RmseXY = merged.RmseXY,
+            TaskId = seq1.TaskId,
+            Seq = 2,
+            Status = null,
+            ZDeviation = merged.ZDeviation,
+        };
+
+        await PublishPreviewAsync(
+            request.ScannerId, traceId, true, frame.Balls, config, frame.Capture,
+            frame.PreviewGrayPath, frame.PreviewHeightPath,
+            merged.Compensation.OffsetX, merged.Compensation.OffsetY, merged.Compensation.OffsetZ,
+            merged.RmseXY, null, ct,
+            frame.MeasureParams, frame.DetectCount, seq2.MatchedBalls);
+
+        return await InstrumentOkAsync(request, traceId, data, ct);
+    }
+
+    private static InstrumentCalibrationData BuildInstrumentData(
+        InstrumentCalibrationRequest request,
+        string traceId,
+        FrameComputeResult frame,
+        InstrumentCalibrationComputeResult computed,
+        string taskId,
+        int seq,
+        double? zDeviation,
+        DateTimeOffset calibratedAt,
+        string? status) =>
+        new()
         {
-            // 未預期錯誤（硬體、IO、資料庫等）
-            await PublishPreviewAsync(
-                request.ScannerId, traceId, false, Array.Empty<MeasuredBall>(), config, capture,
-                previewGrayPath, previewHeightPath,
-                null, null, null, null, ex.Message, ct);
-            return await InstrumentFailAsync(request, traceId, "CAL_SYS_001", ex.Message, null, ct);
-        }
+            ScannerId = request.ScannerId,
+            TraceId = traceId,
+            Compensation = computed.Compensation,
+            ActualScannerPosition = computed.ActualScannerPosition,
+            CalibratedAt = calibratedAt.ToString("O"),
+            Balls = frame.Balls
+                .Where(b => b.IsWithinTolerance)
+                .Select(b => new MeasuredBallDto
+                {
+                    Index = b.Index,
+                    X = b.X,
+                    Y = b.Y,
+                    Z = b.Z,
+                    Diameter = b.Diameter,
+                    Ok = true,
+                }).ToList(),
+            MatchedBalls = computed.MatchedBalls,
+            DatumPlane = MapDatumPlane(frame.DatumPlane),
+            ScannerToFloorZ = computed.ScannerToFloorZ,
+            RmseXY = computed.Rmse,
+            TaskId = taskId,
+            Seq = seq,
+            Status = status,
+            ZDeviation = zDeviation,
+        };
+
+    private sealed class FrameComputeResult
+    {
+        public ScannerCaptureResult? Capture { get; init; }
+        public string? PreviewGrayPath { get; init; }
+        public string? PreviewHeightPath { get; init; }
+        public IReadOnlyList<MeasuredBall> Balls { get; init; } = Array.Empty<MeasuredBall>();
+        public LjCalibrationParameters? MeasureParams { get; init; }
+        public int? DetectCount { get; init; }
+        public InstrumentCalibrationComputeResult? Computed { get; init; }
+        public DatumPlaneMeasureResult? DatumPlane { get; init; }
+        public (string Code, string Message)? Error { get; init; }
+        public InstrumentCalibrationData? DiagnosticData { get; init; }
     }
 
     /// <inheritdoc />
@@ -445,7 +694,8 @@ public sealed class CalibrationAppService : ICalibrationAppService
         await LogOperationAsync(
             traceId, request.Operator, "CalibrateInstrument", request.ScannerId,
             success: true, errorCode: null,
-            detail: $"offset=({data.Compensation.OffsetX:F3},{data.Compensation.OffsetY:F3},{data.Compensation.OffsetZ:F3}) rmse={data.Rmse:F3}",
+            detail: $"seq={data.Seq} status={data.Status} offset=({data.Compensation?.OffsetX:F3},{data.Compensation?.OffsetY:F3},{data.Compensation?.OffsetZ:F3}) rmseXY={data.RmseXY:F3}"
+                    + (data.ZDeviation is double rz ? $" zDeviation={rz:F3}" : ""),
             ct);
         return ApiResponse<InstrumentCalibrationData>.Ok(ApplyResponseMode(data));
     }
@@ -508,13 +758,27 @@ public sealed class CalibrationAppService : ICalibrationAppService
         if (_calibrationSettings.IsDebugResponse)
             return data;
 
+        // 規格 4.3：第一次 taskId / seq / status / traceId
+        if (data.Seq == 1)
+        {
+            return new InstrumentCalibrationData
+            {
+                TaskId = data.TaskId,
+                Seq = data.Seq,
+                Status = data.Status ?? InstrumentCalibrationData.StatusAwaitingNextShot,
+                TraceId = data.TraceId,
+            };
+        }
+
+        // 規格 4.4：第二次 scannerId / compensation / rmseXY / zDeviation / calibratedAt / traceId
         return new InstrumentCalibrationData
         {
             ScannerId = data.ScannerId,
-            TraceId = data.TraceId,
             Compensation = data.Compensation,
-            Rmse = data.Rmse,
+            RmseXY = data.RmseXY,
+            ZDeviation = data.ZDeviation,
             CalibratedAt = data.CalibratedAt,
+            TraceId = data.TraceId,
         };
     }
 
@@ -530,7 +794,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
             TraceId = traceId,
             Compensation = computed.Compensation,
             ActualScannerPosition = computed.ActualScannerPosition,
-            Rmse = computed.Rmse,
+            RmseXY = computed.Rmse,
             ScannerToFloorZ = computed.ScannerToFloorZ,
             MatchedBalls = computed.MatchedBalls,
             DatumPlane = MapDatumPlane(datumPlane),
