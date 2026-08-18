@@ -52,6 +52,8 @@
     </None>
   </ItemGroup>
 
+  <Import Project="..\ThirdParty\PlyProcessor.targets" />
+
   <ItemGroup>
     <Reference Include="LMXLidarDriver">
       <HintPath>libs\LMXLidarDriver.dll</HintPath>

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using ThreeDScan.Domain.Abstractions;
+using ThreeDScan.Infrastructure.Export;
 
 namespace ThreeDScan.Infrastructure.Configuration;
 
@@ -7,9 +8,17 @@ namespace ThreeDScan.Infrastructure.Configuration;
 public sealed class StorageSettings : IStorageSettings
 {
     private readonly StorageOptions _options;
+    private readonly string _exportRoot;
 
-    public StorageSettings(IOptions<StorageOptions> options) => _options = options.Value;
+    public StorageSettings(IOptions<StorageOptions> options)
+    {
+        _options = options.Value;
+        _exportRoot = CaptureExportPath.ResolveRoot(_options.ExportRoot);
+    }
 
     /// <inheritdoc />
     public string ContentsRoot => _options.ContentsRoot;
+
+    /// <inheritdoc />
+    public string ExportRoot => _exportRoot;
 }

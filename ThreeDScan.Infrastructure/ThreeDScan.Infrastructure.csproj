@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ThreeDScan.Domain\ThreeDScan.Domain.csproj" />
+    <ProjectReference Include="..\PlyProcessor.Core\PlyProcessor.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

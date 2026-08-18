@@ -12,11 +12,14 @@
             Background="#1F242E">
         <Grid>
             <Viewport3D x:Name="Viewport"/>
-            <!-- 透明層：Viewport3D 空白處不會收到事件，Border 可填滿格線以攔截軌道旋轉／縮放 -->
+            <Canvas x:Name="AnnotationOverlay"
+                    IsHitTestVisible="False"
+                    Panel.ZIndex="2"/>
             <Border x:Name="MouseLayer"
                     Background="Transparent"
                     Focusable="True"
                     Cursor="Hand"
+                    Panel.ZIndex="3"
                     PreviewMouseWheel="OnPreviewMouseWheel"
                     MouseLeftButtonDown="OnMouseLeftButtonDown"
                     MouseLeftButtonUp="OnMouseLeftButtonUp"
@@ -31,7 +34,7 @@
                            FontWeight="SemiBold"
                            HorizontalAlignment="Center"
                            Foreground="#D8DEE8"/>
-                <TextBlock Text="尚無點雲資料，請先執行掃描"
+                <TextBlock Text="尚無點雲；載入後點一下顯示座標"
                            FontSize="{StaticResource FontSizeSmall}"
                            Margin="0,4,0,0"
                            HorizontalAlignment="Center"

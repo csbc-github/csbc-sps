@@ -25,6 +25,8 @@
     <ProjectReference Include="..\ThreeDScan.Infrastructure\ThreeDScan.Infrastructure.csproj" />
   </ItemGroup>
 
+  <Import Project="..\ThirdParty\PlyProcessor.targets" />
+
   <ItemGroup>
     <Reference Include="DAS.Authentication">
       <HintPath>..\libs\DAS.Authentication\DAS.Authentication.dll</HintPath>

@@ -52,6 +52,7 @@ _setsetting_example.txt
 ## Scan / runtime outputs
 **/ScanOutput/
 *.ply
+ThirdParty/ply_processor/scans/
 
 ## Python
 __pycache__/

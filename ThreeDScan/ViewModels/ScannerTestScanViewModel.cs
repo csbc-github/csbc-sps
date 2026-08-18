@@ -183,7 +183,7 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
             using var scope = WpfServiceProviderFactory.CreateScope(_config);
             var captureFactory = scope.ServiceProvider.GetRequiredService<IScannerCaptureFactory>();
             var capture = captureFactory.GetCapture(scannerId);
-            var result = await capture.CaptureAsync(programNo);
+            var result = await capture.CaptureWithAngleSteelAsync(programNo);
 
             if (string.IsNullOrWhiteSpace(result.HeightImagePath)
                 || string.IsNullOrWhiteSpace(result.GrayImagePath))
@@ -197,19 +197,32 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
                     $"係數 X={geo.CoefficientX:F6} Y={geo.CoefficientY:F6}";
             }
 
-            StatusText = $"掃描完成 · {ScanTargetLabel}";
+            StatusText = string.IsNullOrWhiteSpace(result.PlyPath)
+                ? $"掃描完成 · {ScanTargetLabel}"
+                : result.AngleDegrees is { } ang
+                    ? $"掃描完成 · {ScanTargetLabel} · 角鋼 {result.PlyPointCount:N0} 點 · 夾角 {ang:F2}°\n{result.PlyPath}"
+                    : $"掃描完成 · {ScanTargetLabel} · 角鋼 PLY {result.PlyPointCount:N0} 點\n{result.PlyPath}";
+            if (!string.IsNullOrWhiteSpace(result.ZipPath))
+                StatusText += $"\nZIP：{result.ZipPath}";
+            if (!string.IsNullOrWhiteSpace(result.GlbPath))
+                StatusText += $"\nGLB：{result.GlbPath}";
 
             Application.Current.Dispatcher.Invoke(() =>
                 CapturePreviewReady?.Invoke(this, new ScannerCapturePreviewEventArgs
                 {
                     HeightImagePath = result.HeightImagePath,
                     GrayImagePath = result.GrayImagePath,
+                    PlyPath = result.PlyPath,
+                    PlyPointCount = result.PlyPointCount,
                 }));
         }
         catch (Exception ex)
         {
             StatusText = "測試掃描失敗";
-            MessageBox.Show(ex.Message, "測試掃描", MessageBoxButton.OK, MessageBoxImage.Warning);
+            var detail = ex.GetBaseException().Message;
+            if (ex is AggregateException agg && agg.InnerExceptions.Count > 0)
+                detail = string.Join("\n", agg.InnerExceptions.Select(e => e.GetBaseException().Message));
+            MessageBox.Show(detail, "測試掃描", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
@@ -226,4 +239,6 @@ public sealed class ScannerCapturePreviewEventArgs : EventArgs
 {
     public required string HeightImagePath { get; init; }
     public required string GrayImagePath { get; init; }
+    public string? PlyPath { get; init; }
+    public int PlyPointCount { get; init; }
 }

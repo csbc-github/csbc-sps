@@ -21,19 +21,42 @@ public class PrintingViewModel : ViewModelBase
     /// <summary>WPF 端效能上限；Python 預設 2e6，此處縮小但流程順序與著色與 viewer 一致。</summary>
     private const int MaxDisplayPoints = 60_000;
 
-    private bool _is3DMode = true;
+    private enum PreviewMode
+    {
+        Height2D,
+        PointCloud,
+        Glb,
+    }
+
+    private PreviewMode _previewMode = PreviewMode.PointCloud;
     private CoordinateInfo _machineCoordinate = new(245.320, 128.550, 32.180);
     private CoordinateInfo _workpieceCoordinate = new(120.150, 85.220, 28.450);
     private bool _isScanning;
     private string _scanStatusText = "就緒 — 等待面掃描";
     private SystemStatus _overallStatus = SystemStatus.Normal;
     private string _lastPlyPath = "";
+    private string? _glbPath;
     private IReadOnlyList<PointCloudRenderVertex> _pointCloudVertices = Array.Empty<PointCloudRenderVertex>();
     private CancellationTokenSource? _scanCts;
     private Process? _runningProcess;
 
-    public bool Is2DMode { get => !_is3DMode; set { if (SetProperty(ref _is3DMode, !value)) OnPropertyChanged(nameof(Is3DMode)); } }
-    public bool Is3DMode { get => _is3DMode; set { if (SetProperty(ref _is3DMode, value)) OnPropertyChanged(nameof(Is2DMode)); } }
+    public bool Is2DMode
+    {
+        get => _previewMode == PreviewMode.Height2D;
+        set { if (value) SetPreviewMode(PreviewMode.Height2D); }
+    }
+
+    public bool Is3DMode
+    {
+        get => _previewMode == PreviewMode.PointCloud;
+        set { if (value) SetPreviewMode(PreviewMode.PointCloud); }
+    }
+
+    public bool IsGlbMode
+    {
+        get => _previewMode == PreviewMode.Glb;
+        set { if (value) SetPreviewMode(PreviewMode.Glb); }
+    }
 
     public CoordinateInfo MachineCoordinate { get => _machineCoordinate; set => SetProperty(ref _machineCoordinate, value); }
     public CoordinateInfo WorkpieceCoordinate { get => _workpieceCoordinate; set => SetProperty(ref _workpieceCoordinate, value); }
@@ -49,6 +72,7 @@ public class PrintingViewModel : ViewModelBase
     public string ScanStatusText { get => _scanStatusText; set => SetProperty(ref _scanStatusText, value); }
     public SystemStatus OverallStatus { get => _overallStatus; set => SetProperty(ref _overallStatus, value); }
     public string LastPlyPath { get => _lastPlyPath; set => SetProperty(ref _lastPlyPath, value); }
+    public string? GlbPath { get => _glbPath; set => SetProperty(ref _glbPath, value); }
     public IReadOnlyList<PointCloudRenderVertex> PointCloudVertices { get => _pointCloudVertices; set => SetProperty(ref _pointCloudVertices, value); }
 
     public ICommand StartScanCommand { get; }
@@ -59,25 +83,46 @@ public class PrintingViewModel : ViewModelBase
     {
         StartScanCommand = new RelayCommand(_ => _ = StartAsync(), _ => !IsScanning);
         StopScanCommand = new RelayCommand(_ => _ = StopAsync(), _ => IsScanning);
-        TestLoadPointCloudCommand = new RelayCommand(_ => _ = TestLoadPointCloudAsync(), _ => !IsScanning);
+        TestLoadPointCloudCommand = new RelayCommand(_ => _ = TestLoad3DFileAsync(), _ => !IsScanning);
     }
 
-    /// <summary>測試用：座標直接依檔案 x,y,z（不做 Z 去底／體素／隨機抽樣）；著色依範圍最大軸做彩虹以利辨識。</summary>
-    private async Task TestLoadPointCloudAsync()
+    private void SetPreviewMode(PreviewMode mode)
+    {
+        if (_previewMode == mode) return;
+        _previewMode = mode;
+        OnPropertyChanged(nameof(Is2DMode));
+        OnPropertyChanged(nameof(Is3DMode));
+        OnPropertyChanged(nameof(IsGlbMode));
+    }
+
+    /// <summary>測試用：載入 PLY 點雲或 Pipeline 產出的 GLB，方便比對視覺效果。</summary>
+    private async Task TestLoad3DFileAsync()
     {
         var dlg = new OpenFileDialog
         {
-            Title = "測試：載入 3D 點雲檔",
-            Filter = "PLY 點雲 (*.ply)|*.ply|所有檔案 (*.*)|*.*",
+            Title = "測試：載入 PLY 點雲或 GLB 網格",
+            Filter = "3D 檔案|*.ply;*.glb|PLY 點雲 (*.ply)|*.ply|GLB 網格 (*.glb)|*.glb|所有檔案 (*.*)|*.*",
             CheckFileExists = true
         };
         if (dlg.ShowDialog() != true) return;
 
         var path = dlg.FileName;
+        var ext = Path.GetExtension(path);
+
+        if (ext.Equals(".glb", StringComparison.OrdinalIgnoreCase))
+        {
+            LastPlyPath = path;
+            GlbPath = path;
+            SetPreviewMode(PreviewMode.Glb);
+            ScanStatusText = $"測試載入 GLB：{Path.GetFileName(path)}";
+            OverallStatus = SystemStatus.Normal;
+            return;
+        }
+
         LastPlyPath = path;
         ScanStatusText = "測試載入（原始座標）…";
         OverallStatus = SystemStatus.Warning;
-        Is3DMode = true;
+        SetPreviewMode(PreviewMode.PointCloud);
 
         try
         {

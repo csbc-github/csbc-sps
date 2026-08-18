@@ -10,17 +10,23 @@ namespace ThreeDScan.Controls;
 
 public partial class PointCloudViewport : UserControl
 {
+    private const double ClickSlopPx = 5;
+
     private Point3D _orbitTarget;
     private double _orbitDistance = 1;
     private double _orbitDiagonal = 100;
     private double _yaw;
     private double _pitch;
+    private Point _pressPos;
     private Point _lastMouse;
     private bool _orbitDragging;
+    private bool _didDrag;
     private bool _hasOrbitScene;
 
     /// <summary>與幾何一一對應，供相機變動時重算 billboard。</summary>
     private readonly List<(GeometryModel3D Model, List<Point3D> Points)> _pointLayers = new();
+    private readonly List<Point3D> _allPoints = new();
+    private ViewportBoundsAnnotations? _annotations;
 
     private double _splatHalfSize = 0.1;
     private bool _billboardRebuildPending;
@@ -40,7 +46,12 @@ public partial class PointCloudViewport : UserControl
     public PointCloudViewport()
     {
         InitializeComponent();
-        MouseLayer.LostMouseCapture += (_, _) => _orbitDragging = false;
+        MouseLayer.LostMouseCapture += (_, _) =>
+        {
+            _orbitDragging = false;
+            _didDrag = false;
+        };
+        Loaded += (_, _) => _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
     }
 
     private static void OnVerticesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -53,11 +64,15 @@ public partial class PointCloudViewport : UserControl
     {
         Viewport.Children.Clear();
         _pointLayers.Clear();
+        _allPoints.Clear();
+        _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
+        _annotations.Clear();
         var vertices = Vertices;
         if (vertices is null || vertices.Count == 0)
         {
             _hasOrbitScene = false;
             _orbitDragging = false;
+            _didDrag = false;
             MouseLayer.ReleaseMouseCapture();
             MouseLayer.Cursor = Cursors.Arrow;
             EmptyHint.Visibility = Visibility.Visible;
@@ -140,6 +155,7 @@ public partial class PointCloudViewport : UserControl
                 byColor[key] = list;
             }
             list.Add(v.Position);
+            _allPoints.Add(v.Position);
         }
 
         foreach (var kv in byColor)
@@ -248,24 +264,32 @@ public partial class PointCloudViewport : UserControl
         var pos = _orbitTarget + new Vector3D(x, y, z);
         var look = _orbitTarget - pos;
         if (look.LengthSquared < 1e-18)
-        {
             look = new Vector3D(0, 0, -1);
-        }
         else
-        {
             look.Normalize();
-        }
+
+        var worldUp = Math.Abs(look.Y) > 0.95 ? new Vector3D(0, 0, 1) : new Vector3D(0, 1, 0);
+        var right = Vector3D.CrossProduct(look, worldUp);
+        if (right.LengthSquared < 1e-12)
+            right = new Vector3D(1, 0, 0);
+        right.Normalize();
+        var up = Vector3D.CrossProduct(right, look);
+        up.Normalize();
+
         pc.Position = pos;
         pc.LookDirection = look;
-        pc.UpDirection = new Vector3D(0, 1, 0);
+        pc.UpDirection = up;
         RequestBillboardRebuild();
+        _annotations?.UpdateOverlay();
     }
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (!_hasOrbitScene) return;
         _orbitDragging = true;
-        _lastMouse = e.GetPosition(MouseLayer);
+        _didDrag = false;
+        _pressPos = e.GetPosition(MouseLayer);
+        _lastMouse = _pressPos;
         MouseLayer.CaptureMouse();
         _ = MouseLayer.Focus();
         e.Handled = true;
@@ -276,6 +300,10 @@ public partial class PointCloudViewport : UserControl
         if (!_orbitDragging) return;
         _orbitDragging = false;
         MouseLayer.ReleaseMouseCapture();
+
+        if (!_didDrag)
+            TryPickAt(e.GetPosition(Viewport));
+
         e.Handled = true;
     }
 
@@ -283,6 +311,16 @@ public partial class PointCloudViewport : UserControl
     {
         if (!_orbitDragging || !_hasOrbitScene) return;
         var p = e.GetPosition(MouseLayer);
+        if (!_didDrag)
+        {
+            var dx0 = p.X - _pressPos.X;
+            var dy0 = p.Y - _pressPos.Y;
+            if (dx0 * dx0 + dy0 * dy0 < ClickSlopPx * ClickSlopPx)
+                return;
+            _didDrag = true;
+            _lastMouse = p;
+        }
+
         var dx = p.X - _lastMouse.X;
         var dy = p.Y - _lastMouse.Y;
         _lastMouse = p;
@@ -292,6 +330,23 @@ public partial class PointCloudViewport : UserControl
         _pitch = Math.Clamp(_pitch, -1.48, 1.48);
         ApplyOrbitCamera();
         e.Handled = true;
+    }
+
+    private void TryPickAt(Point viewportPoint)
+    {
+        _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
+        if (_allPoints.Count == 0)
+            return;
+
+        if (!ViewportBoundsAnnotations.TryGetPickRay(Viewport, viewportPoint, out var origin, out var dir))
+            return;
+
+        // 拾取半徑隨場景尺度與目前 splat 大小
+        var maxDist = Math.Max(_splatHalfSize * 4, _orbitDiagonal * 0.01);
+        if (ViewportBoundsAnnotations.TryPickNearestPoint(_allPoints, origin, dir, maxDist, out var hit))
+            _annotations.ShowAt(hit);
+        else
+            _annotations.Clear();
     }
 
     private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)

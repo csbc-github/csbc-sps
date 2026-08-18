@@ -186,7 +186,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         string traceId,
         CancellationToken ct)
     {
-        var capture = await _captureFactory.GetCapture(request.ScannerId).CaptureAsync(programNo, ct);
+        var capture = await _captureFactory.GetCapture(request.ScannerId).CaptureImagesAsync(programNo, ct);
         var previewPaths = SavePreviewImages(capture, request.ScannerId, programNo, traceId);
 
         var effectiveParams = LjCalibrationMerge.ForScanner(config, _calibrationParams);
@@ -486,7 +486,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
             var existing = await _configStore.GetAsync(request.ScannerId, ct);
             var effectiveParams = LjCalibrationMerge.ForScanner(existing, _calibrationParams);
 
-            var capture = await _captureFactory.GetCapture(request.ScannerId).CaptureAsync(programNo, ct);
+            var capture = await _captureFactory.GetCapture(request.ScannerId).CaptureImagesAsync(programNo, ct);
             var setup = await _measureEngine.SetupReferenceAsync(
                 request.ScannerId, existing, capture, effectiveParams, contentsFolder, ct);
 

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Infrastructure.Configuration;
+using ThreeDScan.Infrastructure.Export;
 
 namespace ThreeDScan.Infrastructure.Scanners;
 
@@ -9,11 +10,18 @@ public sealed class ScannerCaptureFactory : IScannerCaptureFactory
 {
     private readonly Dictionary<string, Ljs8SurfaceScannerCapture> _captures;
 
-    public ScannerCaptureFactory(IOptions<ScannerRegistryOptions> options)
+    public ScannerCaptureFactory(
+        IOptions<ScannerRegistryOptions> options,
+        IOptions<StorageOptions> storageOptions,
+        HankPlyProcessorClient plyProcessor,
+        AngleSteelPipelineExporter pipelineExporter)
     {
+        var exportRoot = CaptureExportPath.ResolveRoot(storageOptions.Value.ExportRoot);
+        Directory.CreateDirectory(exportRoot);
+
         _captures = options.Value.ToDictionary(
             kv => kv.Key,
-            kv => new Ljs8SurfaceScannerCapture(kv.Key, kv.Value),
+            kv => new Ljs8SurfaceScannerCapture(kv.Key, kv.Value, exportRoot, plyProcessor, pipelineExporter),
             StringComparer.OrdinalIgnoreCase);
     }
 

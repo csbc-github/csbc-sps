@@ -1,0 +1,44 @@
+<UserControl x:Class="ThreeDScan.Controls.GlbMeshViewport"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignWidth="800" d:DesignHeight="500">
+    <Border BorderBrush="#2A3038"
+            BorderThickness="1"
+            CornerRadius="6"
+            Background="#1F242E">
+        <Grid>
+            <Viewport3D x:Name="Viewport"/>
+            <Canvas x:Name="AnnotationOverlay"
+                    IsHitTestVisible="False"
+                    Panel.ZIndex="2"/>
+            <Border x:Name="MouseLayer"
+                    Background="Transparent"
+                    Focusable="True"
+                    Cursor="Hand"
+                    Panel.ZIndex="3"
+                    PreviewMouseWheel="OnPreviewMouseWheel"
+                    MouseLeftButtonDown="OnMouseLeftButtonDown"
+                    MouseLeftButtonUp="OnMouseLeftButtonUp"
+                    MouseMove="OnMouseMove"/>
+            <StackPanel x:Name="EmptyHint"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        IsHitTestVisible="False"
+                        Panel.ZIndex="1">
+                <TextBlock Text="角鋼 GLB 網格"
+                           FontSize="{StaticResource FontSizeLarge}"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Foreground="#D8DEE8"/>
+                <TextBlock Text="掃描完成後顯示 ZIP 內的 .glb；點一下顯示座標"
+                           FontSize="{StaticResource FontSizeSmall}"
+                           Margin="0,4,0,0"
+                           HorizontalAlignment="Center"
+                           Foreground="#9CA6B5"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

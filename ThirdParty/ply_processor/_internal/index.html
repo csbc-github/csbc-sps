@@ -1,0 +1,3629 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PLY Point Cloud Viewer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #101114;
+      color: #f4f4f2;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background: #101114;
+    }
+
+    #viewer {
+      position: fixed;
+      inset: 0;
+    }
+
+    .panel {
+      position: fixed;
+      left: 16px;
+      top: 16px;
+      width: min(360px, calc(100vw - 32px));
+      max-height: calc(100vh - 32px);
+      overflow: auto;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      background: rgba(20, 22, 25, 0.88);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    .group {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      color: #d8d9d6;
+    }
+
+    select,
+    button,
+    input[type="range"] {
+      width: 100%;
+    }
+
+    select,
+    button,
+    .link-button {
+      min-height: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 6px;
+      background: #262a2f;
+      color: #f7f7f4;
+      font: inherit;
+    }
+
+    button,
+    .link-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      cursor: pointer;
+      font-weight: 620;
+    }
+
+    button:hover,
+    .link-button:hover {
+      background: #30353b;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .checks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .checks label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+      padding: 0 8px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .stat {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #e8e8e4;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    .coord {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 10px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .coord span:nth-child(odd) {
+      color: #aeb7bd;
+    }
+
+    .bar {
+      height: 6px;
+      margin-top: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.10);
+    }
+
+    .bar > div {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #46d6a7, #d8cd54);
+      transition: width 160ms ease;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.10);
+      margin: 10px 0;
+    }
+
+    .upload-zone {
+      border: 2px dashed rgba(255,255,255,0.20);
+      border-radius: 8px;
+      padding: 14px 10px;
+      text-align: center;
+      cursor: pointer;
+      color: #9ba8b0;
+      font-size: 13px;
+      transition: border-color 160ms, background 160ms;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #46d6a7;
+      background: rgba(70,214,167,0.06);
+      color: #d0f5eb;
+    }
+    #fileInput, #oneClickFileInput { display: none; }
+
+    .log-box {
+      margin-top: 8px;
+      padding: 8px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.35);
+      font-size: 11px;
+      font-family: "Consolas", monospace;
+      color: #8bbfa8;
+      max-height: 140px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: none;
+    }
+
+    .stitch-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto auto;
+      gap: 4px;
+      align-items: center;
+      padding: 4px 6px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 4px;
+      margin-bottom: 2px;
+    }
+
+    .stitch-item button { min-height: 22px; width: 22px; padding: 0; font-size: 11px; }
+    .stitch-empty { font-size: 11px; color: #6e7a82; text-align: center; padding: 8px 0; }
+    .stitch-st { font-size: 11px; font-weight: 700; width: 14px; text-align: center; }
+    .stitch-st.pending    { color: #6e7a82; }
+    .stitch-st.processing { color: #f2c14e; }
+    .stitch-st.done       { color: #46d6a7; }
+    .stitch-st.error      { color: #f26f4c; }
+    #stitchFileInput { display: none; }
+    #stepFileInput { display: none; }
+
+    @media (max-width: 640px) {
+      .panel {
+        left: 10px;
+        right: 10px;
+        top: 10px;
+        width: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="viewer"></canvas>
+
+  <section class="panel">
+    <h1>PLY 點雲檢視器</h1>
+
+    <div class="group">
+      <div style="font-size:11px;color:#6e7a82;margin-bottom:2px;" id="workDirLabel">PLY 資料夾：載入中…</div>
+      <label>
+        檔案
+        <div style="display:grid;grid-template-columns:1fr auto;gap:6px;">
+          <select id="fileSelect"><option value="">— 載入檔案清單中 —</option></select>
+          <button id="refreshBtn" title="重新整理清單" style="min-height:34px;padding:0 10px;width:auto;">&#8635;</button>
+        </div>
+      </label>
+
+      <label>
+        抽樣比例：<span id="sampleText">25%</span>
+        <input id="sampleRate" type="range" min="1" max="100" value="25" />
+      </label>
+
+      <label>
+        點大小：<span id="pointText">0.75</span>
+        <input id="pointSize" type="range" min="0.1" max="4" step="0.05" value="0.75" />
+      </label>
+    </div>
+
+    <div class="group checks">
+      <label><input id="colorByIntensity" type="checkbox" checked /> intensity</label>
+      <label><input id="showGrid" type="checkbox" checked /> 網格</label>
+    </div>
+
+    <div class="group row">
+      <button id="loadBtn">載入</button>
+      <button id="resetBtn">重設視角</button>
+    </div>
+
+    <div class="group">
+      <a class="link-button" href="./align_editor.html">旋轉校正編輯器</a>
+    </div>
+
+    <hr class="divider" />
+
+    <div style="font-size:13px;color:#d8d9d6;margin-bottom:6px;">匯入 PLY 並自動萃取物件</div>
+
+    <input type="file" id="fileInput" accept=".ply" />
+    <label for="fileInput" class="upload-zone" id="uploadZone">
+      <span id="uploadLabel">點此選擇 / 拖曳 PLY 檔案</span>
+    </label>
+
+    <div class="group" style="margin-top:8px;">
+      <label style="display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 10px;align-items:center;font-size:12px;">
+        <span style="color:#aeb7bd;" title="Z 最小（地面以上保留點的最低高度）&#10;低於此值的點視為地面背景">z 最小 (mm)</span>
+        <input id="upZThresh" type="number" value="12" step="1" min="1"
+               style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+        <span style="color:#aeb7bd;" title="Z 最大（前端載入後過濾，0=不限）&#10;設定後會移除高於此值的點（球體、圓環等突起物）&#10;先看 log 的 bbox Z 上限再估值，例如板面在 Z=12–55，球到 Z=134，設 55 可截斷球">z 最大 (mm)</span>
+        <input id="upZMax" type="number" value="0" step="5" min="0"
+               style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+        <span style="color:#aeb7bd;" title="格子大小（分群解析度，越小越能分開緊鄰物件）">格子大小 (mm)</span>
+        <input id="upCell" type="number" value="3" step="0.5" min="0.5"
+               style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+      </label>
+    </div>
+
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#aeb7bd;margin-top:8px;cursor:pointer;">
+      <input type="checkbox" id="upSplitObjects" />
+      分離成多個物件 <span style="color:#5b8fb9;cursor:help;" title="後端處理完成後，前端會先移除最大的平面（背景板），再用連通性分析把剩下的點分成多個獨立物件（角鋼、球體、圓環…）&#10;每個物件會用不同顏色顯示在同一個檢視畫面&#10;適合場景中有多個互相連接的物體、且後端自己的分群把全部點當成一坨時使用">ⓘ</span>
+    </label>
+    <div class="group" style="margin-top:6px;">
+      <label style="display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 10px;align-items:center;font-size:12px;">
+        <span style="color:#aeb7bd;" title="移除主平面的容差（mm）&#10;主平面 ±N mm 內的點都視為底板而移除&#10;建議 5–12 mm">平面容差</span>
+        <input id="upPlaneTol" type="number" value="8" step="1" min="1"
+               style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+        <span style="color:#aeb7bd;" title="群組點數小於此值視為雜訊忽略">最小點數</span>
+        <input id="upMinClusterSize" type="number" value="200" step="50" min="1"
+               style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+      </label>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+      <button id="uploadOnlyBtn" disabled>只上傳到資料夾</button>
+      <button id="uploadBtn" disabled>上傳並自動處理</button>
+    </div>
+    <button id="upExportSplitBtn" type="button" disabled style="margin-top:6px;width:100%;" title="把「分離成多個物件」分出的每個物件各自匯出成一個獨立 PLY 檔">匯出個別物件 PLY</button>
+    <button id="upExportSplitJsonBtn" type="button" disabled style="margin-top:6px;width:100%;" title="把每個物件各自匯出成 JSON，內含每個點對齊後的座標，以及比對回去的掃描器原始座標（轉換前）">匯出個別物件 JSON（含原始掃描座標）</button>
+
+    <div class="group" style="margin-top:10px;">
+      <label style="display:block;font-size:12px;color:#aeb7bd;margin-bottom:4px;">選擇要打包輸出的物件（預設取點數最多者，通常是角鋼）</label>
+      <select id="upZipObjectSelect" disabled style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:4px 6px;font:inherit;width:100%;"></select>
+      <div style="font-size:11px;color:#6e7a82;margin-top:4px;">STEP/glTF 厚度等參數沿用下方「PLY 轉 STEP 實體」面板的設定</div>
+      <button id="upExportZipBtn" type="button" disabled style="margin-top:6px;width:100%;background:#1f6f4a;" title="把選定的物件一次處理成：點雲 PLY、2D 視圖 PNG（俯視/前視/側視）、STEP、glTF、座標 JSON，全部打包成一個 ZIP 下載">一鍵匯出 ZIP（點雲＋2D＋STEP＋glTF＋座標）</button>
+    </div>
+    <div class="log-box" id="logBox"></div>
+
+    <div class="stat" id="status">準備載入點雲。</div>
+    <div class="stat coord" id="coordReadout">
+      <span>檔案</span><b>-</b>
+      <span>X</span><b>-</b>
+      <span>Y</span><b>-</b>
+      <span>Z</span><b>-</b>
+      <span>Intensity</span><b>-</b>
+    </div>
+    <div class="bar"><div id="progress"></div></div>
+
+    <hr class="divider" />
+    <div style="font-size:13px;color:#d8d9d6;margin-bottom:6px;">一鍵輸出角鋼套件</div>
+    <div style="font-size:11px;color:#6e7a82;margin-bottom:8px;">獨立匯入：上傳 PLY → 自動處理 → 分離物件 → 點雲＋2D 視圖＋STEP＋glTF＋座標，一次匯出成 ZIP（沿用上方「z 最小／格子大小／平面容差／最小點數」與下方「PLY 轉 STEP 實體」面板的參數）</div>
+
+    <input type="file" id="oneClickFileInput" accept=".ply" />
+    <label for="oneClickFileInput" class="upload-zone" id="oneClickZone">
+      <span id="oneClickZoneLabel">點此選擇 / 拖曳 PLY 檔案</span>
+    </label>
+
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#aeb7bd;margin-top:8px;cursor:pointer;">
+      <input type="checkbox" id="oneClickRemovePlane" />
+      移除主背景平面 <span style="color:#5b8fb9;cursor:help;" title="只有當場景內有多個物件共用同一塊底板/治具、彼此緊貼在一起時才需要勾選&#10;單一零件（例如只掃一根角鋼）請不要勾——後端通常已經把背景去除乾淨，再做一次平面移除反而會誤切到零件本身的表面，造成零件被切成兩段或缺角">ⓘ</span>
+    </label>
+
+    <button id="oneClickBtn" type="button" disabled style="margin-top:8px;width:100%;background:#1f6f4a;">上傳並一鍵輸出 ZIP</button>
+    <div class="log-box" id="oneClickLog" style="display:none;"></div>
+    <div class="stat" id="oneClickStatus"></div>
+
+    <hr class="divider" />
+    <div style="font-size:13px;color:#d8d9d6;margin-bottom:6px;">多段掃描拼接</div>
+
+    <input type="file" id="stitchFileInput" accept=".ply" multiple />
+    <label for="stitchFileInput" class="upload-zone" id="stitchZone">
+      <span id="stitchZoneLabel">點此或拖曳選擇多個 PLY 掃描檔</span>
+    </label>
+
+    <div id="stitchQueue" style="margin-top:6px;display:flex;flex-direction:column;gap:3px;"></div>
+
+    <div style="margin-top:8px;display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 8px;align-items:center;font-size:12px;">
+      <span style="color:#aeb7bd;">z 閾值</span>
+      <input id="stitchZThresh" type="number" value="12" step="1" min="1" title="z 閾值 (mm)"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+      <span style="color:#aeb7bd;">格子</span>
+      <input id="stitchCell" type="number" value="3" step="0.5" min="0.5" title="格子大小 (mm)"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+    </div>
+    <div style="margin-top:6px;display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 8px;align-items:center;font-size:12px;">
+      <span style="color:#aeb7bd;">段落間距 (mm)</span>
+      <input id="stitchGap" type="number" value="0" step="1" min="0" title="段落間距 (mm)"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+      <span style="color:#aeb7bd;">邊緣裁切 (%)</span>
+      <input id="stitchTrim" type="number" value="3" step="1" min="0" max="40" title="裁切每段兩端此比例的點（消除邊緣雜訊）"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+      <span style="color:#aeb7bd;" title="過濾突起：讀入點雲後移除高於中位面 + N mm 以上的點&#10;用途：去掉掃描場景中的球體、螺栓、圓筒等非目標突起物&#10;讓 3D 預覽和匯出只包含平板/角鋼本體&#10;估算：突起物高出平面多少 mm 就設多少，例如球高 30mm 就設 20&#10;設 0 = 不過濾">過濾突起 (mm) <span style="color:#5b8fb9;cursor:help;">ⓘ</span></span>
+      <input id="stitchHFilter" type="number" value="0" step="5" min="0" max="999"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+      <label style="display:flex;align-items:center;gap:6px;min-height:28px;padding:0 8px;border:1px solid rgba(255,255,255,0.12);border-radius:6px;background:rgba(255,255,255,0.04);font-size:12px;color:#d8d9d6;cursor:pointer;">
+        <input id="stitchAlignYZ" type="checkbox" checked /> Y/Z 對齊
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;min-height:28px;padding:0 8px;border:1px solid rgba(255,255,255,0.12);border-radius:6px;background:rgba(255,255,255,0.04);font-size:12px;color:#d8d9d6;cursor:pointer;">
+        <input id="stitchZFloor" type="checkbox" checked /> Z 歸零
+      </label>
+    </div>
+    <div style="margin-top:6px;padding:6px 8px;border:1px solid rgba(255,255,255,0.12);border-radius:6px;background:rgba(255,255,255,0.04);">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#d8d9d6;cursor:pointer;"
+             title="讀入後先移除主平面（最大密度高度帶，即背景底板），再對剩餘點做連通分群&#10;Log 會列出前 6 個群組的點數讓你選&#10;若場景底板與目標物連在一起時請勾選此選項">
+        <input id="stitchExtractLargest" type="checkbox" /> 物件分群取出
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#d8d9d6;cursor:pointer;margin-top:4px;"
+             title="不只取一個物件，而是把所有分到的物件（大於最小點數）都個別取出來&#10;每個物件會變成拼接佇列裡獨立的一段，3D 預覽會分開排列顯示&#10;可以個別預覽/匯出每一個">
+        <input id="stitchSplitAll" type="checkbox" /> 展開所有物件（取代上方「取第幾個」）
+      </label>
+      <div style="display:grid;grid-template-columns:auto 1fr auto 1fr;gap:4px 8px;align-items:center;font-size:11px;color:#aeb7bd;margin-top:6px;">
+        <span title="第幾個群組（1=最大）&#10;先執行一次，看 Log 裡各群組點數再決定&#10;勾選「展開所有物件」時此欄位無效">取第幾個</span>
+        <input id="stitchClusterRank" type="number" value="1" min="1" max="20" step="1"
+               style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:2px 5px;font:inherit;width:100%;" />
+        <span title="移除主平面的容差（mm）&#10;主平面 ±N mm 內的點都視為底板而移除&#10;建議 5–12 mm">平面容差</span>
+        <input id="stitchPlaneTol" type="number" value="8" min="1" max="50" step="1"
+               style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:2px 5px;font:inherit;width:100%;" />
+        <span title="展開所有物件時，群組點數小於此值視為雜訊忽略">最小點數</span>
+        <input id="stitchMinClusterSize" type="number" value="200" min="1" max="100000" step="50"
+               style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:2px 5px;font:inherit;width:100%;" />
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">
+      <button id="stitchDirectBtn" type="button" disabled>直接拼接</button>
+      <button id="stitchRunBtn"    type="button" disabled>處理後拼接</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+      <button id="stitchPreviewBtn" type="button" disabled>重新預覽</button>
+      <button id="stitchExportBtn" type="button" disabled>匯出合併 PLY</button>
+    </div>
+    <button id="view2dBtn" type="button" style="width:100%;margin-top:6px;" disabled>產生 2D 視圖</button>
+
+    <div class="log-box" id="stitchLog"></div>
+  </section>
+
+  <section class="panel" style="left:auto;right:16px;top:16px;width:min(340px, calc(100vw - 32px));">
+    <h1 style="font-size:15px;">PLY 轉 STEP 實體</h1>
+    <div style="font-size:11px;color:#6e7a82;margin-bottom:8px;">匯入 PLY → 設定厚度 → 依掃描輪廓自動還原成實體並匯出 STEP</div>
+
+    <input type="file" id="stepFileInput" accept=".ply" />
+    <label for="stepFileInput" class="upload-zone" id="stepZone">
+      <span id="stepZoneLabel">點此或拖曳選擇 PLY 檔案</span>
+    </label>
+
+    <div style="margin-top:8px;display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 8px;align-items:center;font-size:12px;">
+      <span style="color:#aeb7bd;" title="過濾突起物：移除高於平面中位高度 + N mm 的點&#10;用於去掉掃描場景中的球體、螺栓、圓筒等突起物&#10;只保留平板面區域做網格&#10;估算：看突起物離平面多高，設比平板厚度稍大的值&#10;e.g. 平板 6mm → 設 10mm 可過濾高於板面 10mm 以上的突起&#10;建議：0（關閉，一般掃描）；場景複雜時才設定">過濾突起 (mm) <span style="color:#5b8fb9;cursor:help;">ⓘ</span></span>
+      <input id="steelHFilter" type="number" value="0" step="5" min="0" max="500"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+      <span style="color:#aeb7bd;" title="沿掃描表面法線向內加厚的距離（mm）&#10;建議值：鋼板實際板厚，e.g. 6 mm&#10;影響：前後表面的間距">厚度 t (mm) <span style="color:#5b8fb9;cursor:help;">ⓘ</span></span>
+      <input id="steelT"    type="number" value="6" step="0.5" min="0.1"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+      <span style="color:#aeb7bd;" title="描邊格子大小（mm）&#10;越小 → 輪廓越精細、三角面越多、速度越慢&#10;建議：1–3 mm；大件用 2–4 mm">輪廓格子 (mm) <span style="color:#5b8fb9;cursor:help;">ⓘ</span></span>
+      <input id="steelCell" type="number" value="2" step="0.5" min="0.5"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+      <span style="color:#aeb7bd;" title="Laplacian 高度平均迭代次數&#10;每次：每格高度 = (自身 + 4 鄰居) ÷ (1+鄰居數)&#10;效果：補平坑洞、表面不平、邊緣高度差&#10;副效：次數多時輪廓微幅收縮&#10;底部邊緣額外做 2× 次環狀平滑&#10;建議：3–6 次（0 = 關閉）">表面平滑 (次) <span style="color:#5b8fb9;cursor:help;">ⓘ</span></span>
+      <input id="steelSmooth" type="number" value="4" step="1" min="0" max="20"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+      <span style="color:#aeb7bd;" title="形態學 Erosion（邊緣內縮）&#10;移除「< 4 個占用鄰居」的最外圈格子，共做 N 輪&#10;效果：消除邊緣鋸齒、底部突刺、多餘三角面&#10;副效：每輪縮小 1 格 = 1× 輪廓格子 mm&#10;建議：1–2 格（0 = 關閉；太多會縮小太多）">邊緣修飾 (格) <span style="color:#5b8fb9;cursor:help;">ⓘ</span></span>
+      <input id="steelErode" type="number" value="1" step="1" min="0" max="5"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+      <span style="color:#aeb7bd;" title="掃描死區橋接補插&#10;逐行 / 逐列掃描，兩端有資料、中間缺漏 ≤ 此格數 → 線性內插補起&#10;可補 BFS 無法填的「邊緣連通大缺口」（如掃描器視野遮蔽區）&#10;估算：缺口寬度 (mm) ÷ 輪廓格子 (mm) = 設定格數&#10;建議：0（關閉）；有大缺口時設 10–30 格">橋接缺漏 (格) <span style="color:#5b8fb9;cursor:help;">ⓘ</span></span>
+      <input id="steelBridge" type="number" value="0" step="5" min="0" max="500"
+             style="background:#262a2f;border:1px solid rgba(255,255,255,0.16);border-radius:4px;color:#f7f7f4;padding:3px 6px;font:inherit;width:100%;" />
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:#d8d9d6;cursor:pointer;padding:6px 8px;border:1px solid rgba(255,255,255,0.12);border-radius:6px;background:rgba(255,255,255,0.04);"
+           title="勾選：以全局法線方向（e3）統一偏移底面，並用 Douglas-Peucker 簡化輪廓鋸齒&#10;不勾：逐頂點法線偏移（L 型 / 角鋼等折彎件適用，各面各自垂直加厚）&#10;建議：有折彎 → 不勾；純平板 → 勾選">
+      <input id="stepFlatBottom" type="checkbox" />
+      補平邊緣 <span style="color:#5b8fb9;font-size:11px;">ⓘ</span>
+      <span style="color:#6e7a82;font-size:11px;">（D-P 輪廓簡化 + 底面 e3 方向偏移）</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:4px;font-size:12px;color:#d8d9d6;cursor:pointer;padding:6px 8px;border:1px solid rgba(255,255,255,0.12);border-radius:6px;background:rgba(255,255,255,0.04);"
+           title="BFS 孔洞填補&#10;從格子邊界往內標記「外部空格」，剩餘孤立未占用格迭代填補&#10;只填完全被占用格包圍的封閉孔，連通外部的大缺口需用「橋接缺漏」">
+      <input id="stepFillHoles" type="checkbox" checked />
+      填補孔洞 <span style="color:#5b8fb9;font-size:11px;">ⓘ</span>
+      <span style="color:#6e7a82;font-size:11px;">（BFS 填補掃描缺漏區域）</span>
+    </label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">
+      <button id="stepGenerateBtn" type="button" disabled>產生 STEP</button>
+      <button id="gltfGenerateBtn" type="button" disabled>產生 glTF</button>
+    </div>
+    <div class="log-box" id="stepLog"></div>
+  </section>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const canvas = document.querySelector("#viewer");
+    const statusEl = document.querySelector("#status");
+    const coordReadout = document.querySelector("#coordReadout");
+    const progressEl = document.querySelector("#progress");
+    const fileSelect = document.querySelector("#fileSelect");
+    const sampleRate = document.querySelector("#sampleRate");
+    const sampleText = document.querySelector("#sampleText");
+    const pointSize = document.querySelector("#pointSize");
+    const pointText = document.querySelector("#pointText");
+    const colorByIntensity = document.querySelector("#colorByIntensity");
+    const showGrid = document.querySelector("#showGrid");
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x101114, 1);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, 1, 0.01, 100000);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    const root = new THREE.Group();
+    scene.add(root);
+
+    const grid = new THREE.GridHelper(1200, 24, 0x55606a, 0x2c3338);
+    grid.rotation.x = Math.PI / 2;
+    scene.add(grid);
+
+    const axes = new THREE.AxesHelper(120);
+    scene.add(axes);
+
+    const clouds = [];
+    let currentBox = null;
+    const raycaster = new THREE.Raycaster();
+    raycaster.params.Points.threshold = 2.5;
+    const pointer = new THREE.Vector2(2, 2);
+    const pickedLocal = new THREE.Vector3();
+    const pickedWorld = new THREE.Vector3();
+    let pointerDirty = false;
+
+    const pickMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(2.4, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false })
+    );
+    pickMarker.visible = false;
+    pickMarker.renderOrder = 10;
+    scene.add(pickMarker);
+
+    const palette = [
+      new THREE.Color("#243b6b"),
+      new THREE.Color("#00a7a5"),
+      new THREE.Color("#e5d65c"),
+      new THREE.Color("#f26f4c")
+    ];
+
+    function resize() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function setProgress(value) {
+      progressEl.style.width = `${Math.max(0, Math.min(100, value))}%`;
+    }
+
+    function setCoordReadout(data = null) {
+      if (!data) {
+        coordReadout.innerHTML = `
+          <span>檔案</span><b>-</b>
+          <span>X</span><b>-</b>
+          <span>Y</span><b>-</b>
+          <span>Z</span><b>-</b>
+          <span>Intensity</span><b>-</b>
+        `;
+        return;
+      }
+
+      coordReadout.innerHTML = `
+        <span>檔案</span><b>${data.name}</b>
+        <span>X</span><b>${data.x.toFixed(3)} mm</b>
+        <span>Y</span><b>${data.y.toFixed(3)} mm</b>
+        <span>Z</span><b>${data.z.toFixed(3)} mm</b>
+        <span>Intensity</span><b>${data.intensity.toFixed(0)}</b>
+      `;
+    }
+
+    function colorFromIntensity(intensity, fallbackColor) {
+      if (!colorByIntensity.checked) return fallbackColor;
+      const t = Math.max(0, Math.min(1, intensity / 255));
+      const scaled = t * (palette.length - 1);
+      const i = Math.min(palette.length - 2, Math.floor(scaled));
+      return palette[i].clone().lerp(palette[i + 1], scaled - i);
+    }
+
+    async function fetchTextWithProgress(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`${url} 載入失敗：HTTP ${response.status}`);
+
+      const total = Number(response.headers.get("content-length")) || 0;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let received = 0;
+      let text = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.byteLength;
+        text += decoder.decode(value, { stream: true });
+        if (total) setProgress((received / total) * 45);
+      }
+
+      text += decoder.decode();
+      return text;
+    }
+
+    function parsePly(text, samplePercent, baseColor) {
+      const headerEnd = text.indexOf("end_header");
+      if (headerEnd < 0) throw new Error("找不到 PLY end_header。");
+
+      const headerText = text.slice(0, headerEnd);
+      const vertexMatch = headerText.match(/element\s+vertex\s+(\d+)/);
+      const declaredCount = vertexMatch ? Number(vertexMatch[1]) : 0;
+      const bodyStart = text.indexOf("\n", headerEnd) + 1;
+      const body = text.slice(bodyStart);
+      const lines = body.split(/\r?\n/);
+      const step = Math.max(1, Math.round(100 / samplePercent));
+      const kept = Math.ceil(lines.length / step);
+      const positions = new Float32Array(kept * 3);
+      const colors = new Float32Array(kept * 3);
+      const intensities = new Float32Array(kept);
+      const box = new THREE.Box3();
+      const point = new THREE.Vector3();
+      let count = 0;
+
+      for (let i = 0; i < lines.length; i += step) {
+        const line = lines[i];
+        if (!line) continue;
+        const parts = line.split(" ");
+        if (parts.length < 3) continue;
+
+        const x = Number(parts[0]);
+        const y = Number(parts[1]);
+        const z = Number(parts[2]);
+        const intensity = parts.length > 3 ? Number(parts[3]) : 180;
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+
+        const offset = count * 3;
+        positions[offset] = x;
+        positions[offset + 1] = y;
+        positions[offset + 2] = z;
+
+        const color = colorFromIntensity(intensity, baseColor);
+        colors[offset] = color.r;
+        colors[offset + 1] = color.g;
+        colors[offset + 2] = color.b;
+        intensities[count] = intensity;
+
+        point.set(x, y, z);
+        box.expandByPoint(point);
+        count++;
+
+        if (i % 120000 === 0) setProgress(45 + (i / lines.length) * 45);
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions.slice(0, count * 3), 3));
+      geometry.setAttribute("color", new THREE.BufferAttribute(colors.slice(0, count * 3), 3));
+      geometry.setAttribute("intensity", new THREE.BufferAttribute(intensities.slice(0, count), 1));
+      geometry.computeBoundingSphere();
+
+      return { geometry, count, declaredCount, box };
+    }
+
+    // Add a colored point cloud directly from already-parsed position arrays
+    // (no server fetch / text reparse). Used for splitAllClusters output.
+    function addCloudFromPoints(name, positions, count, baseColor, yOffset = 0) {
+      const colors = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        colors[i*3] = baseColor.r; colors[i*3+1] = baseColor.g; colors[i*3+2] = baseColor.b;
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+      geometry.computeBoundingSphere();
+      const material = new THREE.PointsMaterial({
+        size: Number(pointSize.value),
+        sizeAttenuation: false,
+        vertexColors: true
+      });
+      const points = new THREE.Points(geometry, material);
+      points.position.y += yOffset;
+      points.userData = { name, count, declaredCount: count };
+      root.add(points);
+      clouds.push(points);
+      return points;
+    }
+
+    async function loadCloud(name, baseColor, yOffset = 0) {
+      setStatus(`正在載入 ${name}...`);
+      const text = await fetchTextWithProgress(name);
+      setStatus(`正在解析 ${name}...`);
+      await new Promise(requestAnimationFrame);
+
+      const parsed = parsePly(text, Number(sampleRate.value), baseColor);
+      const material = new THREE.PointsMaterial({
+        size: Number(pointSize.value),
+        sizeAttenuation: false,
+        vertexColors: true
+      });
+      const points = new THREE.Points(parsed.geometry, material);
+      points.position.y += yOffset;
+      points.userData = { name, ...parsed };
+      root.add(points);
+      clouds.push(points);
+      return points;
+    }
+
+    function clearClouds() {
+      while (clouds.length) {
+        const cloud = clouds.pop();
+        root.remove(cloud);
+        cloud.geometry.dispose();
+        cloud.material.dispose();
+      }
+      currentBox = null;
+      pickMarker.visible = false;
+      setCoordReadout();
+    }
+
+    function pickPoint() {
+      if (!clouds.length) return;
+
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(clouds, false);
+      if (!hits.length || hits[0].index === undefined) {
+        pickMarker.visible = false;
+        setCoordReadout();
+        return;
+      }
+
+      const hit = hits[0];
+      const cloud = hit.object;
+      const index = hit.index;
+      const position = cloud.geometry.getAttribute("position");
+      const intensity = cloud.geometry.getAttribute("intensity");
+
+      pickedLocal.fromBufferAttribute(position, index);
+      pickedWorld.copy(pickedLocal).applyMatrix4(cloud.matrixWorld);
+      pickMarker.position.copy(pickedWorld);
+      pickMarker.visible = true;
+
+      setCoordReadout({
+        name: cloud.userData.name,
+        x: pickedLocal.x,
+        y: pickedLocal.y,
+        z: pickedLocal.z,
+        intensity: intensity ? intensity.getX(index) : 0
+      });
+    }
+
+    function fitCamera() {
+      const box = new THREE.Box3();
+      for (const cloud of clouds) box.expandByObject(cloud);
+      if (box.isEmpty()) return;
+
+      currentBox = box;
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxSize = Math.max(size.x, size.y, size.z);
+      const distance = maxSize / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+
+      controls.target.copy(center);
+      camera.position.set(center.x + distance * 0.65, center.y - distance * 1.15, center.z + distance * 0.7);
+      camera.near = Math.max(0.01, distance / 500);
+      camera.far = Math.max(10000, distance * 8);
+      camera.updateProjectionMatrix();
+      controls.update();
+    }
+
+    async function loadSelected() {
+      clearClouds();
+      setProgress(0);
+      document.querySelector("#loadBtn").disabled = true;
+
+      try {
+        const selected = fileSelect.value;
+        if (selected === "both") {
+          await loadCloud("angle_steel.ply", new THREE.Color("#46d6a7"), -8);
+          await loadCloud("empty.ply", new THREE.Color("#f2c14e"), 8);
+        } else if (selected === "both_calibrated") {
+          await loadCloud("angle_steel_calibrated.ply", new THREE.Color("#46d6a7"), -8);
+          await loadCloud("empty_calibrated.ply", new THREE.Color("#f2c14e"), 8);
+        } else if (selected === "both_background_calibrated") {
+          await loadCloud("angle_steel_background_calibrated.ply", new THREE.Color("#46d6a7"), -8);
+          await loadCloud("empty_background_calibrated.ply", new THREE.Color("#f2c14e"), 8);
+        } else if (selected === "both_ground_roi_calibrated") {
+          await loadCloud("angle_steel_ground_roi_calibrated.ply", new THREE.Color("#46d6a7"), -8);
+          await loadCloud("empty_ground_roi_calibrated.ply", new THREE.Color("#f2c14e"), 8);
+        } else if (selected === "both_edge_auto_calibrated") {
+          await loadCloud("angle_steel_edge_auto_calibrated.ply", new THREE.Color("#46d6a7"), -8);
+          await loadCloud("empty_edge_auto_calibrated.ply", new THREE.Color("#f2c14e"), 8);
+        } else if (selected === "both_xy_aligned") {
+          await loadCloud("angle_steel_xy_aligned.ply", new THREE.Color("#46d6a7"), -8);
+          await loadCloud("empty_edge_auto_calibrated.ply", new THREE.Color("#f2c14e"), 8);
+        } else if (selected === "both_xy_ground_rotated") {
+          await loadCloud("angle_steel_xy_aligned_ground_rotated.ply", new THREE.Color("#46d6a7"), -8);
+          await loadCloud("empty_edge_auto_calibrated_ground_rotated.ply", new THREE.Color("#f2c14e"), 8);
+        } else if (selected === "both_four_edge_rotated_zeroed") {
+          await loadCloud("angle_steel_xy_aligned_four_edge_rotated_zeroed.ply", new THREE.Color("#46d6a7"), -8);
+          await loadCloud("empty_edge_auto_calibrated_four_edge_rotated_zeroed.ply", new THREE.Color("#f2c14e"), 8);
+        } else if (selected === "both_xy_aligned_z_flipped") {
+          await loadCloud("angle_steel_xy_aligned_z_flipped_grounded.ply", new THREE.Color("#46d6a7"), -8);
+          await loadCloud("empty_edge_auto_calibrated.ply", new THREE.Color("#f2c14e"), 8);
+        } else if (selected === "both_xy_ground_flipped") {
+          await loadCloud("angle_steel_xy_ground_flipped.ply", new THREE.Color("#46d6a7"), -8);
+          await loadCloud("empty_xy_ground_flipped.ply", new THREE.Color("#f2c14e"), 8);
+        } else if (selected === "extracted_both") {
+          await loadCloud("angle_steel_xy_aligned_four_edge_rotated_zeroed_angle_steel.ply", new THREE.Color("#46d6a7"));
+          await loadCloud("angle_steel_xy_aligned_four_edge_rotated_zeroed_door_stopper.ply", new THREE.Color("#f26f4c"));
+        } else {
+          await loadCloud(selected, new THREE.Color("#46d6a7"));
+        }
+
+        fitCamera();
+        setProgress(100);
+        const lines = clouds.map((cloud) => {
+          const data = cloud.userData;
+          return `${data.name}: ${data.count.toLocaleString()} / ${data.declaredCount.toLocaleString()} 點`;
+        });
+        setStatus(`載入完成\n${lines.join("\n")}`);
+      } catch (error) {
+        console.error(error);
+        setStatus(`發生錯誤：${error.message}`);
+      } finally {
+        document.querySelector("#loadBtn").disabled = false;
+      }
+    }
+
+    // Load a server-processed PLY and split it into separate colored objects
+    // by connected-component clustering (after stripping the dominant flat plane).
+    let lastSplitObjects = null;
+
+    // Fetch a server-processed PLY, split it into objects (largest-first), and try to
+    // recover each point's original (pre-transform) scanner-frame coordinate by matching
+    // against the raw uploaded source file named in the output's header comment.
+    // Shared by the inline viewer (loadSplitObjects) and the standalone one-click panel.
+    async function splitObjectsWithRawCoords(name, onProgress = () => {}, removeDominantPlane = true) {
+      onProgress("fetch", `正在載入 ${name}...`);
+      const resp = await fetch(name);
+      if (!resp.ok) throw new Error(`無法讀取 ${name}（HTTP ${resp.status}）`);
+      const outText = await resp.text();
+      const outData = parsePlyTextToData(outText, name);
+
+      const planeTol = Math.max(1, parseFloat(document.querySelector("#upPlaneTol")?.value) || 8);
+      const minSize = Math.max(1, parseInt(document.querySelector("#upMinClusterSize")?.value) || 200);
+      onProgress("split", `正在分群 ${name}...`);
+      const { objects, totalComponents, skipped, merged, removedPlane } = splitAllClusters(outData, 10, removeDominantPlane, planeTol, minSize);
+      if (objects.length === 0) {
+        throw new Error(`分群後沒有找到任何物件（共 ${totalComponents} 群組，皆小於最小點數 ${minSize}）。`);
+      }
+
+      let rawNote = "";
+      const srcMatch = outText.match(/source=(\S+\.ply)/);
+      const zThreshMatch = outText.match(/z_thresh=([\d.]+)/);
+      if (srcMatch && zThreshMatch) {
+        try {
+          onProgress("raw", `正在比對原始掃描座標（來源：${srcMatch[1]}）...`);
+          const rawData = await parsePlyRaw(srcMatch[1]);
+          const transform = fitRawToProcessedTransform(rawData, outData);
+          const mapping = buildOutputToRawMapping(rawData, outData, transform, parseFloat(zThreshMatch[1]));
+          for (const obj of objects) {
+            obj.rawPositions = new Float32Array(obj.count * 3).fill(NaN);
+            obj.rawIntensities = new Uint8Array(obj.count);
+            for (let j = 0; j < obj.count; j++) {
+              const rawIdx = mapping[obj.origIdx[j]];
+              if (rawIdx >= 0) {
+                obj.rawPositions[j*3]   = rawData.positions[rawIdx*3];
+                obj.rawPositions[j*3+1] = rawData.positions[rawIdx*3+1];
+                obj.rawPositions[j*3+2] = rawData.positions[rawIdx*3+2];
+                obj.rawIntensities[j]   = rawData.intensities[rawIdx];
+              }
+            }
+          }
+          let unmapped = 0;
+          for (const obj of objects) for (let j = 0; j < obj.count; j++) if (Number.isNaN(obj.rawPositions[j*3])) unmapped++;
+          rawNote = unmapped > 0 ? `（原始掃描座標：${unmapped} 點未能比對成功）` : "（已成功比對所有點的原始掃描座標）";
+        } catch (rawErr) {
+          console.error(rawErr);
+          rawNote = `（原始座標比對失敗：${rawErr.message}）`;
+        }
+      } else {
+        rawNote = "（輸出檔案缺少 source/z_thresh 標記，無法比對原始掃描座標）";
+      }
+
+      return { objects, totalComponents, skipped, merged, removedPlane, rawNote };
+    }
+
+    // Populates the inline 3D viewer + the export buttons/dropdown for a freshly split result.
+    function showSplitObjectsInViewer(objects) {
+      clearClouds();
+      objects.forEach((obj, idx) => {
+        const color = new THREE.Color(STITCH_COLORS[idx % STITCH_COLORS.length]);
+        addCloudFromPoints(obj.name, obj.positions, obj.count, color);
+      });
+      fitCamera();
+      lastSplitObjects = objects;
+      document.querySelector("#upExportSplitBtn").disabled = false;
+      document.querySelector("#upExportSplitJsonBtn").disabled = false;
+
+      const zipSelect = document.querySelector("#upZipObjectSelect");
+      zipSelect.innerHTML = "";
+      objects.forEach((o, idx) => {
+        const opt = document.createElement("option");
+        opt.value = String(idx);
+        opt.textContent = `${o.name}（${o.count.toLocaleString()} 點）${idx === 0 ? " ← 點數最多" : ""}`;
+        zipSelect.appendChild(opt);
+      });
+      zipSelect.disabled = false;
+      document.querySelector("#upExportZipBtn").disabled = false;
+    }
+
+    async function loadSplitObjects(name) {
+      clearClouds();
+      setProgress(0);
+      document.querySelector("#loadBtn").disabled = true;
+      document.querySelector("#upExportSplitBtn").disabled = true;
+      document.querySelector("#upExportSplitJsonBtn").disabled = true;
+      document.querySelector("#upExportZipBtn").disabled = true;
+      document.querySelector("#upZipObjectSelect").disabled = true;
+      document.querySelector("#upZipObjectSelect").innerHTML = "";
+      lastSplitObjects = null;
+      try {
+        const { objects, skipped, merged, removedPlane, rawNote } = await splitObjectsWithRawCoords(name, (stage, msg) => {
+          setStatus(msg);
+          setProgress(stage === "fetch" ? 35 : stage === "split" ? 65 : 80);
+        });
+        setProgress(100);
+        showSplitObjectsInViewer(objects);
+        const lines = objects.map((o) => `${o.name}: ${o.count.toLocaleString()} 點`);
+        const mergeNote = merged > 0 ? `；已合併 ${merged} 組相鄰碎片（移除主平面切到物件本身時的安全修正）` : "";
+        setStatus(`已分離 ${objects.length} 個物件（移除主平面 ${removedPlane.toLocaleString()} 點，忽略 ${skipped} 個雜訊群組${mergeNote}）\n${lines.join("\n")}\n${rawNote}`);
+      } catch (error) {
+        console.error(error);
+        setStatus(`發生錯誤：${error.message}`);
+      } finally {
+        document.querySelector("#loadBtn").disabled = false;
+      }
+    }
+
+    function plyTextForObject(obj) {
+      const header = [
+        "ply", "format ascii 1.0",
+        `element vertex ${obj.count}`,
+        "property float x", "property float y", "property float z",
+        "property float intensity",
+        "end_header", ""
+      ].join("\n");
+      const chunks = [header];
+      for (let i = 0; i < obj.count; i++) {
+        chunks.push(`${obj.positions[i*3].toFixed(6)} ${obj.positions[i*3+1].toFixed(6)} ${obj.positions[i*3+2].toFixed(6)} ${obj.intensities[i]}\n`);
+      }
+      return chunks;
+    }
+
+    // Matches tools/json_formatter.py's default style (indent=2, ensure_ascii=False) for the
+    // outer object, but keeps the `points` array one-row-per-line (not one-number-per-line) —
+    // objects can have millions of points, so fully expanding every coordinate would bloat
+    // file size and browser export time many times over for no readability benefit.
+    function round6(v) { return v === null ? null : Math.round(v * 1e6) / 1e6; }
+
+    function jsonTextForObject(obj) {
+      const hasRaw = !!obj.rawPositions;
+      const header = {
+        name: obj.name,
+        count: obj.count,
+        columns: ["x", "y", "z", "intensity", "raw_x", "raw_y", "raw_z", "raw_intensity"],
+        note: "x/y/z/intensity 為對齊處理後的座標；raw_x/raw_y/raw_z/raw_intensity 為掃描器原始座標（轉換前），無法比對時為 null"
+      };
+      const chunks = [
+        "{\n",
+        `  "name": ${JSON.stringify(header.name)},\n`,
+        `  "count": ${header.count},\n`,
+        `  "columns": ${JSON.stringify(header.columns)},\n`,
+        `  "note": ${JSON.stringify(header.note)},\n`,
+        `  "points": [\n`
+      ];
+      for (let i = 0; i < obj.count; i++) {
+        const rawOk = hasRaw && !Number.isNaN(obj.rawPositions[i*3]);
+        const row = [
+          round6(obj.positions[i*3]), round6(obj.positions[i*3+1]), round6(obj.positions[i*3+2]), obj.intensities[i],
+          rawOk ? round6(obj.rawPositions[i*3])   : null,
+          rawOk ? round6(obj.rawPositions[i*3+1]) : null,
+          rawOk ? round6(obj.rawPositions[i*3+2]) : null,
+          rawOk ? obj.rawIntensities[i]           : null
+        ];
+        chunks.push(`    ${JSON.stringify(row)}${i < obj.count - 1 ? "," : ""}\n`);
+      }
+      chunks.push("  ]\n}\n");
+      return chunks;
+    }
+
+    document.querySelector("#upExportSplitJsonBtn").addEventListener("click", async () => {
+      if (!lastSplitObjects || !lastSplitObjects.length) return;
+      const btn = document.querySelector("#upExportSplitJsonBtn");
+      btn.disabled = true;
+      try {
+        for (const obj of lastSplitObjects) {
+          const blob = new Blob(jsonTextForObject(obj), { type: "application/json" });
+          const fileName = `${obj.name}.json`;
+          if ("showSaveFilePicker" in window) {
+            try {
+              const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                types: [{ description: "JSON point data", accept: { "application/json": [".json"] } }]
+              });
+              const writable = await handle.createWritable();
+              await writable.write(blob);
+              await writable.close();
+            } catch (err) {
+              if (err.name === "AbortError") break;
+              throw err;
+            }
+          } else {
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            await new Promise(r => setTimeout(r, 250));
+          }
+        }
+        setStatus(`已匯出 ${lastSplitObjects.length} 個物件 JSON（含原始掃描座標）`);
+      } catch (error) {
+        console.error(error);
+        setStatus(`匯出失敗：${error.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ── Minimal ZIP writer (STORE method, no compression) ──────────────────
+    // Good enough for bundling a handful of export files (PLY/PNG/STEP/glTF/JSON)
+    // without pulling in an external library like JSZip.
+    const crc32Table = (() => {
+      const t = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        t[n] = c >>> 0;
+      }
+      return t;
+    })();
+    function crc32(buf) {
+      let crc = 0xFFFFFFFF;
+      for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ crc32Table[(crc ^ buf[i]) & 0xFF];
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+    function dosDateTime(date = new Date()) {
+      const time = ((date.getHours() & 0x1F) << 11) | ((date.getMinutes() & 0x3F) << 5) | ((date.getSeconds() >> 1) & 0x1F);
+      const dt = (((date.getFullYear() - 1980) & 0x7F) << 9) | (((date.getMonth() + 1) & 0xF) << 5) | (date.getDate() & 0x1F);
+      return { time, dt };
+    }
+    // entries: [{ name, data: Uint8Array }]
+    function buildZip(entries) {
+      const { time, dt } = dosDateTime();
+      const localParts = [], centralParts = [];
+      let offset = 0;
+      for (const entry of entries) {
+        const nameBytes = new TextEncoder().encode(entry.name);
+        const data = entry.data;
+        const crc = crc32(data);
+        const size = data.length;
+
+        const lh = new DataView(new ArrayBuffer(30));
+        lh.setUint32(0, 0x04034b50, true);
+        lh.setUint16(4, 20, true);
+        lh.setUint16(6, 0, true);
+        lh.setUint16(8, 0, true);
+        lh.setUint16(10, time, true);
+        lh.setUint16(12, dt, true);
+        lh.setUint32(14, crc, true);
+        lh.setUint32(18, size, true);
+        lh.setUint32(22, size, true);
+        lh.setUint16(26, nameBytes.length, true);
+        lh.setUint16(28, 0, true);
+        localParts.push(new Uint8Array(lh.buffer), nameBytes, data);
+
+        const ch = new DataView(new ArrayBuffer(46));
+        ch.setUint32(0, 0x02014b50, true);
+        ch.setUint16(4, 20, true);
+        ch.setUint16(6, 20, true);
+        ch.setUint16(8, 0, true);
+        ch.setUint16(10, 0, true);
+        ch.setUint16(12, time, true);
+        ch.setUint16(14, dt, true);
+        ch.setUint32(16, crc, true);
+        ch.setUint32(20, size, true);
+        ch.setUint32(24, size, true);
+        ch.setUint16(28, nameBytes.length, true);
+        ch.setUint16(30, 0, true);
+        ch.setUint16(32, 0, true);
+        ch.setUint16(34, 0, true);
+        ch.setUint16(36, 0, true);
+        ch.setUint32(38, 0, true);
+        ch.setUint32(42, offset, true);
+        centralParts.push(new Uint8Array(ch.buffer), nameBytes);
+
+        offset += 30 + nameBytes.length + size;
+      }
+      const centralSize = centralParts.reduce((s, p) => s + p.length, 0);
+      const centralOffset = offset;
+      const eocd = new DataView(new ArrayBuffer(22));
+      eocd.setUint32(0, 0x06054b50, true);
+      eocd.setUint16(4, 0, true);
+      eocd.setUint16(6, 0, true);
+      eocd.setUint16(8, entries.length, true);
+      eocd.setUint16(10, entries.length, true);
+      eocd.setUint32(12, centralSize, true);
+      eocd.setUint32(16, centralOffset, true);
+      eocd.setUint16(20, 0, true);
+      return new Blob([...localParts, ...centralParts, new Uint8Array(eocd.buffer)], { type: "application/zip" });
+    }
+    function dataUrlToUint8Array(dataUrl) {
+      const bin = atob(dataUrl.split(",")[1]);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return arr;
+    }
+    function textToUint8Array(text) { return new TextEncoder().encode(text); }
+
+    // ── One-click pipeline: split object → point cloud + 2D views + STEP + glTF + raw coords, zipped ──
+    // Builds the full export bundle (PLY + JSON coords + STEP + glTF + 3 ortho PNGs) for one
+    // split object, reusing the same mesh-thickening settings as the "PLY 轉 STEP 實體" panel.
+    function buildExportEntriesForObject(obj) {
+      const t          = Number(document.querySelector("#steelT").value) || 6;
+      const cell        = Number(document.querySelector("#steelCell").value) || 2;
+      const flatBottom  = document.querySelector("#stepFlatBottom").checked;
+      const fillHoles   = document.querySelector("#stepFillHoles").checked;
+      const smoothIter  = Math.max(0, parseInt(document.querySelector("#steelSmooth").value) || 0);
+      const erodeN      = Math.max(0, parseInt(document.querySelector("#steelErode").value) || 0);
+      const bridgeFill  = Math.max(0, parseInt(document.querySelector("#steelBridge").value) || 0);
+      const hFilter     = Math.max(0, parseFloat(document.querySelector("#steelHFilter").value) || 0);
+
+      const plane = pcaFitPlane(obj.positions, obj.count);
+      const mesh = buildThickenedMesh(obj.positions, obj.count, plane, cell, t, flatBottom, fillHoles, smoothIter, erodeN, bridgeFill, hFilter);
+
+      const stepText  = trianglesToStep(mesh.allPos, mesh.triangles);
+      const glbBuffer = trianglesToGltfBinary(mesh.allPos, mesh.triangles);
+
+      // Offscreen canvases for the 3 orthographic 2D views, built directly from
+      // this object's own points (not the whole scene).
+      const pts = obj.positions;
+      const top = document.createElement("canvas"), front = document.createElement("canvas"), side = document.createElement("canvas");
+      renderOrthoView(top,   pts, 0, 1, "X", "Y");
+      renderOrthoView(front, pts, 0, 2, "X", "Z");
+      renderOrthoView(side,  pts, 1, 2, "Y", "Z");
+
+      return [
+        { name: `${obj.name}.ply`,  data: textToUint8Array(plyTextForObject(obj).join("")) },
+        { name: `${obj.name}.json`, data: textToUint8Array(jsonTextForObject(obj).join("")) },
+        { name: `${obj.name}.stp`,  data: textToUint8Array(stepText) },
+        { name: `${obj.name}.glb`,  data: new Uint8Array(glbBuffer) },
+        { name: `${obj.name}_2d_top.png`,   data: dataUrlToUint8Array(top.toDataURL("image/png")) },
+        { name: `${obj.name}_2d_front.png`, data: dataUrlToUint8Array(front.toDataURL("image/png")) },
+        { name: `${obj.name}_2d_side.png`,  data: dataUrlToUint8Array(side.toDataURL("image/png")) }
+      ];
+    }
+
+    document.querySelector("#upExportZipBtn").addEventListener("click", async () => {
+      if (!lastSplitObjects || !lastSplitObjects.length) return;
+      const btn = document.querySelector("#upExportZipBtn");
+      const idx = parseInt(document.querySelector("#upZipObjectSelect").value) || 0;
+      const obj = lastSplitObjects[idx];
+      if (!obj) return;
+
+      btn.disabled = true;
+      try {
+        setStatus(`正在打包 ${obj.name}（${obj.count.toLocaleString()} 點）...`);
+        const entries = buildExportEntriesForObject(obj);
+        const zipBlob = buildZip(entries);
+        await downloadBlob(zipBlob, `${obj.name}_export.zip`, "ZIP archive", ".zip");
+        setStatus(`已匯出 ${obj.name}_export.zip（點雲＋2D 視圖＋STEP＋glTF＋座標）`);
+      } catch (error) {
+        console.error(error);
+        setStatus(`ZIP 匯出失敗：${error.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ── Standalone "一鍵輸出角鋼套件" panel: own upload box, fully automated pipeline ──
+    const oneClickZone      = document.querySelector("#oneClickZone");
+    const oneClickFileInput = document.querySelector("#oneClickFileInput");
+    const oneClickZoneLabel = document.querySelector("#oneClickZoneLabel");
+    const oneClickBtn       = document.querySelector("#oneClickBtn");
+    const oneClickLog       = document.querySelector("#oneClickLog");
+    const oneClickStatus    = document.querySelector("#oneClickStatus");
+    let oneClickFile = null;
+
+    function setOneClickFile(f) {
+      oneClickFile = f;
+      oneClickBtn.disabled = !f;
+      oneClickZoneLabel.textContent = f ? f.name : "點此選擇 / 拖曳 PLY 檔案";
+    }
+    function oneClickLogLine(msg) {
+      oneClickLog.style.display = "block";
+      oneClickLog.textContent += msg + "\n";
+      oneClickLog.scrollTop = oneClickLog.scrollHeight;
+    }
+
+    oneClickFileInput.addEventListener("change", () => setOneClickFile(oneClickFileInput.files[0] || null));
+    oneClickZone.addEventListener("dragover",  e => { e.preventDefault(); oneClickZone.classList.add("drag-over"); });
+    oneClickZone.addEventListener("dragleave", () => oneClickZone.classList.remove("drag-over"));
+    oneClickZone.addEventListener("drop", e => {
+      e.preventDefault();
+      oneClickZone.classList.remove("drag-over");
+      const f = e.dataTransfer.files[0];
+      if (f && f.name.toLowerCase().endsWith(".ply")) setOneClickFile(f);
+    });
+
+    oneClickBtn.addEventListener("click", async () => {
+      if (!oneClickFile) return;
+      oneClickBtn.disabled = true;
+      oneClickLog.textContent = "";
+      oneClickLog.style.display = "block";
+      oneClickStatus.textContent = "";
+      try {
+        oneClickLogLine(`上傳 ${oneClickFile.name}...`);
+        const fd = new FormData();
+        fd.append("file", oneClickFile, oneClickFile.name);
+        fd.append("filename", oneClickFile.name);
+        fd.append("z_thresh", document.querySelector("#upZThresh").value);
+        fd.append("cell", document.querySelector("#upCell").value);
+
+        const resp = await fetch("/process", { method: "POST", body: fd });
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          throw new Error(body.error || resp.statusText);
+        }
+
+        oneClickLogLine("處理中...");
+        const outputName = await new Promise((resolve, reject) => {
+          const es = new EventSource("/status");
+          es.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            if (data.log !== undefined) oneClickLogLine(data.log);
+            if (data.done) {
+              es.close();
+              if (data.error) { reject(new Error(data.error)); return; }
+              const outputs = (data.outputs || [])
+                .filter(f => f.endsWith(".ply"))
+                .map(f => f.split(/[\\/]/).pop());
+              if (!outputs.length) { reject(new Error("找不到輸出 PLY 檔，請查看上方 log")); return; }
+              resolve(outputs[0]);
+            }
+          };
+          es.onerror = () => { es.close(); reject(new Error("SSE 連線中斷")); };
+        });
+        await refreshFileList(outputName);
+
+        const removeDominantPlane = document.querySelector("#oneClickRemovePlane").checked;
+        const { objects, skipped, merged, removedPlane, rawNote } = await splitObjectsWithRawCoords(outputName, (stage, msg) => oneClickLogLine(msg), removeDominantPlane);
+        if (merged > 0) oneClickLogLine(`已合併 ${merged} 組相鄰碎片（移除主平面切到物件本身時的安全修正）`);
+        oneClickLogLine(`已分離 ${objects.length} 個物件（移除主平面 ${removedPlane.toLocaleString()} 點，忽略 ${skipped} 個雜訊群組）：${objects.map(o => `${o.name}(${o.count.toLocaleString()})`).join(", ")}`);
+        oneClickLogLine(rawNote);
+
+        // The largest split object is treated as the target piece (angle steel, by convention).
+        const obj = objects[0];
+        oneClickLogLine(`正在產生 ${obj.name} 的點雲／2D 視圖／STEP／glTF...`);
+        const entries = buildExportEntriesForObject(obj);
+        const zipBlob = buildZip(entries);
+        await downloadBlob(zipBlob, `${obj.name}_export.zip`, "ZIP archive", ".zip");
+
+        showSplitObjectsInViewer(objects);
+        oneClickLogLine(`已匯出 ${obj.name}_export.zip`);
+        oneClickStatus.textContent = `完成：${obj.name}_export.zip（${obj.count.toLocaleString()} 點）`;
+      } catch (error) {
+        console.error(error);
+        oneClickLogLine(`失敗：${error.message}`);
+        oneClickStatus.textContent = `失敗：${error.message}`;
+      } finally {
+        oneClickBtn.disabled = false;
+      }
+    });
+
+    document.querySelector("#upExportSplitBtn").addEventListener("click", async () => {
+      if (!lastSplitObjects || !lastSplitObjects.length) return;
+      const btn = document.querySelector("#upExportSplitBtn");
+      btn.disabled = true;
+      try {
+        for (const obj of lastSplitObjects) {
+          const blob = new Blob(plyTextForObject(obj), { type: "application/octet-stream" });
+          const fileName = `${obj.name}.ply`;
+          if ("showSaveFilePicker" in window) {
+            try {
+              const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                types: [{ description: "PLY point cloud", accept: { "application/octet-stream": [".ply"] } }]
+              });
+              const writable = await handle.createWritable();
+              await writable.write(blob);
+              await writable.close();
+            } catch (err) {
+              if (err.name === "AbortError") break; // user cancelled the whole export
+              throw err;
+            }
+          } else {
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            await new Promise(r => setTimeout(r, 250));
+          }
+        }
+        setStatus(`已匯出 ${lastSplitObjects.length} 個物件 PLY`);
+      } catch (error) {
+        console.error(error);
+        setStatus(`匯出失敗：${error.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    sampleRate.addEventListener("input", () => {
+      sampleText.textContent = `${sampleRate.value}%`;
+    });
+
+    pointSize.addEventListener("input", () => {
+      pointText.textContent = Number(pointSize.value).toFixed(2);
+      for (const cloud of clouds) cloud.material.size = Number(pointSize.value);
+    });
+
+    colorByIntensity.addEventListener("change", () => {
+      if (clouds.length) loadSelected();
+    });
+
+    showGrid.addEventListener("change", () => {
+      grid.visible = showGrid.checked;
+      axes.visible = showGrid.checked;
+    });
+
+    document.querySelector("#loadBtn").addEventListener("click", loadSelected);
+    document.querySelector("#resetBtn").addEventListener("click", fitCamera);
+
+    canvas.addEventListener("pointermove", (event) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      pointerDirty = true;
+    });
+
+    canvas.addEventListener("pointerleave", () => {
+      pointer.set(2, 2);
+      pointerDirty = false;
+      pickMarker.visible = false;
+      setCoordReadout();
+    });
+
+    window.addEventListener("resize", resize);
+    resize();
+
+    renderer.setAnimationLoop(() => {
+      if (pointerDirty) {
+        pickPoint();
+        pointerDirty = false;
+      }
+      controls.update();
+      renderer.render(scene, camera);
+    });
+
+    // ── Dynamic file list from /list-ply ──────────────────────────────────
+    const workDirLabel = document.querySelector("#workDirLabel");
+    const refreshBtn   = document.querySelector("#refreshBtn");
+
+    async function refreshFileList(selectValue) {
+      try {
+        const resp = await fetch("/list-ply");
+        if (!resp.ok) return;
+        const { files, work_dir } = await resp.json();
+        workDirLabel.textContent = "PLY 資料夾：" + (work_dir || "—");
+
+        // Clear and repopulate
+        fileSelect.innerHTML = "";
+        if (!files.length) {
+          fileSelect.innerHTML = '<option value="">（資料夾中沒有 .ply 檔案）</option>';
+          return;
+        }
+        files.forEach(f => {
+          const opt = document.createElement("option");
+          opt.value = f;
+          opt.textContent = f;
+          fileSelect.appendChild(opt);
+        });
+
+        if (selectValue && files.includes(selectValue)) {
+          fileSelect.value = selectValue;
+        }
+      } catch {
+        workDirLabel.textContent = "PLY 資料夾：（離線模式 — 請改用 python server.py 啟動）";
+      }
+    }
+
+    refreshBtn.addEventListener("click", () => refreshFileList(fileSelect.value));
+    refreshFileList();
+
+    loadSelected();
+
+    // ── Upload + auto-process ──────────────────────────────────────────────
+    const uploadZone     = document.querySelector("#uploadZone");
+    const fileInput      = document.querySelector("#fileInput");
+    const uploadBtn      = document.querySelector("#uploadBtn");
+    const uploadOnlyBtn  = document.querySelector("#uploadOnlyBtn");
+    const logBox         = document.querySelector("#logBox");
+    const upZThresh      = document.querySelector("#upZThresh");
+    const upCell         = document.querySelector("#upCell");
+
+    let selectedFile = null;
+    const uploadLabel = document.querySelector("#uploadLabel");
+
+    function setFileSelected(f) {
+      selectedFile = f;
+      if (f) {
+        uploadLabel.textContent = f.name;
+        uploadBtn.disabled = false;
+        uploadOnlyBtn.disabled = false;
+        uploadBtn.textContent = "上傳並自動處理";
+        uploadOnlyBtn.textContent = "只上傳到資料夾";
+      } else {
+        uploadLabel.textContent = "點此選擇 / 拖曳 PLY 檔案";
+      }
+    }
+
+    fileInput.addEventListener("change", () => setFileSelected(fileInput.files[0] || null));
+
+    uploadZone.addEventListener("dragover", e => { e.preventDefault(); uploadZone.classList.add("drag-over"); });
+    uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("drag-over"));
+    uploadZone.addEventListener("drop", e => {
+      e.preventDefault();
+      uploadZone.classList.remove("drag-over");
+      const f = e.dataTransfer.files[0];
+      if (f && f.name.toLowerCase().endsWith(".ply")) setFileSelected(f);
+    });
+
+    // ── Upload only (no processing) ───────────────────────────────────────
+    uploadOnlyBtn.addEventListener("click", async () => {
+      if (!selectedFile) return;
+      uploadOnlyBtn.disabled = true;
+      uploadOnlyBtn.textContent = "上傳中…";
+      logBox.style.display = "block";
+      logBox.textContent = "";
+
+      const fd = new FormData();
+      fd.append("file", selectedFile, selectedFile.name);
+      fd.append("filename", selectedFile.name);
+
+      try {
+        const resp = await fetch("/upload", { method: "POST", body: fd });
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          logBox.textContent = "錯誤：" + (body.error || resp.statusText);
+        } else {
+          const body = await resp.json();
+          logBox.textContent = "已上傳：" + body.saved;
+          await refreshFileList(body.saved);
+          fileSelect.value = body.saved;
+        }
+      } catch (err) {
+        logBox.textContent = "無法連線到伺服器（請用 python server.py 啟動）";
+      } finally {
+        uploadOnlyBtn.disabled = false;
+        uploadOnlyBtn.textContent = "只上傳到資料夾";
+      }
+    });
+
+    uploadBtn.addEventListener("click", async () => {
+      if (!selectedFile) return;
+
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = "上傳中…";
+      logBox.textContent = "";
+      logBox.style.display = "block";
+
+      const fd = new FormData();
+      fd.append("file", selectedFile, selectedFile.name);
+      fd.append("filename", selectedFile.name);
+      fd.append("z_thresh", upZThresh.value);
+      fd.append("cell", upCell.value);
+
+      let resp;
+      try {
+        resp = await fetch("/process", { method: "POST", body: fd });
+      } catch (err) {
+        logBox.textContent = "無法連線到伺服器（請改用 python server.py 啟動）";
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "開始處理";
+        return;
+      }
+
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        logBox.textContent = "錯誤：" + (body.error || resp.statusText);
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "開始處理";
+        return;
+      }
+
+      uploadBtn.textContent = "處理中…";
+
+      // Listen for SSE progress
+      const evtSource = new EventSource("/status");
+      evtSource.onmessage = async (e) => {
+        const data = JSON.parse(e.data);
+        if (data.log !== undefined) {
+          logBox.textContent += data.log + "\n";
+          logBox.scrollTop = logBox.scrollHeight;
+        }
+        if (data.done) {
+          evtSource.close();
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = "開始處理";
+
+          if (data.error) {
+            logBox.textContent += "\n錯誤：" + data.error;
+            return;
+          }
+
+          // Add output files to the dropdown and load the first one
+          const outputs = (data.outputs || []).filter(f => f.endsWith(".ply"));
+          if (outputs.length === 0) {
+            logBox.textContent += "\n找不到輸出 PLY 檔，請查看上方 log。";
+            return;
+          }
+
+          // Remove old "auto-processed" group if exists
+          const old = fileSelect.querySelector("optgroup[label='── 剛才處理 ──']");
+          if (old) old.remove();
+
+          const grp = document.createElement("optgroup");
+          grp.label = "── 剛才處理 ──";
+          outputs.forEach(f => {
+            const opt = document.createElement("option");
+            opt.value = f;
+            opt.textContent = f;
+            grp.appendChild(opt);
+          });
+          fileSelect.appendChild(grp);
+
+          // Refresh file list then auto-select the first output
+          await refreshFileList(outputs[0]);
+          fileSelect.value = outputs[0];
+
+          if (document.querySelector("#upSplitObjects")?.checked) {
+            await loadSplitObjects(outputs[0]);
+          } else {
+            loadSelected();
+          }
+        }
+      };
+      evtSource.onerror = () => {
+        evtSource.close();
+        logBox.textContent += "\n（SSE 連線中斷）";
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "開始處理";
+      };
+    });
+
+    // ── Multi-scan Stitch (batch process → stitch) ────────────────────────
+    const stitchFileInput  = document.querySelector("#stitchFileInput");
+    const stitchZone       = document.querySelector("#stitchZone");
+    const stitchQueueEl    = document.querySelector("#stitchQueue");
+    const stitchZThresh    = document.querySelector("#stitchZThresh");
+    const stitchCellEl     = document.querySelector("#stitchCell");
+    const stitchGapEl      = document.querySelector("#stitchGap");
+    const stitchDirectBtn  = document.querySelector("#stitchDirectBtn");
+    const stitchRunBtn     = document.querySelector("#stitchRunBtn");
+    const stitchPreviewBtn = document.querySelector("#stitchPreviewBtn");
+    const stitchExportBtn  = document.querySelector("#stitchExportBtn");
+    const stitchLog        = document.querySelector("#stitchLog");
+
+    const STITCH_COLORS = ["#46d6a7","#f2c14e","#f26f4c","#7cbdff","#d46fe8","#69e05c","#ff8c69","#5cb8e4"];
+
+    // queue: [{ file: File, outputs: string[], status: 'pending'|'processing'|'done'|'error' }]
+    const stitchQueue = [];
+    let stitchMergedData = null; // { parsed, offsets, totalCount }
+
+    function renderStitchQueue() {
+      stitchQueueEl.innerHTML = "";
+      if (!stitchQueue.length) {
+        stitchQueueEl.innerHTML = '<div class="stitch-empty">尚未加入掃描檔案</div>';
+        stitchRunBtn.disabled = true;
+        stitchDirectBtn.disabled = true;
+        return;
+      }
+      stitchRunBtn.disabled = false;
+      stitchDirectBtn.disabled = false;
+      const icons = { pending: "●", processing: "⟳", done: "✓", error: "✗" };
+      stitchQueue.forEach((item, idx) => {
+        const row = document.createElement("div");
+        row.className = "stitch-item";
+
+        const st = document.createElement("span");
+        st.className = `stitch-st ${item.status}`;
+        st.textContent = icons[item.status] || "●";
+        st.title = item.status;
+
+        const lbl = document.createElement("span");
+        lbl.textContent = `${idx + 1}. ${item.file.name}`;
+        lbl.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;";
+
+        const upBtn = document.createElement("button");
+        upBtn.type = "button"; upBtn.textContent = "↑"; upBtn.title = "上移";
+        upBtn.disabled = idx === 0;
+        upBtn.addEventListener("click", () => {
+          [stitchQueue[idx-1], stitchQueue[idx]] = [stitchQueue[idx], stitchQueue[idx-1]];
+          renderStitchQueue();
+        });
+
+        const downBtn = document.createElement("button");
+        downBtn.type = "button"; downBtn.textContent = "↓"; downBtn.title = "下移";
+        downBtn.disabled = idx === stitchQueue.length - 1;
+        downBtn.addEventListener("click", () => {
+          [stitchQueue[idx], stitchQueue[idx+1]] = [stitchQueue[idx+1], stitchQueue[idx]];
+          renderStitchQueue();
+        });
+
+        const delBtn = document.createElement("button");
+        delBtn.type = "button"; delBtn.textContent = "✕"; delBtn.title = "移除";
+        delBtn.style.color = "#f26f4c";
+        delBtn.addEventListener("click", () => { stitchQueue.splice(idx, 1); renderStitchQueue(); });
+
+        row.append(st, lbl, upBtn, downBtn, delBtn);
+        stitchQueueEl.appendChild(row);
+      });
+    }
+
+    function addFilesToStitchQueue(files) {
+      let added = 0;
+      for (const file of files) {
+        if (!file.name.toLowerCase().endsWith(".ply")) continue;
+        if (stitchQueue.some(q => q.file.name === file.name)) continue;
+        stitchQueue.push({ file, outputs: [], status: "pending" });
+        added++;
+      }
+      if (added) renderStitchQueue();
+    }
+
+    stitchFileInput.addEventListener("change", () => {
+      addFilesToStitchQueue(Array.from(stitchFileInput.files));
+      stitchFileInput.value = "";
+    });
+    stitchZone.addEventListener("dragover",  e => { e.preventDefault(); stitchZone.classList.add("drag-over"); });
+    stitchZone.addEventListener("dragleave", () => stitchZone.classList.remove("drag-over"));
+    stitchZone.addEventListener("drop", e => {
+      e.preventDefault();
+      stitchZone.classList.remove("drag-over");
+      addFilesToStitchQueue(Array.from(e.dataTransfer.files));
+    });
+
+    // Upload + process one file via /process, wait for SSE, return output PLY filenames
+    async function processOneStitchFile(item, logFn) {
+      item.status = "processing";
+      renderStitchQueue();
+
+      const fd = new FormData();
+      fd.append("file", item.file, item.file.name);
+      fd.append("filename", item.file.name);
+      fd.append("z_thresh", stitchZThresh.value);
+      fd.append("cell", stitchCellEl.value);
+
+      const resp = await fetch("/process", { method: "POST", body: fd });
+      if (!resp.ok) {
+        item.status = "error";
+        renderStitchQueue();
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${resp.status}`);
+      }
+
+      return new Promise((resolve, reject) => {
+        const es = new EventSource("/status");
+        es.onmessage = (e) => {
+          const data = JSON.parse(e.data);
+          if (data.log !== undefined) logFn(data.log);
+          if (data.done) {
+            es.close();
+            if (data.error) {
+              item.status = "error";
+              renderStitchQueue();
+              reject(new Error(data.error));
+            } else {
+              item.status = "done";
+              item.outputs = (data.outputs || []).filter(f => f.endsWith(".ply"));
+              renderStitchQueue();
+              resolve(item.outputs);
+            }
+          }
+        };
+        es.onerror = () => {
+          es.close();
+          item.status = "error";
+          renderStitchQueue();
+          reject(new Error("SSE 連線中斷"));
+        };
+      });
+    }
+
+    function parsePlyTextToData(text, name) {
+      const headerEnd = text.indexOf("end_header");
+      if (headerEnd < 0) throw new Error(`${name}: 缺少 end_header`);
+      const lines = text.slice(text.indexOf("\n", headerEnd) + 1).split(/\r?\n/);
+
+      const positions   = new Float32Array(lines.length * 3);
+      const intensities = new Uint8Array(lines.length);
+      let count = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        const parts = line.split(" ");
+        if (parts.length < 3) continue;
+        const x = Number(parts[0]), y = Number(parts[1]), z = Number(parts[2]);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+        positions[count*3] = x; positions[count*3+1] = y; positions[count*3+2] = z;
+        intensities[count] = Math.max(0, Math.min(255, parts.length > 3 ? Number(parts[3]) : 180));
+        count++;
+      }
+
+      return { name, positions: positions.slice(0, count*3), intensities: intensities.slice(0, count), count };
+    }
+
+    async function parsePlyRaw(name) {
+      const resp = await fetch(name);
+      if (!resp.ok) throw new Error(`無法讀取 ${name}（HTTP ${resp.status}）`);
+      const text = await resp.text();
+      return parsePlyTextToData(text, name);
+    }
+
+    // Like parsePlyRaw but reads from a local File object (no server fetch needed)
+    async function parsePlyFileRaw(file) {
+      const text = await file.text();
+      const headerEnd = text.indexOf("end_header");
+      if (headerEnd < 0) throw new Error(`${file.name}: 找不到 end_header`);
+      const lines = text.slice(text.indexOf("\n", headerEnd) + 1).split(/\r?\n/);
+      const positions   = new Float32Array(lines.length * 3);
+      const intensities = new Uint8Array(lines.length);
+      let count = 0;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        const parts = line.split(" ");
+        if (parts.length < 3) continue;
+        const x = Number(parts[0]), y = Number(parts[1]), z = Number(parts[2]);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+        positions[count*3] = x; positions[count*3+1] = y; positions[count*3+2] = z;
+        intensities[count] = parts.length > 3 ? Math.max(0, Math.min(255, Number(parts[3]))) : 180;
+        count++;
+        if (i % 120000 === 0 && i > 0) await new Promise(requestAnimationFrame);
+      }
+      return { name: file.name, positions: positions.slice(0, count*3), intensities: intensities.slice(0, count), count };
+    }
+
+    // Voxel BFS clustering: returns sorted array of {count, keys} components.
+    function voxelCluster(positions, count, voxelSize) {
+      let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+      for (let i=0;i<count;i++){
+        const x=positions[i*3],y=positions[i*3+1],z=positions[i*3+2];
+        if(x<minX)minX=x; if(x>maxX)maxX=x;
+        if(y<minY)minY=y; if(y>maxY)maxY=y;
+        if(z<minZ)minZ=z; if(z>maxZ)maxZ=z;
+      }
+      const nx=Math.ceil((maxX-minX)/voxelSize)+2;
+      const ny=Math.ceil((maxY-minY)/voxelSize)+2;
+      const voxelPts = new Map();
+      for (let i=0;i<count;i++){
+        const cx=Math.floor((positions[i*3]-minX)/voxelSize);
+        const cy=Math.floor((positions[i*3+1]-minY)/voxelSize);
+        const cz=Math.floor((positions[i*3+2]-minZ)/voxelSize);
+        const key = cx + cy*nx + cz*nx*ny;
+        if (!voxelPts.has(key)) voxelPts.set(key, []);
+        voxelPts.get(key).push(i);
+      }
+      const visited = new Set();
+      const components = [];
+      const dirs = [1,-1,nx,-nx,nx*ny,-nx*ny];
+      for (const key of voxelPts.keys()) {
+        if (visited.has(key)) continue;
+        const queue = [key]; visited.add(key);
+        const comp = new Set([key]);
+        let qi=0;
+        while (qi<queue.length) {
+          const k = queue[qi++];
+          for (const d of dirs) {
+            const nk=k+d;
+            if (!visited.has(nk) && voxelPts.has(nk)) { visited.add(nk); comp.add(nk); queue.push(nk); }
+          }
+        }
+        let cnt=0; for (const k of comp) cnt+=voxelPts.get(k).length;
+        if (cnt >= 5) components.push({ count: cnt, keys: comp }); // drop trivial noise early to keep the sort array small
+      }
+      components.sort((a,b)=>b.count-a.count);
+      return { components, voxelPts };
+    }
+
+    // Shared helper: optionally strip the dominant flat-surface height band
+    // (found via histogram peak of height-above-PCA-plane) from a raw positions array.
+    // Returns { pts, ptCount, removedPlane, srcIdx } — srcIdx[j] = original index of pts[j]
+    // (so callers can trace surviving points back to the input `positions`/`data` array).
+    function removeDominantPlaneFromPoints(positions, count, removeDominantPlane, planeTol) {
+      if (!removeDominantPlane) {
+        const srcIdx = new Uint32Array(count);
+        for (let i=0;i<count;i++) srcIdx[i]=i;
+        return { pts: positions, ptCount: count, removedPlane: 0, srcIdx };
+      }
+      const plane = pcaFitPlane(positions, count);
+      const hs = new Float32Array(count);
+      for (let i=0;i<count;i++){
+        const dx=positions[i*3]-plane.cx, dy=positions[i*3+1]-plane.cy, dz=positions[i*3+2]-plane.cz;
+        hs[i] = dx*plane.e3[0]+dy*plane.e3[1]+dz*plane.e3[2];
+      }
+      let hMin=Infinity, hMax=-Infinity;
+      for (let i=0;i<count;i++){ const v=hs[i]; if(v<hMin)hMin=v; if(v>hMax)hMax=v; }
+      const nBins = 80, binW = (hMax-hMin)/nBins || 1;
+      const bins = new Int32Array(nBins);
+      for (let i=0;i<count;i++) { const b=Math.min(nBins-1,Math.floor((hs[i]-hMin)/binW)); bins[b]++; }
+      let peakBin=0; for (let b=1;b<nBins;b++) if(bins[b]>bins[peakBin]) peakBin=b;
+      const hPeak = hMin + (peakBin + 0.5) * binW;
+      const keepMask = new Uint8Array(count);
+      let kc=0;
+      for (let i=0;i<count;i++) if(Math.abs(hs[i]-hPeak)>planeTol){ keepMask[i]=1; kc++; }
+      const removedPlane = count - kc;
+      const newPts = new Float32Array(kc*3); const srcIdx = new Uint32Array(kc); let j=0;
+      for (let i=0;i<count;i++) if(keepMask[i]){ newPts[j*3]=positions[i*3]; newPts[j*3+1]=positions[i*3+1]; newPts[j*3+2]=positions[i*3+2]; srcIdx[j]=i; j++; }
+      return { pts: newPts, ptCount: kc, removedPlane, srcIdx };
+    }
+
+    // Bounding box of a voxel-cluster component (in the post-removal `pts` coordinate space).
+    function componentBBox(comp, voxelPts, pts) {
+      let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+      for (const k of comp.keys) for (const i of voxelPts.get(k)) {
+        const x=pts[i*3],y=pts[i*3+1],z=pts[i*3+2];
+        if(x<minX)minX=x; if(x>maxX)maxX=x;
+        if(y<minY)minY=y; if(y>maxY)maxY=y;
+        if(z<minZ)minZ=z; if(z>maxZ)maxZ=z;
+      }
+      return {minX,minY,minZ,maxX,maxY,maxZ};
+    }
+    function bboxGap(a, b) {
+      const gx = Math.max(0, Math.max(a.minX,b.minX) - Math.min(a.maxX,b.maxX));
+      const gy = Math.max(0, Math.max(a.minY,b.minY) - Math.min(a.maxY,b.maxY));
+      const gz = Math.max(0, Math.max(a.minZ,b.minZ) - Math.min(a.maxZ,b.maxZ));
+      return Math.sqrt(gx*gx + gy*gy + gz*gz);
+    }
+    // When dominant-plane removal strips a band that happens to cross THROUGH a solid object
+    // (rather than a genuine separate background plate — e.g. when the backend already removed
+    // the real background before this ever runs, so there's nothing left to strip but the
+    // object's own surface), it can sever one physical piece into two adjacent fragments.
+    // Genuinely distinct objects on a shared fixture sit real distances apart; fragments of one
+    // object that got cut apart by a thin removed band remain right next to each other. Merge
+    // any kept components whose bounding boxes are within a small gap of one another.
+    function mergeAdjacentComponents(kept, voxelPts, pts, planeTol) {
+      if (kept.length < 2) return kept;
+      const threshold = Math.max(planeTol * 3, 15);
+      const boxes = kept.map(c => componentBBox(c, voxelPts, pts));
+      const parent = kept.map((_, i) => i);
+      function find(i) { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; }
+      function union(a, b) { const ra=find(a), rb=find(b); if (ra!==rb) parent[ra]=rb; }
+      for (let i = 0; i < kept.length; i++) {
+        for (let j = i+1; j < kept.length; j++) {
+          if (bboxGap(boxes[i], boxes[j]) <= threshold) union(i, j);
+        }
+      }
+      const groups = new Map();
+      for (let i = 0; i < kept.length; i++) {
+        const r = find(i);
+        if (!groups.has(r)) groups.set(r, []);
+        groups.get(r).push(kept[i]);
+      }
+      const merged = [];
+      for (const group of groups.values()) {
+        if (group.length === 1) { merged.push(group[0]); continue; }
+        const allKeys = [];
+        let count = 0;
+        for (const c of group) { allKeys.push(...c.keys); count += c.count; }
+        merged.push({ count, keys: allKeys });
+      }
+      merged.sort((a, b) => b.count - a.count);
+      return merged;
+    }
+
+    // Split a point cloud into ALL connected components above minSize points,
+    // each returned as its own data object (name suffixed _obj1, _obj2, ...).
+    // Sorted largest-first. Optionally strips the dominant flat surface first.
+    // Each object also gets `origIdx` (Uint32Array): origIdx[j] = index of that point
+    // in the original `data.positions`/`data.intensities` array, for tracing back to source.
+    function splitAllClusters(data, voxelSize = 10, removeDominantPlane = false, planeTol = 8, minSize = 200) {
+      const { positions, intensities, count, name } = data;
+      const { pts, ptCount, removedPlane, srcIdx } = removeDominantPlaneFromPoints(positions, count, removeDominantPlane, planeTol);
+      const { components, voxelPts } = voxelCluster(pts, ptCount, voxelSize);
+      let kept = components.filter(c => c.count >= minSize);
+      const skipped = components.length - kept.length;
+      const preMergeCount = kept.length;
+      if (removeDominantPlane) kept = mergeAdjacentComponents(kept, voxelPts, pts, planeTol);
+      const merged = preMergeCount - kept.length;
+      const objects = kept.map((comp, idx) => {
+        const keep = new Uint8Array(ptCount);
+        for (const k of comp.keys) for (const i of voxelPts.get(k)) keep[i]=1;
+        let nc=0; for (let i=0;i<ptCount;i++) if(keep[i]) nc++;
+        const newPos = new Float32Array(nc*3), newInt = new Uint8Array(nc), origIdx = new Uint32Array(nc);
+        let j=0;
+        for (let i=0;i<ptCount;i++) if(keep[i]){
+          newPos[j*3]=pts[i*3]; newPos[j*3+1]=pts[i*3+1]; newPos[j*3+2]=pts[i*3+2];
+          origIdx[j] = srcIdx[i];
+          newInt[j] = intensities ? intensities[srcIdx[i]] : 180;
+          j++;
+        }
+        return { name: `${name}_obj${idx+1}`, positions:newPos, intensities:newInt, count:nc, origIdx };
+      });
+      return { objects, totalComponents: components.length, skipped, merged, removedPlane };
+    }
+
+    // ── Raw (pre-transform) scanner coordinate recovery ────────────────────
+    // The server's /process pipeline (edge detection → XY alignment → ground-plane
+    // removal → z-zero offset) is, end-to-end, a single fixed affine map per scan:
+    //   processed = M * raw + t
+    // (rotation and the per-point ground-plane subtraction are both linear in x,y,z).
+    // We derive M/t empirically for the current raw/processed file pair instead of
+    // re-deriving the backend's internal math, by least-squares fitting it against
+    // confirmed point correspondences (matched via intensity-run alignment), then use
+    // it to map every extracted point back to its original scanner-frame coordinate.
+
+    // Solve a 4-parameter linear least-squares fit (value = a*x+b*y+c*z+d) via normal equations.
+    function solveAffine4(A, b) {
+      const ATA = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+      const ATb = [0,0,0,0];
+      for (let i=0;i<A.length;i++){
+        const row = A[i];
+        for (let r=0;r<4;r++){
+          ATb[r] += row[r]*b[i];
+          for (let c=0;c<4;c++) ATA[r][c] += row[r]*row[c];
+        }
+      }
+      const M = ATA.map((row,i)=>[...row, ATb[i]]);
+      for (let col=0;col<4;col++){
+        let piv=col;
+        for (let r=col+1;r<4;r++) if (Math.abs(M[r][col])>Math.abs(M[piv][col])) piv=r;
+        [M[col],M[piv]]=[M[piv],M[col]];
+        const pv=M[col][col];
+        if (Math.abs(pv) < 1e-12) throw new Error("座標轉換矩陣求解失敗（共線或樣本不足）");
+        for (let c=col;c<=4;c++) M[col][c]/=pv;
+        for (let r=0;r<4;r++){
+          if (r===col) continue;
+          const f=M[r][col];
+          for (let c=col;c<=4;c++) M[r][c]-=f*M[col][c];
+        }
+      }
+      return [M[0][4],M[1][4],M[2][4],M[3][4]];
+    }
+
+    function applyAffine4(x, y, z, c) { return c[0]*x + c[1]*y + c[2]*z + c[3]; }
+
+    // Derive the raw→processed affine transform by matching the leading portion of both
+    // point streams via runs of identical intensity values (a run of 3+ consecutive
+    // matches is treated as a confirmed correspondence), then least-squares fitting.
+    function fitRawToProcessedTransform(rawData, outData, sampleCount = 20000) {
+      const { positions: rp, intensities: ri, count: rc } = rawData;
+      const { positions: op, intensities: oi, count: oc } = outData;
+      const A = [], bx = [], by = [], bz = [];
+      let r = 0, o = 0, run = 0;
+      while (r < rc && o < oc && bx.length < sampleCount) {
+        if (ri[r] === oi[o]) {
+          run++;
+          if (run >= 3) {
+            A.push([rp[r*3], rp[r*3+1], rp[r*3+2], 1]);
+            bx.push(op[o*3]); by.push(op[o*3+1]); bz.push(op[o*3+2]);
+          }
+          r++; o++;
+        } else {
+          r++; run = 0;
+        }
+      }
+      if (A.length < 20) throw new Error("無法比對足夠的原始/處理後對應點來推導座標轉換");
+      return { cx: solveAffine4(A, bx), cy: solveAffine4(A, by), cz: solveAffine4(A, bz) };
+    }
+
+    // Build a mapping: processed-output row index -> raw row index.
+    // Forward-transforms every raw point, keeps those above z_thresh (matching the
+    // backend's filter), then walks both sequences in order with tolerance matching —
+    // skipping the handful of points the backend's noise-cluster filter also dropped.
+    function buildOutputToRawMapping(rawData, outData, transform, zThresh, tol = 0.05) {
+      const { positions: rp, count: rc } = rawData;
+      const { positions: op, count: oc } = outData;
+      const { cx, cy, cz } = transform;
+      const keptIdx = new Int32Array(rc);
+      const keptPos = new Float64Array(rc * 3);
+      let kc = 0;
+      for (let i = 0; i < rc; i++) {
+        const x = rp[i*3], y = rp[i*3+1], z = rp[i*3+2];
+        const pz = applyAffine4(x,y,z,cz);
+        if (pz > zThresh) {
+          keptIdx[kc] = i;
+          keptPos[kc*3] = applyAffine4(x,y,z,cx);
+          keptPos[kc*3+1] = applyAffine4(x,y,z,cy);
+          keptPos[kc*3+2] = pz;
+          kc++;
+        }
+      }
+      const mapping = new Int32Array(oc).fill(-1);
+      let ki = 0, oi2 = 0;
+      while (ki < kc && oi2 < oc) {
+        const dx = Math.abs(keptPos[ki*3] - op[oi2*3]);
+        const dy = Math.abs(keptPos[ki*3+1] - op[oi2*3+1]);
+        const dz = Math.abs(keptPos[ki*3+2] - op[oi2*3+2]);
+        if (dx <= tol && dy <= tol && dz <= tol) {
+          mapping[oi2] = keptIdx[ki];
+          ki++; oi2++;
+        } else {
+          ki++; // this kept raw point wasn't in the output — dropped as clustering noise
+        }
+      }
+      return mapping;
+    }
+
+    // Extract a specific cluster (by rank, 0=largest) from a point cloud.
+    // clusterRank: 0 = largest, 1 = 2nd largest, etc.
+    // removeDominantPlane: if true, first remove points within planeTol mm of the
+    //   most-populated height band (the dominant flat surface = background plate).
+    function extractCluster(data, clusterRank = 0, voxelSize = 10, removeDominantPlane = false, planeTol = 8) {
+      const { positions, intensities, count, name } = data;
+
+      const { pts: ptsAfter, ptCount: ptCountAfter, removedPlane } = removeDominantPlaneFromPoints(positions, count, removeDominantPlane, planeTol);
+      let pts = ptsAfter, ptCount = ptCountAfter;
+
+      // Voxel BFS cluster
+      const { components, voxelPts } = voxelCluster(pts, ptCount, voxelSize);
+      const rank = Math.min(clusterRank, components.length-1);
+      const chosen = components[rank];
+
+      // Collect points
+      const keep = new Uint8Array(ptCount);
+      for (const k of chosen.keys) for (const i of voxelPts.get(k)) keep[i]=1;
+      let newCount=0; for (let i=0;i<ptCount;i++) if(keep[i]) newCount++;
+      const newPos = new Float32Array(newCount*3), newInt = new Uint8Array(newCount);
+
+      // Map back to original intensities if plane was removed
+      // (pts is now a subset, can't map back to original indices directly)
+      // Just rebuild with no intensities if plane removal was done
+      let j2=0;
+      for (let i=0;i<ptCount;i++) if(keep[i]){
+        newPos[j2*3]=pts[i*3]; newPos[j2*3+1]=pts[i*3+1]; newPos[j2*3+2]=pts[i*3+2];
+        newInt[j2]=180; j2++;
+      }
+
+      return {
+        name, positions:newPos, intensities:newInt, count:newCount,
+        _clusterInfo: {
+          total: components.length, rank, kept: chosen.count, removedPlane,
+          summary: components.slice(0,6).map((c,i)=>`  群組${i+1}: ${c.count.toLocaleString()} 點`)
+        }
+      };
+    }
+
+    // Filter out points more than hFilter mm above the median surface height.
+    // Uses pcaFitPlane to find the surface, then removes far-above-plane outliers.
+    // Useful for removing calibration spheres, bolts, cylinders from a scan.
+    function applyHeightFilter(data, hFilter) {
+      if (hFilter <= 0) return data;
+      const { positions, intensities, count, name } = data;
+      const plane = pcaFitPlane(positions, count);
+      // compute h (signed distance from centroid along surface normal e3)
+      const hs = new Float32Array(count);
+      for (let i = 0; i < count; i++) {
+        const dx = positions[i*3]   - plane.cx;
+        const dy = positions[i*3+1] - plane.cy;
+        const dz = positions[i*3+2] - plane.cz;
+        hs[i] = dx*plane.e3[0] + dy*plane.e3[1] + dz*plane.e3[2];
+      }
+      const sorted = new Float32Array(hs).sort();
+      const hMedian = sorted[Math.floor(count / 2)];
+      const hMax = hMedian + hFilter;
+      // pack surviving points
+      let newCount = 0;
+      for (let i = 0; i < count; i++) if (hs[i] <= hMax) newCount++;
+      const newPos = new Float32Array(newCount * 3);
+      const newInt = new Uint8Array(newCount);
+      let j = 0;
+      for (let i = 0; i < count; i++) {
+        if (hs[i] <= hMax) {
+          newPos[j*3] = positions[i*3]; newPos[j*3+1] = positions[i*3+1]; newPos[j*3+2] = positions[i*3+2];
+          newInt[j] = intensities ? intensities[i] : 180;
+          j++;
+        }
+      }
+      return { name, positions: newPos, intensities: newInt, count: newCount };
+    }
+
+    // PCA: rotate each scan so its longest axis aligns with X, then center it
+    // Full 3-axis PCA: align longest axis → X, surface normal (min variance) → Z
+    // This fixes roll angle so all scan cross-sections have the same orientation.
+    function alignScanToXAxis(data) {
+      const { positions, count } = data;
+
+      // Centroid
+      let cx = 0, cy = 0, cz = 0;
+      for (let i = 0; i < count; i++) { cx += positions[i*3]; cy += positions[i*3+1]; cz += positions[i*3+2]; }
+      cx /= count; cy /= count; cz /= count;
+
+      // Covariance matrix
+      let cxx=0, cxy=0, cxz=0, cyy=0, cyz=0, czz=0;
+      for (let i = 0; i < count; i++) {
+        const dx=positions[i*3]-cx, dy=positions[i*3+1]-cy, dz=positions[i*3+2]-cz;
+        cxx+=dx*dx; cxy+=dx*dy; cxz+=dx*dz; cyy+=dy*dy; cyz+=dy*dz; czz+=dz*dz;
+      }
+      cxx/=count; cxy/=count; cxz/=count; cyy/=count; cyz/=count; czz/=count;
+
+      // Power iteration on a 3x3 symmetric matrix
+      function powerIter(Cxx,Cxy,Cxz,Cyy,Cyz,Czz, vx,vy,vz) {
+        for (let k = 0; k < 80; k++) {
+          const nx=Cxx*vx+Cxy*vy+Cxz*vz, ny=Cxy*vx+Cyy*vy+Cyz*vz, nz=Cxz*vx+Cyz*vy+Czz*vz;
+          const len=Math.sqrt(nx*nx+ny*ny+nz*nz);
+          if (len < 1e-12) break;
+          vx=nx/len; vy=ny/len; vz=nz/len;
+        }
+        return [vx,vy,vz];
+      }
+
+      // e1 = largest eigenvector (longest axis of the scan)
+      let [e1x,e1y,e1z] = powerIter(cxx,cxy,cxz,cyy,cyz,czz, 1,0,0);
+      // λ1 = e1ᵀ C e1
+      const Ae1x=cxx*e1x+cxy*e1y+cxz*e1z, Ae1y=cxy*e1x+cyy*e1y+cyz*e1z, Ae1z=cxz*e1x+cyz*e1y+czz*e1z;
+      const lam1 = e1x*Ae1x+e1y*Ae1y+e1z*Ae1z;
+
+      // Deflate: C' = C − λ1 · e1⊗e1  (removes e1 component)
+      const d2xx=cxx-lam1*e1x*e1x, d2xy=cxy-lam1*e1x*e1y, d2xz=cxz-lam1*e1x*e1z;
+      const d2yy=cyy-lam1*e1y*e1y, d2yz=cyz-lam1*e1y*e1z, d2zz=czz-lam1*e1z*e1z;
+
+      // Start vector orthogonal to e1 for next power iteration
+      let sv2x, sv2y, sv2z;
+      if (Math.abs(e1x) < 0.9) { sv2x=0; sv2y=-e1z; sv2z=e1y; }
+      else                      { sv2x=e1z;  sv2y=0; sv2z=-e1x; }
+      const sv2l=Math.sqrt(sv2x*sv2x+sv2y*sv2y+sv2z*sv2z);
+      sv2x/=sv2l; sv2y/=sv2l; sv2z/=sv2l;
+
+      // e2 = second eigenvector (medium axis)
+      let [e2x,e2y,e2z] = powerIter(d2xx,d2xy,d2xz,d2yy,d2yz,d2zz, sv2x,sv2y,sv2z);
+      const Ae2x=d2xx*e2x+d2xy*e2y+d2xz*e2z, Ae2y=d2xy*e2x+d2yy*e2y+d2yz*e2z, Ae2z=d2xz*e2x+d2yz*e2y+d2zz*e2z;
+      const lam2 = e2x*Ae2x+e2y*Ae2y+e2z*Ae2z;
+
+      // Deflate again to get e3 (smallest eigenvector = surface normal / min-variance axis)
+      const d3xx=d2xx-lam2*e2x*e2x, d3xy=d2xy-lam2*e2x*e2y, d3xz=d2xz-lam2*e2x*e2z;
+      const d3yy=d2yy-lam2*e2y*e2y, d3yz=d2yz-lam2*e2y*e2z, d3zz=d2zz-lam2*e2z*e2z;
+      // Start vector orthogonal to e1 and e2: e3 = e1 × e2
+      let sv3x=e1y*e2z-e1z*e2y, sv3y=e1z*e2x-e1x*e2z, sv3z=e1x*e2y-e1y*e2x;
+      const sv3l=Math.sqrt(sv3x*sv3x+sv3y*sv3y+sv3z*sv3z);
+      sv3x/=sv3l; sv3y/=sv3l; sv3z/=sv3l;
+      let [e3x,e3y,e3z] = powerIter(d3xx,d3xy,d3xz,d3yy,d3yz,d3zz, sv3x,sv3y,sv3z);
+
+      // ── Sign conventions for consistent cross-section orientation ──
+      // e1 → X: ensure majority of variance is toward +X  (longest axis)
+      if (e1x < 0) { e1x=-e1x; e1y=-e1y; e1z=-e1z; }
+
+      // e3 → Z (surface normal): scanner looks down so normal ≈ +Z in world;
+      // pick whichever of ±e3 is more aligned with world +Z
+      if (e3z < 0) { e3x=-e3x; e3y=-e3y; e3z=-e3z; }
+
+      // e2 → Y: recompute from Z × X for a right-handed frame  (Y = Z × X)
+      e2x=e3y*e1z-e3z*e1y; e2y=e3z*e1x-e3x*e1z; e2z=e3x*e1y-e3y*e1x;
+
+      // Rotation matrix rows = [e1, e2, e3]:  new_coord = R · (p − centroid)
+      const R = [e1x,e1y,e1z, e2x,e2y,e2z, e3x,e3y,e3z];
+
+      const np = new Float32Array(count*3);
+      for (let i = 0; i < count; i++) {
+        const dx=positions[i*3]-cx, dy=positions[i*3+1]-cy, dz=positions[i*3+2]-cz;
+        np[i*3]   = R[0]*dx+R[1]*dy+R[2]*dz;
+        np[i*3+1] = R[3]*dx+R[4]*dy+R[5]*dz;
+        np[i*3+2] = R[6]*dx+R[7]*dy+R[8]*dz;
+      }
+      return { ...data, positions: np };
+    }
+
+    function computeStitchOffsets(parsed, gap) {
+      const offsets = [];
+      let cursor = 0;
+      for (const data of parsed) {
+        let minX = Infinity, maxX = -Infinity;
+        for (let i = 0; i < data.count; i++) {
+          const x = data.positions[i*3];
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+        }
+        offsets.push(cursor - minX);
+        cursor += (maxX - minX) + gap;
+      }
+      return offsets;
+    }
+
+    // Remove N% of points from each end of a scan (by X range) to eliminate edge noise
+    function trimScanEdges(data, pct) {
+      if (pct <= 0) return data;
+      let minX = Infinity, maxX = -Infinity;
+      for (let i = 0; i < data.count; i++) {
+        const x = data.positions[i*3];
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+      }
+      const margin = (maxX - minX) * pct / 100;
+      const lo = minX + margin, hi = maxX - margin;
+      const np = new Float32Array(data.count * 3);
+      const ni = new Uint8Array(data.count);
+      let n = 0;
+      for (let i = 0; i < data.count; i++) {
+        const x = data.positions[i*3];
+        if (x >= lo && x <= hi) {
+          np[n*3] = data.positions[i*3]; np[n*3+1] = data.positions[i*3+1]; np[n*3+2] = data.positions[i*3+2];
+          ni[n] = data.intensities[i]; n++;
+        }
+      }
+      return { ...data, positions: np.slice(0, n*3), intensities: ni.slice(0, n), count: n };
+    }
+
+    // Align Y and Z median of each scan to match the first scan (fixes inter-scan height drift)
+    function alignScansYZ(parsed) {
+      if (parsed.length < 2) return parsed;
+      function median(arr) { arr.sort((a, b) => a - b); return arr[arr.length >> 1]; }
+      const ref = parsed[0];
+      const ys0 = [], zs0 = [];
+      for (let i = 0; i < ref.count; i++) { ys0.push(ref.positions[i*3+1]); zs0.push(ref.positions[i*3+2]); }
+      const refY = median(ys0), refZ = median(zs0);
+      return parsed.map((data, si) => {
+        if (si === 0) return data;
+        const ys = [], zs = [];
+        for (let i = 0; i < data.count; i++) { ys.push(data.positions[i*3+1]); zs.push(data.positions[i*3+2]); }
+        const dy = refY - median(ys), dz = refZ - median(zs);
+        if (Math.abs(dy) < 0.001 && Math.abs(dz) < 0.001) return data;
+        const np = new Float32Array(data.positions);
+        for (let i = 0; i < data.count; i++) { np[i*3+1] += dy; np[i*3+2] += dz; }
+        return { ...data, positions: np };
+      });
+    }
+
+    // Shift all scans so the global minimum Z becomes 0
+    function zFloorToZero(parsed) {
+      let minZ = Infinity;
+      for (const data of parsed) for (let i = 0; i < data.count; i++) {
+        const z = data.positions[i*3+2]; if (z < minZ) minZ = z;
+      }
+      if (Math.abs(minZ) < 0.001) return parsed;
+      return parsed.map(data => {
+        const np = new Float32Array(data.positions);
+        for (let i = 0; i < data.count; i++) np[i*3+2] -= minZ;
+        return { ...data, positions: np };
+      });
+    }
+
+    // Apply trim / Y-Z align / Z-floor using current UI settings, log results
+    function applyStitchPostProcess(parsed, log) {
+      const trimPct = Number(document.querySelector("#stitchTrim").value) || 0;
+      if (trimPct > 0) {
+        parsed = parsed.map(d => trimScanEdges(d, trimPct));
+        log(`  邊緣裁切 ${trimPct}%（各段兩端）`);
+      }
+      if (document.querySelector("#stitchAlignYZ").checked) {
+        parsed = alignScansYZ(parsed);
+        log("  Y/Z 對齊完成");
+      }
+      if (document.querySelector("#stitchZFloor").checked) {
+        parsed = zFloorToZero(parsed);
+        log("  Z 歸零完成");
+      }
+      return parsed;
+    }
+
+    function previewStitchData(parsed, offsets) {
+      clearClouds();
+      for (let s = 0; s < parsed.length; s++) {
+        const { name, positions, intensities, count } = parsed[s];
+        const xOff = offsets[s];
+        const baseColor = new THREE.Color(STITCH_COLORS[s % STITCH_COLORS.length]);
+        const step = Math.max(1, Math.round(100 / Number(sampleRate.value)));
+        const kept = Math.ceil(count / step);
+        const pos = new Float32Array(kept * 3), col = new Float32Array(kept * 3), inten = new Float32Array(kept);
+        let n = 0;
+        for (let i = 0; i < count && n < kept; i += step) {
+          pos[n*3] = positions[i*3] + xOff; pos[n*3+1] = positions[i*3+1]; pos[n*3+2] = positions[i*3+2];
+          const c = colorFromIntensity(intensities[i], baseColor);
+          col[n*3] = c.r; col[n*3+1] = c.g; col[n*3+2] = c.b;
+          inten[n] = intensities[i]; n++;
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position",  new THREE.BufferAttribute(pos.slice(0, n*3), 3));
+        geo.setAttribute("color",     new THREE.BufferAttribute(col.slice(0, n*3), 3));
+        geo.setAttribute("intensity", new THREE.BufferAttribute(inten.slice(0, n), 1));
+        geo.computeBoundingSphere();
+        const mat = new THREE.PointsMaterial({ size: Number(pointSize.value), sizeAttenuation: false, vertexColors: true });
+        const pts = new THREE.Points(geo, mat);
+        pts.userData = { name, count: n, declaredCount: count };
+        root.add(pts); clouds.push(pts);
+      }
+      fitCamera();
+    }
+
+    // Read only the PLY header to get vertex count (fast, avoids loading full file)
+    async function getPlyVertexCount(name) {
+      try {
+        const resp = await fetch(name);
+        if (!resp.ok) return 0;
+        const reader = resp.body.getReader();
+        let text = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          text += new TextDecoder().decode(value);
+          if (text.includes("end_header")) { reader.cancel().catch(() => {}); break; }
+        }
+        const m = text.match(/element vertex (\d+)/);
+        return m ? parseInt(m[1]) : 0;
+      } catch { return 0; }
+    }
+
+    stitchRunBtn.addEventListener("click", async () => {
+      if (!stitchQueue.length) return;
+      stitchRunBtn.disabled = true;
+      stitchDirectBtn.disabled = true;
+      stitchPreviewBtn.disabled = true;
+      stitchExportBtn.disabled = true;
+      stitchLog.style.display = "block";
+      stitchLog.textContent = "";
+      stitchMergedData = null;
+
+      const log = (msg) => { stitchLog.textContent += msg + "\n"; stitchLog.scrollTop = stitchLog.scrollHeight; };
+
+      for (const item of stitchQueue) { item.status = "pending"; item.outputs = []; }
+      renderStitchQueue();
+
+      const allOutputNames = [];
+
+      for (let i = 0; i < stitchQueue.length; i++) {
+        const item = stitchQueue[i];
+        log(`[${i+1}/${stitchQueue.length}] 處理 ${item.file.name}…`);
+        try {
+          const outputs = await processOneStitchFile(item, log);
+          const plys = outputs.filter(f => f.endsWith(".ply"));
+          if (!plys.length) {
+            log("  ⚠ 沒有輸出 PLY");
+          } else if (plys.length === 1) {
+            log(`  ✓ 輸出：${plys[0]}`);
+            allOutputNames.push(plys[0]);
+          } else {
+            log(`  共 ${plys.length} 個輸出，選取最大工件…`);
+            const counts = await Promise.all(plys.map(getPlyVertexCount));
+            const maxIdx = counts.indexOf(Math.max(...counts));
+            log(`  ✓ 選取：${plys[maxIdx]}（${counts[maxIdx].toLocaleString()} 點）`);
+            allOutputNames.push(plys[maxIdx]);
+          }
+        } catch (err) {
+          log(`  ✗ 錯誤：${err.message}`);
+          stitchRunBtn.disabled = false;
+          stitchDirectBtn.disabled = false;
+          return;
+        }
+      }
+
+      if (!allOutputNames.length) {
+        log("沒有可拼接的輸出，請確認處理設定。");
+        stitchRunBtn.disabled = false;
+        stitchDirectBtn.disabled = false;
+        return;
+      }
+
+      log(`\n載入 ${allOutputNames.length} 個輸出 PLY…`);
+      const gap = Number(stitchGapEl.value) || 0;
+      const hFilter = Math.max(0, parseFloat(document.querySelector("#stitchHFilter")?.value) || 0);
+      const extractLargest = document.querySelector("#stitchExtractLargest")?.checked;
+      const zMax = Math.max(0, parseFloat(document.querySelector("#upZMax")?.value) || 0);
+      let parsed = [];
+
+      for (const name of allOutputNames) {
+        try {
+          log(`  載入 ${name}…`);
+          let d = await parsePlyRaw(name);
+          log(`  ✓ ${d.count.toLocaleString()} 點`);
+          // z_max filter: remove points above zMax (cuts off spheres/rings)
+          if (zMax > 0) {
+            const { positions, intensities, count: cnt } = d;
+            let nc = 0;
+            const np = new Float32Array(cnt*3), ni = new Uint8Array(cnt);
+            for (let i=0;i<cnt;i++) if (positions[i*3+2] <= zMax) {
+              np[nc*3]=positions[i*3]; np[nc*3+1]=positions[i*3+1]; np[nc*3+2]=positions[i*3+2];
+              ni[nc]=intensities[i]; nc++;
+            }
+            const removed = cnt - nc;
+            d = { ...d, positions: np.slice(0,nc*3), intensities: ni.slice(0,nc), count: nc };
+            log(`  z 最大=${zMax}mm：移除 ${removed.toLocaleString()} 個高點，剩 ${nc.toLocaleString()} 點`);
+          }
+          const splitAll = document.querySelector("#stitchSplitAll")?.checked;
+          const planeTol = Math.max(1, parseFloat(document.querySelector("#stitchPlaneTol")?.value)||8);
+          if (extractLargest && splitAll) {
+            const minSize = Math.max(1, parseInt(document.querySelector("#stitchMinClusterSize")?.value)||200);
+            const { objects, totalComponents, skipped, removedPlane } = splitAllClusters(d, 10, true, planeTol, minSize);
+            if (removedPlane > 0) log(`  移除主平面：${removedPlane.toLocaleString()} 點`);
+            log(`  展開所有物件：共 ${totalComponents} 個群組，${skipped} 個太小被忽略，取出 ${objects.length} 個物件：`);
+            objects.forEach((o,i) => log(`    物件${i+1}: ${o.count.toLocaleString()} 點`));
+            if (hFilter > 0) for (let k=0;k<objects.length;k++) objects[k] = applyHeightFilter(objects[k], hFilter);
+            parsed.push(...objects);
+            continue;
+          } else if (extractLargest) {
+            const rank = Math.max(0, (parseInt(document.querySelector("#stitchClusterRank")?.value)||1) - 1);
+            const before = d.count;
+            d = extractCluster(d, rank, 10, true, planeTol);
+            const info = d._clusterInfo;
+            if (info.removedPlane > 0) log(`  移除主平面：${info.removedPlane.toLocaleString()} 點`);
+            log(`  分群結果（共 ${info.total} 個）：\n${info.summary.join("\n")}`);
+            log(`  → 取第 ${rank+1} 個：${info.kept.toLocaleString()} 點`);
+          }
+          if (hFilter > 0) {
+            const before = d.count;
+            d = applyHeightFilter(d, hFilter);
+            log(`  過濾突起（>${hFilter}mm）：移除 ${(before - d.count).toLocaleString()} 點，剩 ${d.count.toLocaleString()} 點`);
+          }
+          parsed.push(d);
+        } catch (err) {
+          log(`  ⚠ ${err.message}`);
+        }
+      }
+
+      if (!parsed.length) {
+        log("無法載入任何輸出檔案。");
+        stitchRunBtn.disabled = false;
+        stitchDirectBtn.disabled = false;
+        return;
+      }
+
+      // PCA-align each scan's longest axis → X, center Y/Z
+      log("對齊各段主軸方向…");
+      for (let i = 0; i < parsed.length; i++) parsed[i] = alignScanToXAxis(parsed[i]);
+      parsed = applyStitchPostProcess(parsed, log);
+
+      const offsets = computeStitchOffsets(parsed, gap);
+      const totalCount = parsed.reduce((s, d) => s + d.count, 0);
+      stitchMergedData = { parsed, offsets, totalCount };
+
+      previewStitchData(parsed, offsets);
+      setStatus(
+        `拼接完成：${parsed.length} 段，${totalCount.toLocaleString()} 點\n` +
+        parsed.map((d, i) => `${i+1}. ${d.name}: ${d.count.toLocaleString()} 點`).join("\n")
+      );
+      log(`\n拼接完成！${parsed.length} 段，${totalCount.toLocaleString()} 點`);
+
+      stitchPreviewBtn.disabled = false;
+      stitchExportBtn.disabled = false;
+      stitchRunBtn.disabled = false;
+      stitchDirectBtn.disabled = false;
+    });
+
+    stitchDirectBtn.addEventListener("click", async () => {
+      if (!stitchQueue.length) return;
+      stitchDirectBtn.disabled = true;
+      stitchRunBtn.disabled = true;
+      stitchPreviewBtn.disabled = true;
+      stitchExportBtn.disabled = true;
+      stitchLog.style.display = "block";
+      stitchLog.textContent = "";
+      stitchMergedData = null;
+
+      const log = (msg) => { stitchLog.textContent += msg + "\n"; stitchLog.scrollTop = stitchLog.scrollHeight; };
+
+      for (const item of stitchQueue) { item.status = "pending"; item.outputs = []; }
+      renderStitchQueue();
+
+      const gap = Number(stitchGapEl.value) || 0;
+      const hFilter = Math.max(0, parseFloat(document.querySelector("#stitchHFilter")?.value) || 0);
+      const extractLargest = document.querySelector("#stitchExtractLargest")?.checked;
+      let parsed = [];
+
+      for (let i = 0; i < stitchQueue.length; i++) {
+        const item = stitchQueue[i];
+        item.status = "processing";
+        renderStitchQueue();
+        log(`[${i+1}/${stitchQueue.length}] 讀取 ${item.file.name}…`);
+        try {
+          let data = await parsePlyFileRaw(item.file);
+          log(`  ✓ ${data.count.toLocaleString()} 點`);
+          const splitAll = document.querySelector("#stitchSplitAll")?.checked;
+          const planeTol = Math.max(1, parseFloat(document.querySelector("#stitchPlaneTol")?.value)||8);
+          if (extractLargest && splitAll) {
+            const minSize = Math.max(1, parseInt(document.querySelector("#stitchMinClusterSize")?.value)||200);
+            const { objects, totalComponents, skipped, removedPlane } = splitAllClusters(data, 10, true, planeTol, minSize);
+            if (removedPlane > 0) log(`  移除主平面：${removedPlane.toLocaleString()} 點`);
+            log(`  展開所有物件：共 ${totalComponents} 個群組，${skipped} 個太小被忽略，取出 ${objects.length} 個物件：`);
+            objects.forEach((o,i) => log(`    物件${i+1}: ${o.count.toLocaleString()} 點`));
+            if (hFilter > 0) for (let k=0;k<objects.length;k++) objects[k] = applyHeightFilter(objects[k], hFilter);
+            parsed.push(...objects);
+            item.status = "done";
+            renderStitchQueue();
+            continue;
+          } else if (extractLargest) {
+            const rank = Math.max(0, (parseInt(document.querySelector("#stitchClusterRank")?.value)||1) - 1);
+            const before = data.count;
+            data = extractCluster(data, rank, 10, true, planeTol);
+            const info = data._clusterInfo;
+            if (info.removedPlane > 0) log(`  移除主平面：${info.removedPlane.toLocaleString()} 點`);
+            log(`  分群結果（共 ${info.total} 個）：\n${info.summary.join("\n")}`);
+            log(`  → 取第 ${rank+1} 個：${info.kept.toLocaleString()} 點`);
+          }
+          if (hFilter > 0) {
+            const before = data.count;
+            data = applyHeightFilter(data, hFilter);
+            log(`  過濾突起（>${hFilter}mm）：移除 ${(before - data.count).toLocaleString()} 點，剩 ${data.count.toLocaleString()} 點`);
+          }
+          parsed.push(data);
+          item.status = "done";
+          renderStitchQueue();
+        } catch (err) {
+          item.status = "error";
+          renderStitchQueue();
+          log(`  ✗ 錯誤：${err.message}`);
+          stitchDirectBtn.disabled = false;
+          stitchRunBtn.disabled = false;
+          return;
+        }
+      }
+
+      if (!parsed.length) {
+        log("無法讀取任何檔案。");
+        stitchDirectBtn.disabled = false;
+        stitchRunBtn.disabled = false;
+        return;
+      }
+
+      log("對齊各段主軸方向…");
+      for (let i = 0; i < parsed.length; i++) parsed[i] = alignScanToXAxis(parsed[i]);
+      parsed = applyStitchPostProcess(parsed, log);
+
+      const offsets = computeStitchOffsets(parsed, gap);
+      const totalCount = parsed.reduce((s, d) => s + d.count, 0);
+      stitchMergedData = { parsed, offsets, totalCount };
+
+      previewStitchData(parsed, offsets);
+      setStatus(
+        `拼接完成：${parsed.length} 段，${totalCount.toLocaleString()} 點\n` +
+        parsed.map((d, i) => `${i+1}. ${d.name}: ${d.count.toLocaleString()} 點`).join("\n")
+      );
+      log(`\n直接拼接完成！${parsed.length} 段，${totalCount.toLocaleString()} 點`);
+
+      stitchPreviewBtn.disabled = false;
+      stitchExportBtn.disabled = false;
+      stitchDirectBtn.disabled = false;
+      stitchRunBtn.disabled = false;
+    });
+
+    stitchPreviewBtn.addEventListener("click", () => {
+      if (!stitchMergedData) return;
+      previewStitchData(stitchMergedData.parsed, stitchMergedData.offsets);
+    });
+
+    stitchExportBtn.addEventListener("click", async () => {
+      if (!stitchMergedData) return;
+      const { parsed, offsets, totalCount } = stitchMergedData;
+      stitchExportBtn.disabled = true;
+      stitchLog.textContent += "\n產生 PLY…\n";
+      stitchLog.scrollTop = stitchLog.scrollHeight;
+      await new Promise(requestAnimationFrame);
+
+      const header = [
+        "ply", "format ascii 1.0",
+        `comment stitched: ${parsed.map(d => d.name).join(", ")}`,
+        `element vertex ${totalCount}`,
+        "property float x", "property float y", "property float z",
+        "property float intensity",
+        "end_header", ""
+      ].join("\n");
+
+      const chunks = [header];
+      for (let s = 0; s < parsed.length; s++) {
+        const { positions, intensities, count } = parsed[s];
+        const xOff = offsets[s];
+        for (let i = 0; i < count; i++) {
+          chunks.push(`${(positions[i*3]+xOff).toFixed(6)} ${positions[i*3+1].toFixed(6)} ${positions[i*3+2].toFixed(6)} ${intensities[i]}\n`);
+        }
+        if (s < parsed.length - 1) await new Promise(requestAnimationFrame);
+      }
+
+      const blob = new Blob(chunks, { type: "application/octet-stream" });
+      const fileName = `stitched_${parsed.length}scans.ply`;
+
+      if ("showSaveFilePicker" in window) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{ description: "PLY point cloud", accept: { "application/octet-stream": [".ply"] } }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          stitchLog.textContent += `已儲存：${fileName}\n`;
+        } catch (err) {
+          if (err.name !== "AbortError") stitchLog.textContent += `儲存失敗：${err.message}\n`;
+        }
+      } else {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        stitchLog.textContent += `已下載：${fileName}\n`;
+      }
+
+      stitchLog.scrollTop = stitchLog.scrollHeight;
+      stitchExportBtn.disabled = false;
+    });
+
+    // ── PLY → STEP (thicken the actual scan) ──────────────────────────────
+    //
+    // Standalone tool: import any PLY file directly (no need to go through the
+    // viewer/stitch flow), set a thickness, and reconstruct a solid:
+    //   1. PCA-fit a best plane (e1,e2 = in-plane axes, e3 = normal) through the
+    //      imported points
+    //   2. Project points onto the plane, rasterize to a grid, trace the outer
+    //      silhouette boundary (handles notches/non-convex shapes, e.g. a door-stopper
+    //      cut), simplify collinear points → a closed 2D polygon
+    //   3. Extrude that exact polygon by thickness t along −e3 (into the material,
+    //      away from the scanned/visible face) → STEP AP214 MANIFOLD_SOLID_BREP
+    //
+    const stepFileInput   = document.querySelector("#stepFileInput");
+    const stepZone        = document.querySelector("#stepZone");
+    const stepZoneLabel   = document.querySelector("#stepZoneLabel");
+    const stepGenerateBtn = document.querySelector("#stepGenerateBtn");
+    const gltfGenerateBtn = document.querySelector("#gltfGenerateBtn");
+    const stepLog         = document.querySelector("#stepLog");
+    const steelT    = document.querySelector("#steelT");
+    const steelCell = document.querySelector("#steelCell");
+
+    let stepSelectedFile = null;
+
+    function setStepFile(file) {
+      stepSelectedFile = file;
+      stepGenerateBtn.disabled = !file;
+      gltfGenerateBtn.disabled = !file;
+      stepZoneLabel.textContent = file ? file.name : "點此或拖曳選擇 PLY 檔案";
+    }
+
+    stepFileInput.addEventListener("change", () => {
+      setStepFile(stepFileInput.files[0] || null);
+    });
+    stepZone.addEventListener("dragover",  e => { e.preventDefault(); stepZone.classList.add("drag-over"); });
+    stepZone.addEventListener("dragleave", () => stepZone.classList.remove("drag-over"));
+    stepZone.addEventListener("drop", e => {
+      e.preventDefault();
+      stepZone.classList.remove("drag-over");
+      const f = Array.from(e.dataTransfer.files).find(f => f.name.toLowerCase().endsWith(".ply"));
+      if (f) setStepFile(f);
+    });
+
+    // Parse a local PLY File (ASCII: x y z [intensity] per line) into a flat position array
+    async function parsePlyFile(file) {
+      const text = await file.text();
+      const headerEnd = text.indexOf("end_header");
+      if (headerEnd < 0) throw new Error(`${file.name}: 找不到 end_header`);
+      const lines = text.slice(text.indexOf("\n", headerEnd) + 1).split(/\r?\n/);
+      const positions = new Float32Array(lines.length * 3);
+      let count = 0;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        const parts = line.split(" ");
+        if (parts.length < 3) continue;
+        const x = Number(parts[0]), y = Number(parts[1]), z = Number(parts[2]);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+        positions[count*3] = x; positions[count*3+1] = y; positions[count*3+2] = z;
+        count++;
+      }
+      return { positions: positions.slice(0, count*3), count };
+    }
+
+    // PCA-fit plane: e1 = largest-variance axis, e2 = second, e3 = normal (e1×e2),
+    // sign-fixed so e3 points toward world +Z (same "scanner looks down" convention
+    // used in alignScanToXAxis).
+    function pcaFitPlane(positions, count) {
+      let cx=0,cy=0,cz=0;
+      for (let i=0;i<count;i++){ cx+=positions[i*3]; cy+=positions[i*3+1]; cz+=positions[i*3+2]; }
+      cx/=count; cy/=count; cz/=count;
+
+      let cxx=0,cxy=0,cxz=0,cyy=0,cyz=0,czz=0;
+      for (let i=0;i<count;i++){
+        const dx=positions[i*3]-cx, dy=positions[i*3+1]-cy, dz=positions[i*3+2]-cz;
+        cxx+=dx*dx; cxy+=dx*dy; cxz+=dx*dz; cyy+=dy*dy; cyz+=dy*dz; czz+=dz*dz;
+      }
+      cxx/=count; cxy/=count; cxz/=count; cyy/=count; cyz/=count; czz/=count;
+
+      function powerIter(Cxx,Cxy,Cxz,Cyy,Cyz,Czz, vx,vy,vz) {
+        for (let k=0;k<80;k++){
+          const nx=Cxx*vx+Cxy*vy+Cxz*vz, ny=Cxy*vx+Cyy*vy+Cyz*vz, nz=Cxz*vx+Cyz*vy+Czz*vz;
+          const len=Math.sqrt(nx*nx+ny*ny+nz*nz);
+          if (len<1e-12) break;
+          vx=nx/len; vy=ny/len; vz=nz/len;
+        }
+        return [vx,vy,vz];
+      }
+
+      let [e1x,e1y,e1z] = powerIter(cxx,cxy,cxz,cyy,cyz,czz, 1,0,0);
+      const Ae1x=cxx*e1x+cxy*e1y+cxz*e1z, Ae1y=cxy*e1x+cyy*e1y+cyz*e1z, Ae1z=cxz*e1x+cyz*e1y+czz*e1z;
+      const lam1=e1x*Ae1x+e1y*Ae1y+e1z*Ae1z;
+      const d2xx=cxx-lam1*e1x*e1x, d2xy=cxy-lam1*e1x*e1y, d2xz=cxz-lam1*e1x*e1z;
+      const d2yy=cyy-lam1*e1y*e1y, d2yz=cyz-lam1*e1y*e1z, d2zz=czz-lam1*e1z*e1z;
+
+      let sv2x,sv2y,sv2z;
+      if (Math.abs(e1x)<0.9) { sv2x=0; sv2y=-e1z; sv2z=e1y; } else { sv2x=e1z; sv2y=0; sv2z=-e1x; }
+      const sv2l=Math.sqrt(sv2x*sv2x+sv2y*sv2y+sv2z*sv2z); sv2x/=sv2l; sv2y/=sv2l; sv2z/=sv2l;
+      let [e2x,e2y,e2z] = powerIter(d2xx,d2xy,d2xz,d2yy,d2yz,d2zz, sv2x,sv2y,sv2z);
+
+      let e3x=e1y*e2z-e1z*e2y, e3y=e1z*e2x-e1x*e2z, e3z=e1x*e2y-e1y*e2x;
+      const e3l=Math.sqrt(e3x*e3x+e3y*e3y+e3z*e3z)||1; e3x/=e3l; e3y/=e3l; e3z/=e3l;
+      if (e3z < 0) { e3x=-e3x; e3y=-e3y; e3z=-e3z; }
+      // re-orthogonalize e2 = e3 × e1 for a clean right-handed frame after any flip
+      e2x=e3y*e1z-e3z*e1y; e2y=e3z*e1x-e3x*e1z; e2z=e3x*e1y-e3y*e1x;
+
+      return { cx, cy, cz, e1:[e1x,e1y,e1z], e2:[e2x,e2y,e2z], e3:[e3x,e3y,e3z] };
+    }
+
+    // ── Heightfield surface reconstruction ────────────────────────────────
+    //
+    // The flat-plane extrusion approach assumed the whole scan was planar, which
+    // is wrong for a bent/angled piece (e.g. the two flanges of an L-profile meet
+    // at a real angle, not flattened into one plane). This rebuilds the ACTUAL
+    // scanned surface as a triangulated heightfield mesh (front = true scan shape,
+    // not flattened), then thickens it by offsetting EVERY vertex along its own
+    // local surface normal (computed from the mesh, not a single global normal) —
+    // so a bend/corner gets thickened correctly on each side, not as one flat slab.
+    function buildThickenedMesh(positions, count, plane, cellSize, t, flatBottom = false, fillHoles = true, smoothIter = 4, erodeN = 1, bridgeFill = 0, hFilter = 0) {
+      // stats collected across processing steps, returned with the mesh
+      let statHolesFilled = 0, statBridged = 0, statEroded = 0, statFilteredOut = 0;
+      const us=new Float64Array(count), vs=new Float64Array(count), hs=new Float64Array(count);
+      let minU=Infinity, maxU=-Infinity, minV=Infinity, maxV=-Infinity;
+      for (let i=0;i<count;i++){
+        const dx=positions[i*3]-plane.cx, dy=positions[i*3+1]-plane.cy, dz=positions[i*3+2]-plane.cz;
+        const u=dx*plane.e1[0]+dy*plane.e1[1]+dz*plane.e1[2];
+        const v=dx*plane.e2[0]+dy*plane.e2[1]+dz*plane.e2[2];
+        const h=dx*plane.e3[0]+dy*plane.e3[1]+dz*plane.e3[2];
+        us[i]=u; vs[i]=v; hs[i]=h;
+        if(u<minU)minU=u; if(u>maxU)maxU=u;
+        if(v<minV)minV=v; if(v>maxV)maxV=v;
+      }
+
+      // Height filter: compute median h, then discard points with h > median + hFilter
+      let hMedian = 0;
+      if (hFilter > 0) {
+        const hSorted = new Float64Array(hs).sort();
+        hMedian = hSorted[Math.floor(count / 2)];
+      }
+
+      const nCols = Math.max(1, Math.ceil((maxU-minU)/cellSize)) + 2;
+      const nRows = Math.max(1, Math.ceil((maxV-minV)/cellSize)) + 2;
+      if (nRows * nCols > 4_000_000) throw new Error("輪廓格子太小，請調大「輪廓格子」數值");
+      const gridOriginU = minU - cellSize, gridOriginV = minV - cellSize;
+
+      // average height per cell (= the actual local scan height, not flattened to 0)
+      const sumH = new Float64Array(nRows*nCols), cntH = new Uint32Array(nRows*nCols);
+      for (let i=0;i<count;i++){
+        if (hFilter > 0 && hs[i] > hMedian + hFilter) { statFilteredOut++; continue; }
+        const c = Math.floor((us[i]-gridOriginU)/cellSize);
+        const r = Math.floor((vs[i]-gridOriginV)/cellSize);
+        if (r>=0 && r<nRows && c>=0 && c<nCols) { const idx=r*nCols+c; sumH[idx]+=hs[i]; cntH[idx]++; }
+      }
+      const occupied = new Uint8Array(nRows*nCols);
+      const height   = new Float64Array(nRows*nCols);
+      for (let idx=0; idx<nRows*nCols; idx++) if (cntH[idx]>0) { occupied[idx]=1; height[idx]=sumH[idx]/cntH[idx]; }
+
+      // BFS from grid border → mark exterior empty cells, then fill interior holes
+      if (fillHoles) {
+        const exterior = new Uint8Array(nRows*nCols);
+        const queue = [];
+        for (let r=0; r<nRows; r++) {
+          for (let c=0; c<nCols; c++) {
+            const idx=r*nCols+c;
+            if ((r===0||r===nRows-1||c===0||c===nCols-1) && !occupied[idx]) {
+              exterior[idx]=1; queue.push(idx);
+            }
+          }
+        }
+        for (let qi=0; qi<queue.length; qi++) {
+          const idx=queue[qi], r=Math.floor(idx/nCols), c=idx%nCols;
+          if (r>0       && !exterior[idx-nCols] && !occupied[idx-nCols]) { exterior[idx-nCols]=1; queue.push(idx-nCols); }
+          if (r<nRows-1 && !exterior[idx+nCols] && !occupied[idx+nCols]) { exterior[idx+nCols]=1; queue.push(idx+nCols); }
+          if (c>0       && !exterior[idx-1]     && !occupied[idx-1])     { exterior[idx-1]=1;     queue.push(idx-1); }
+          if (c<nCols-1 && !exterior[idx+1]     && !occupied[idx+1])     { exterior[idx+1]=1;     queue.push(idx+1); }
+        }
+        // Iteratively fill interior holes using 4-neighbor average height
+        let changed=true;
+        while (changed) {
+          changed=false;
+          for (let r=0; r<nRows; r++) {
+            for (let c=0; c<nCols; c++) {
+              const idx=r*nCols+c;
+              if (occupied[idx]||exterior[idx]) continue;
+              let sh=0, cn=0;
+              if (r>0       && occupied[idx-nCols]) { sh+=height[idx-nCols]; cn++; }
+              if (r<nRows-1 && occupied[idx+nCols]) { sh+=height[idx+nCols]; cn++; }
+              if (c>0       && occupied[idx-1])     { sh+=height[idx-1];     cn++; }
+              if (c<nCols-1 && occupied[idx+1])     { sh+=height[idx+1];     cn++; }
+              if (cn>0) { occupied[idx]=1; height[idx]=sh/cn; changed=true; statHolesFilled++; }
+            }
+          }
+        }
+      }
+
+      // Bridge fill: scan each row then each column; if two occupied endpoints are separated
+      // by an unoccupied gap <= bridgeFill cells wide, fill the gap with linear-interpolated heights.
+      // This handles large scan dead-zones that connect to the exterior (BFS won't fill them).
+      if (bridgeFill > 0) {
+        // Row-wise
+        for (let r = 0; r < nRows; r++) {
+          let prevC = -1, prevH = 0;
+          for (let c = 0; c < nCols; c++) {
+            const idx = r * nCols + c;
+            if (occupied[idx]) {
+              if (prevC >= 0 && c - prevC - 1 > 0 && c - prevC - 1 <= bridgeFill) {
+                const gap = c - prevC;
+                for (let gc = prevC + 1; gc < c; gc++) {
+                  const t = (gc - prevC) / gap;
+                  const gi = r * nCols + gc;
+                  occupied[gi] = 1;
+                  height[gi] = prevH * (1 - t) + height[idx] * t;
+                  statBridged++;
+                }
+              }
+              prevC = c; prevH = height[idx];
+            }
+          }
+        }
+        // Column-wise (catches gaps that row-scan missed)
+        for (let c = 0; c < nCols; c++) {
+          let prevR = -1, prevH = 0;
+          for (let r = 0; r < nRows; r++) {
+            const idx = r * nCols + c;
+            if (occupied[idx]) {
+              if (prevR >= 0 && r - prevR - 1 > 0 && r - prevR - 1 <= bridgeFill) {
+                const gap = r - prevR;
+                for (let gr = prevR + 1; gr < r; gr++) {
+                  const t = (gr - prevR) / gap;
+                  const gi = gr * nCols + c;
+                  if (!occupied[gi]) { occupied[gi] = 1; height[gi] = prevH * (1 - t) + height[idx] * t; statBridged++; }
+                }
+              }
+              prevR = r; prevH = height[idx];
+            }
+          }
+        }
+      }
+
+      // Morphological erosion: remove boundary cells (< 4 occupied 4-neighbors) for erodeN passes.
+      // Eliminates the outermost ragged ring which causes side-wall spikes and bottom artifacts.
+      for (let pass = 0; pass < erodeN; pass++) {
+        const remove = new Uint8Array(nRows * nCols);
+        for (let r = 0; r < nRows; r++) {
+          for (let c = 0; c < nCols; c++) {
+            const idx = r * nCols + c;
+            if (!occupied[idx]) continue;
+            const n4 = (r > 0       && occupied[idx - nCols] ? 1 : 0)
+                     + (r < nRows-1 && occupied[idx + nCols] ? 1 : 0)
+                     + (c > 0       && occupied[idx - 1]     ? 1 : 0)
+                     + (c < nCols-1 && occupied[idx + 1]     ? 1 : 0);
+            if (n4 < 4) remove[idx] = 1;
+          }
+        }
+        for (let idx = 0; idx < nRows * nCols; idx++) if (remove[idx]) { occupied[idx] = 0; statEroded++; }
+      }
+
+      // Laplacian smoothing of the height grid: each occupied cell height → weighted avg with
+      // 4-neighbors. Boundary cells (< 4 occupied neighbors) get pulled toward interior average,
+      // smoothing out pits, uneven patches, and edge height variation.
+      for (let iter = 0; iter < smoothIter; iter++) {
+        const newH = new Float64Array(height.length);
+        for (let r = 0; r < nRows; r++) {
+          for (let c = 0; c < nCols; c++) {
+            const idx = r * nCols + c;
+            if (!occupied[idx]) continue;
+            let sh = height[idx], cnt = 1;
+            if (r > 0       && occupied[idx - nCols]) { sh += height[idx - nCols]; cnt++; }
+            if (r < nRows-1 && occupied[idx + nCols]) { sh += height[idx + nCols]; cnt++; }
+            if (c > 0       && occupied[idx - 1])     { sh += height[idx - 1];     cnt++; }
+            if (c < nCols-1 && occupied[idx + 1])     { sh += height[idx + 1];     cnt++; }
+            newH[idx] = sh / cnt;
+          }
+        }
+        for (let idx = 0; idx < height.length; idx++) if (occupied[idx]) height[idx] = newH[idx];
+      }
+
+      const isOcc = (r,c) => r>=0 && r<nRows && c>=0 && c<nCols && occupied[r*nCols+c];
+
+      // one mesh vertex per occupied cell, at its real (u,v,height) → true 3D position
+      const cellId = new Int32Array(nRows*nCols).fill(-1);
+      const frontPos = [];
+      const frontH = []; // h (along e3) per front vertex, used for flatBottom
+      for (let r=0;r<nRows;r++){
+        for (let c=0;c<nCols;c++){
+          const idx=r*nCols+c;
+          if (!occupied[idx]) continue;
+          const u=gridOriginU+(c+0.5)*cellSize, v=gridOriginV+(r+0.5)*cellSize, h=height[idx];
+          cellId[idx]=frontPos.length;
+          frontH.push(h);
+          frontPos.push([
+            plane.cx+u*plane.e1[0]+v*plane.e2[0]+h*plane.e3[0],
+            plane.cy+u*plane.e1[1]+v*plane.e2[1]+h*plane.e3[1],
+            plane.cz+u*plane.e1[2]+v*plane.e2[2]+h*plane.e3[2],
+          ]);
+        }
+      }
+      const V = frontPos.length;
+      if (V < 3) throw new Error("有效網格點不足，請調整輪廓格子大小");
+
+      const sub = (a,b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+      const cross = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+      const dot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+      const normalize = (a) => { const l=Math.sqrt(dot(a,a))||1; return [a[0]/l,a[1]/l,a[2]/l]; };
+      function triNormal(tri, posArr) {
+        const [p0,p1,p2] = tri.map(i=>posArr[i]);
+        return normalize(cross(sub(p1,p0), sub(p2,p0)));
+      }
+      function orient(tri, refNormal, posArr) {
+        return dot(triNormal(tri, posArr), refNormal) >= 0 ? tri : [tri[0], tri[2], tri[1]];
+      }
+
+      // front surface: 2 triangles per fully-occupied 2x2 cell block, oriented so
+      // each triangle's normal points roughly along +e3 (away from the material)
+      const frontTris = [];
+      for (let r=0;r<nRows-1;r++){
+        for (let c=0;c<nCols-1;c++){
+          const i00=r*nCols+c, i01=r*nCols+c+1, i10=(r+1)*nCols+c, i11=(r+1)*nCols+c+1;
+          if (!(occupied[i00]&&occupied[i01]&&occupied[i10]&&occupied[i11])) continue;
+          const v00=cellId[i00], v01=cellId[i01], v10=cellId[i10], v11=cellId[i11];
+          frontTris.push(orient([v00,v01,v11], plane.e3, frontPos));
+          frontTris.push(orient([v00,v11,v10], plane.e3, frontPos));
+        }
+      }
+      if (!frontTris.length) throw new Error("表面三角化失敗，請調整輪廓格子大小（可能太大或太小）");
+
+      // per-vertex normal = average of adjacent front-triangle normals
+      // (this is what makes the offset follow a bend correctly instead of one flat direction)
+      const vnAccum = frontPos.map(()=>[0,0,0]);
+      for (const tri of frontTris) {
+        const n = triNormal(tri, frontPos);
+        for (const vi of tri) { vnAccum[vi][0]+=n[0]; vnAccum[vi][1]+=n[1]; vnAccum[vi][2]+=n[2]; }
+      }
+      const vertexNormal = vnAccum.map(normalize);
+
+      // back surface: flatBottom=true → straight e3 offset (each back vertex is front vertex
+      // shifted by −t along the global e3 axis; avoids concave-corner hollows, thickness = t in e3).
+      // flatBottom=false → per-vertex normal offset so bends thicken correctly.
+      const backPos = flatBottom
+        ? frontPos.map(p => [
+            p[0]-t*plane.e3[0], p[1]-t*plane.e3[1], p[2]-t*plane.e3[2],
+          ])
+        : frontPos.map((p,i) => [
+            p[0]-t*vertexNormal[i][0], p[1]-t*vertexNormal[i][1], p[2]-t*vertexNormal[i][2],
+          ]);
+      const allPos = frontPos.concat(backPos); // index i<V: front, index V+i: back of front vertex i
+
+      // back triangles: same connectivity, ids shifted by V, normal forced opposite
+      // to the corresponding front triangle (so the shell really closes)
+      const backTris = frontTris.map(tri => {
+        const fn = triNormal(tri, frontPos);
+        const shifted = [tri[0]+V, tri[1]+V, tri[2]+V];
+        return orient(shifted, [-fn[0],-fn[1],-fn[2]], allPos);
+      });
+
+      // boundary ring: trace the outer silhouette on the cell grid (graph walk over
+      // grid corners, tagging each edge with its owning occupied cell), then convert
+      // to an ordered ring of front vertex ids by deduping consecutive same-cell edges
+      const cKey = (r,c) => r*(nCols+1)+c;
+      const adj = new Map();
+      function addEdge(p,q,cell){
+        const kp=cKey(p[0],p[1]), kq=cKey(q[0],q[1]);
+        if(!adj.has(kp)) adj.set(kp,[]);
+        if(!adj.has(kq)) adj.set(kq,[]);
+        adj.get(kp).push({to:q, used:false, cell});
+        adj.get(kq).push({to:p, used:false, cell});
+      }
+      for (let r=0;r<nRows;r++){
+        for (let c=0;c<nCols;c++){
+          if(!isOcc(r,c)) continue;
+          if(!isOcc(r-1,c)) addEdge([r,c],[r,c+1],[r,c]);
+          if(!isOcc(r+1,c)) addEdge([r+1,c],[r+1,c+1],[r,c]);
+          if(!isOcc(r,c-1)) addEdge([r,c],[r+1,c],[r,c]);
+          if(!isOcc(r,c+1)) addEdge([r,c+1],[r+1,c+1],[r,c]);
+        }
+      }
+      let bestLoop = [];
+      for (const [startKey, edgesAtStart] of adj) {
+        for (const e0 of edgesAtStart) {
+          if (e0.used) continue;
+          const loop = [];
+          let curKey=startKey, curEdge=e0, guard=0;
+          while (guard++ < 400000) {
+            curEdge.used = true;
+            const nextKey = cKey(curEdge.to[0], curEdge.to[1]);
+            const rev = (adj.get(nextKey)||[]).find(x => !x.used && cKey(x.to[0],x.to[1]) === curKey);
+            if (rev) rev.used = true;
+            loop.push(curEdge.cell);
+            if (nextKey === startKey) break;
+            curKey = nextKey;
+            const opts = (adj.get(curKey)||[]).filter(x => !x.used);
+            if (!opts.length) break;
+            curEdge = opts[0];
+          }
+          if (loop.length > bestLoop.length) bestLoop = loop;
+        }
+      }
+      const ring = [];
+      for (const cellRC of bestLoop) {
+        const last = ring[ring.length-1];
+        if (!last || last[0]!==cellRC[0] || last[1]!==cellRC[1]) ring.push(cellRC);
+      }
+      if (ring.length>1) {
+        const f=ring[0], l=ring[ring.length-1];
+        if (f[0]===l[0] && f[1]===l[1]) ring.pop();
+      }
+
+      // When flatBottom: remove grid-staircase jagged edges via Douglas-Peucker on the ring
+      if (flatBottom && ring.length > 3) {
+        const uvCell = ([r,c]) => [gridOriginU+(c+0.5)*cellSize, gridOriginV+(r+0.5)*cellSize];
+        const dp = (pts, eps) => {
+          if (pts.length <= 2) return pts;
+          const [u0,v0]=uvCell(pts[0]), [u1,v1]=uvCell(pts[pts.length-1]);
+          const du=u1-u0, dv=v1-v0, len=Math.sqrt(du*du+dv*dv)||1e-9;
+          let md=0, mi=1;
+          for (let i=1;i<pts.length-1;i++){
+            const [u,v]=uvCell(pts[i]);
+            const d=Math.abs((u-u0)*dv-(v-v0)*du)/len;
+            if(d>md){md=d;mi=i;}
+          }
+          if(md>eps){ const a=dp(pts.slice(0,mi+1),eps), b=dp(pts.slice(mi),eps); return a.slice(0,-1).concat(b); }
+          return [pts[0],pts[pts.length-1]];
+        };
+        const simplified = dp([...ring, ring[0]], cellSize*0.8).slice(0,-1);
+        if (simplified.length >= 3) ring.splice(0, ring.length, ...simplified);
+      }
+
+      let ringVids = ring.map(([r,c]) => cellId[r*nCols+c]);
+      if (ringVids.length < 3) throw new Error("輪廓追蹤失敗，請調整輪廓格子大小");
+
+      // force ring CCW in (u,v) so the side-wall orientation formula below is valid
+      const projUV = (p) => {
+        const dx=p[0]-plane.cx, dy=p[1]-plane.cy, dz=p[2]-plane.cz;
+        return [dx*plane.e1[0]+dy*plane.e1[1]+dz*plane.e1[2], dx*plane.e2[0]+dy*plane.e2[1]+dz*plane.e2[2]];
+      };
+      let area=0;
+      for (let k=0;k<ringVids.length;k++){
+        const [x0,y0]=projUV(frontPos[ringVids[k]]);
+        const [x1,y1]=projUV(frontPos[ringVids[(k+1)%ringVids.length]]);
+        area += x0*y1 - x1*y0;
+      }
+      if (area < 0) ringVids.reverse();
+
+      // Smooth the back-ring positions (bottom edge): average each ring back vertex with its
+      // two ring neighbors. allPos[V+vi] shares the same array as backPos[vi], so updating
+      // backPos in-place also updates allPos — side walls built next will see the smoothed positions.
+      if (smoothIter > 0 && ringVids.length >= 3) {
+        const n = ringVids.length;
+        for (let iter = 0; iter < smoothIter * 2; iter++) {
+          // snapshot current back positions for this ring
+          const snap = ringVids.map(vi => backPos[vi].slice());
+          for (let k = 0; k < n; k++) {
+            const vi   = ringVids[k];
+            const prev = snap[(k - 1 + n) % n];
+            const next = snap[(k + 1) % n];
+            backPos[vi][0] = (snap[k][0] + prev[0] + next[0]) / 3;
+            backPos[vi][1] = (snap[k][1] + prev[1] + next[1]) / 3;
+            backPos[vi][2] = (snap[k][2] + prev[2] + next[2]) / 3;
+          }
+        }
+      }
+
+      // side walls: connect front ring to back ring, 2 triangles per boundary segment
+      const sideTris = [];
+      for (let k=0;k<ringVids.length;k++){
+        const a=ringVids[k], b=ringVids[(k+1)%ringVids.length];
+        const [ua,va]=projUV(frontPos[a]), [ub,vb]=projUV(frontPos[b]);
+        const du=ub-ua, dv=vb-va, el=Math.sqrt(du*du+dv*dv)||1e-9;
+        const nu=dv/el, nv=-du/el; // outward normal in (u,v), same formula as the planar-edge proof
+        const targetNormal = [nu*plane.e1[0]+nv*plane.e2[0], nu*plane.e1[1]+nv*plane.e2[1], nu*plane.e1[2]+nv*plane.e2[2]];
+        sideTris.push(orient([a, b, V+b], targetNormal, allPos));
+        sideTris.push(orient([a, V+b, V+a], targetNormal, allPos));
+      }
+
+      const allTris = [...frontTris, ...backTris, ...sideTris];
+      return {
+        allPos, triangles: allTris,
+        frontCount: frontTris.length, backCount: backTris.length, sideCount: sideTris.length,
+        vertexCount: V,
+        stats: {
+          pointCount: count, gridCells: nRows * nCols, occupiedBefore: count,
+          holesFilled: statHolesFilled, bridged: statBridged, eroded: statEroded,
+          filteredOut: statFilteredOut, hFilter, hMedian,
+          smoothIter, erodeN, bridgeFill, fillHoles, flatBottom,
+          cellSize, t,
+          thickenMode: flatBottom ? "全局法線方向（e3 統一偏移）" : "逐頂點法線偏移（折彎截面各自垂直加厚）",
+          ringVerts: ringVids.length,
+        }
+      };
+    }
+
+    // ── Triangle mesh → glTF 2.0 binary (.glb) exporter ─────────────────────
+    function trianglesToGltfBinary(allPos, triangles) {
+      const V = allPos.length;
+      const T = triangles.length;
+
+      // Per-vertex normals averaged from adjacent triangle normals
+      const normAccum = new Float64Array(V * 3);
+      for (const [i0, i1, i2] of triangles) {
+        const p0 = allPos[i0], p1 = allPos[i1], p2 = allPos[i2];
+        const ax = p1[0]-p0[0], ay = p1[1]-p0[1], az = p1[2]-p0[2];
+        const bx = p2[0]-p0[0], by = p2[1]-p0[1], bz = p2[2]-p0[2];
+        const nx = ay*bz-az*by, ny = az*bx-ax*bz, nz = ax*by-ay*bx;
+        normAccum[i0*3]+=nx; normAccum[i0*3+1]+=ny; normAccum[i0*3+2]+=nz;
+        normAccum[i1*3]+=nx; normAccum[i1*3+1]+=ny; normAccum[i1*3+2]+=nz;
+        normAccum[i2*3]+=nx; normAccum[i2*3+1]+=ny; normAccum[i2*3+2]+=nz;
+      }
+
+      const posArr = new Float32Array(V * 3);
+      const norArr = new Float32Array(V * 3);
+      let minX=Infinity, minY=Infinity, minZ=Infinity;
+      let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
+      for (let i = 0; i < V; i++) {
+        const p = allPos[i];
+        posArr[i*3] = p[0]; posArr[i*3+1] = p[1]; posArr[i*3+2] = p[2];
+        if (p[0]<minX) minX=p[0]; if (p[0]>maxX) maxX=p[0];
+        if (p[1]<minY) minY=p[1]; if (p[1]>maxY) maxY=p[1];
+        if (p[2]<minZ) minZ=p[2]; if (p[2]>maxZ) maxZ=p[2];
+        const nx=normAccum[i*3], ny=normAccum[i*3+1], nz=normAccum[i*3+2];
+        const len = Math.sqrt(nx*nx+ny*ny+nz*nz) || 1;
+        norArr[i*3] = nx/len; norArr[i*3+1] = ny/len; norArr[i*3+2] = nz/len;
+      }
+
+      const useU32 = V > 65535;
+      const idxArr = useU32 ? new Uint32Array(T * 3) : new Uint16Array(T * 3);
+      for (let t = 0; t < T; t++) {
+        idxArr[t*3] = triangles[t][0]; idxArr[t*3+1] = triangles[t][1]; idxArr[t*3+2] = triangles[t][2];
+      }
+
+      // Binary buffer: positions | normals | indices (each 4-byte aligned)
+      const align4 = n => (n + 3) & ~3;
+      const norOff = align4(posArr.byteLength);
+      const idxOff = align4(norOff + norArr.byteLength);
+      const binLen = align4(idxOff + idxArr.byteLength);
+      const bin = new Uint8Array(binLen);
+      bin.set(new Uint8Array(posArr.buffer), 0);
+      bin.set(new Uint8Array(norArr.buffer), norOff);
+      bin.set(new Uint8Array(idxArr.buffer), idxOff);
+
+      const gltf = {
+        asset: { version: "2.0", generator: "PLY Processor" },
+        scene: 0,
+        scenes: [{ nodes: [0] }],
+        nodes: [{ mesh: 0 }],
+        meshes: [{ name: "scan_solid", primitives: [{
+          attributes: { POSITION: 0, NORMAL: 1 }, indices: 2, material: 0, mode: 4
+        }]}],
+        materials: [{
+          name: "steel",
+          pbrMetallicRoughness: { baseColorFactor: [0.65, 0.70, 0.75, 1.0], metallicFactor: 0.3, roughnessFactor: 0.55 },
+          doubleSided: false
+        }],
+        accessors: [
+          { bufferView: 0, byteOffset: 0, componentType: 5126, count: V, type: "VEC3",
+            min: [minX, minY, minZ], max: [maxX, maxY, maxZ] },
+          { bufferView: 1, byteOffset: 0, componentType: 5126, count: V, type: "VEC3" },
+          { bufferView: 2, byteOffset: 0, componentType: useU32 ? 5125 : 5123, count: T * 3, type: "SCALAR" }
+        ],
+        bufferViews: [
+          { buffer: 0, byteOffset: 0,      byteLength: posArr.byteLength, target: 34962 },
+          { buffer: 0, byteOffset: norOff,  byteLength: norArr.byteLength, target: 34962 },
+          { buffer: 0, byteOffset: idxOff,  byteLength: idxArr.byteLength, target: 34963 }
+        ],
+        buffers: [{ byteLength: binLen }]
+      };
+
+      const jsonEncoded = new TextEncoder().encode(JSON.stringify(gltf));
+      const jsonPad = align4(jsonEncoded.length);
+      const jsonBytes = new Uint8Array(jsonPad).fill(0x20);
+      jsonBytes.set(jsonEncoded);
+
+      const totalLen = 12 + 8 + jsonPad + 8 + binLen;
+      const glbArr = new Uint8Array(totalLen);
+      const glbView = new DataView(glbArr.buffer);
+      let off = 0;
+      glbView.setUint32(off, 0x46546C67, true); off += 4; // magic 'glTF'
+      glbView.setUint32(off, 2, true);           off += 4; // version 2
+      glbView.setUint32(off, totalLen, true);    off += 4; // total length
+      glbView.setUint32(off, jsonPad, true);     off += 4; // JSON chunk length
+      glbView.setUint32(off, 0x4E4F534A, true);  off += 4; // 'JSON'
+      glbArr.set(jsonBytes, off);                off += jsonPad;
+      glbView.setUint32(off, binLen, true);      off += 4; // BIN chunk length
+      glbView.setUint32(off, 0x004E4942, true);  off += 4; // 'BIN\0'
+      glbArr.set(bin, off);
+
+      return glbArr.buffer;
+    }
+
+    // ── Generic triangle-mesh → STEP AP214 MANIFOLD_SOLID_BREP exporter ───
+    // Dedupes shared edges between adjacent triangles (required for a valid
+    // manifold B-rep: each interior edge must be referenced by exactly the two
+    // faces that share it, in opposite directions).
+    function trianglesToStep(allPos, triangles) {
+      let id = 0;
+      const lines = [];
+      const next = () => ++id;
+      const E = (m, body) => lines.push(`#${m}=${body};`);
+      const pt3  = (p)       => { const m=next(); E(m,`CARTESIAN_POINT('',(${p[0].toFixed(6)},${p[1].toFixed(6)},${p[2].toFixed(6)}))`); return m; };
+      const dir3 = (x,y,z)   => { const m=next(); E(m,`DIRECTION('',(${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}))`); return m; };
+      const vec3 = (d,mag)   => { const m=next(); E(m,`VECTOR('',#${d},${mag.toFixed(6)})`); return m; };
+      const ln   = (p,v)     => { const m=next(); E(m,`LINE('',#${p},#${v})`); return m; };
+      const ax2  = (o,a,r)   => { const m=next(); E(m,`AXIS2_PLACEMENT_3D('',#${o},#${a},#${r})`); return m; };
+      const pln  = (ax)      => { const m=next(); E(m,`PLANE('',#${ax})`); return m; };
+
+      lines.push("ISO-10303-21;");
+      lines.push("HEADER;");
+      lines.push("FILE_DESCRIPTION(('Angle Steel - reconstructed from scan'),'2;1');");
+      lines.push("FILE_NAME('angle_steel.stp','',(''),(''),'','','');");
+      lines.push("FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 3 1 1 1 }'));");
+      lines.push("ENDSEC;");
+      lines.push("DATA;");
+
+      const nAC=next();  E(nAC, "APPLICATION_CONTEXT('core data for automotive mechanical design processes')");
+      const nDC=next();  E(nDC, `DESIGN_CONTEXT('',#${nAC},'design')`);
+      const nPr=next();  E(nPr, `PRODUCT('ANGLE_STEEL','Angle Steel','',(#${nDC}))`);
+      const nPdf=next(); E(nPdf,`PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE('','',#${nPr},.NOT_KNOWN.)`);
+      const nPd=next();  E(nPd, `PRODUCT_DEFINITION('design','',#${nPdf},#${nDC})`);
+      const nPds=next(); E(nPds,`PRODUCT_DEFINITION_SHAPE('','',#${nPd})`);
+
+      const nLU=next(); E(nLU,"(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))");
+      const nAU=next(); E(nAU,"(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))");
+      const nSU=next(); E(nSU,"(NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT())");
+      const nUm=next(); E(nUm,`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#${nLU},'distance_accuracy_value','confusion accuracy')`);
+      const nGC=next(); E(nGC,`(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#${nUm})) GLOBAL_UNIT_ASSIGNED_CONTEXT((#${nLU},#${nAU},#${nSU})) REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and UNCERTAINTY'))`);
+
+      // vertex points (only for ids actually used by triangles)
+      const used = new Set();
+      for (const tri of triangles) for (const v of tri) used.add(v);
+      const ptId = new Map(), vertId = new Map();
+      for (const vi of used) {
+        const p = pt3(allPos[vi]);
+        ptId.set(vi, p);
+        const m = next(); E(m, `VERTEX_POINT('',#${p})`);
+        vertId.set(vi, m);
+      }
+
+      // shared edges: canonical direction lo→hi (by numeric id), reused by both adjacent faces
+      const edgeMap = new Map();
+      function getEdge(a, b) {
+        const lo=Math.min(a,b), hi=Math.max(a,b);
+        const key = lo*1e7+hi;
+        if (edgeMap.has(key)) return edgeMap.get(key);
+        const A=allPos[lo], B=allPos[hi];
+        const dx=B[0]-A[0], dy=B[1]-A[1], dz=B[2]-A[2];
+        const mag=Math.sqrt(dx*dx+dy*dy+dz*dz)||1e-9;
+        const dN=dir3(dx/mag,dy/mag,dz/mag);
+        const vN=vec3(dN,mag);
+        const lN=ln(ptId.get(lo), vN);
+        const ecN=next(); E(ecN,`EDGE_CURVE('',#${vertId.get(lo)},#${vertId.get(hi)},#${lN},.T.)`);
+        const rec={ecId:ecN, lo, hi};
+        edgeMap.set(key, rec);
+        return rec;
+      }
+
+      const faces=[];
+      for (const [i0,i1,i2] of triangles) {
+        const p0=allPos[i0], p1=allPos[i1], p2=allPos[i2];
+        const ex=[p1[0]-p0[0],p1[1]-p0[1],p1[2]-p0[2]];
+        const exLen=Math.sqrt(ex[0]*ex[0]+ex[1]*ex[1]+ex[2]*ex[2])||1e-9;
+        const exN=[ex[0]/exLen, ex[1]/exLen, ex[2]/exLen];
+        const e2v=[p2[0]-p0[0],p2[1]-p0[1],p2[2]-p0[2]];
+        const nrm=[exN[1]*e2v[2]-exN[2]*e2v[1], exN[2]*e2v[0]-exN[0]*e2v[2], exN[0]*e2v[1]-exN[1]*e2v[0]];
+        const nLen=Math.sqrt(nrm[0]*nrm[0]+nrm[1]*nrm[1]+nrm[2]*nrm[2])||1e-9;
+        const nN=[nrm[0]/nLen, nrm[1]/nLen, nrm[2]/nLen];
+
+        const surf = pln(ax2(pt3(p0), dir3(...nN), dir3(...exN)));
+
+        function oeFor(a,b) {
+          const e = getEdge(a,b);
+          const fwd = (e.lo===a);
+          const m=next(); E(m,`ORIENTED_EDGE('',*,*,#${e.ecId},.${fwd?'T':'F'}.)`);
+          return m;
+        }
+        const oe0=oeFor(i0,i1), oe1=oeFor(i1,i2), oe2=oeFor(i2,i0);
+        const lp=next(); E(lp,`EDGE_LOOP('',(#${oe0},#${oe1},#${oe2}))`);
+        const fb=next(); E(fb,`FACE_OUTER_BOUND('',#${lp},.T.)`);
+        const f=next();  E(f, `ADVANCED_FACE('',(#${fb}),#${surf},.T.)`);
+        faces.push(f);
+      }
+
+      const shellN=next(); E(shellN,`CLOSED_SHELL('',(${faces.map(f=>`#${f}`).join(",")}))`);
+      const brepN =next(); E(brepN, `MANIFOLD_SOLID_BREP('Angle Steel',#${shellN})`);
+
+      const axGlob=ax2(pt3([0,0,0]),dir3(0,0,1),dir3(1,0,0));
+      const srN =next(); E(srN, `ADVANCED_BREP_SHAPE_REPRESENTATION('',(#${axGlob},#${brepN}),#${nGC})`);
+      const sdrN=next(); E(sdrN,`SHAPE_DEFINITION_REPRESENTATION(#${nPds},#${srN})`);
+
+      lines.push("ENDSEC;");
+      lines.push("END-ISO-10303-21;");
+      return lines.join("\n");
+    }
+
+    // Format a detailed processing report from buildThickenedMesh stats
+    function meshProcessingReport(mesh, plane) {
+      const s = mesh.stats;
+      const lines = [];
+      const tick = (done, label) => done ? `✓ ${label}` : `— ${label}（略過）`;
+      lines.push("─────────────────────────────────────");
+      lines.push("【修正流程】");
+      lines.push("");
+
+      lines.push(`① 過濾突起：${s.hFilter > 0 ? tick(true, `中位高度 + ${s.hFilter} mm 以上去除`) : tick(false, "未設定（值為 0）")}`);
+      if (s.hFilter > 0) {
+        lines.push("   原理：計算所有點在擬合平面法線方向的高度 h，");
+        lines.push(`         移除 h > 中位高度(${s.hMedian.toFixed(1)} mm) + ${s.hFilter} mm 的突起點。`);
+        lines.push("         用途：去掉掃描場景中的圓球、螺栓、圓筒等突起物，只保留平板面。");
+        if (s.filteredOut > 0)
+          lines.push(`   結果：移除 ${s.filteredOut.toLocaleString()} 個突起點（佔 ${(s.filteredOut/s.pointCount*100).toFixed(1)}%）`);
+        else
+          lines.push("   結果：未發現超出閾值的突起點");
+      }
+      lines.push("");
+
+      lines.push(`③ 填補孔洞（BFS）：${tick(s.fillHoles, "啟用")}`);
+      if (s.fillHoles) {
+        lines.push("   原理：從格子邊界往內 BFS 標記所有「外部空格」，");
+        lines.push("         剩餘孤立未占用格（被資料格完全包圍）以 4 鄰居高度迭代填補。");
+        if (s.holesFilled > 0)
+          lines.push(`   結果：填入 ${s.holesFilled.toLocaleString()} 個孔洞格（≈ ${(s.holesFilled * s.cellSize * s.cellSize).toFixed(0)} mm²）`);
+        else
+          lines.push("   結果：未偵測到封閉內部孔洞");
+      }
+      lines.push("");
+
+      lines.push(`④ 橋接缺漏：${s.bridgeFill > 0 ? tick(true, `${s.bridgeFill} 格（= ${(s.bridgeFill * s.cellSize).toFixed(1)} mm）`) : tick(false, "未設定（值為 0）")}`);
+      if (s.bridgeFill > 0) {
+        lines.push("   原理：逐行 / 逐列掃描，兩端有資料、中間缺漏且間距 ≤ 此格數，");
+        lines.push("         以線性內插補起來（可補 BFS 無法填的邊緣連通大缺口）。");
+        if (s.bridged > 0)
+          lines.push(`   結果：補入 ${s.bridged.toLocaleString()} 個格子（≈ ${(s.bridged * s.cellSize * s.cellSize).toFixed(0)} mm²）`);
+        else
+          lines.push("   結果：未找到符合條件的缺口");
+      }
+      lines.push("");
+
+      lines.push(`⑤ 邊緣修飾（Erosion）：${s.erodeN > 0 ? tick(true, `${s.erodeN} 輪`) : tick(false, "值為 0")}`);
+      if (s.erodeN > 0) {
+        lines.push("   原理：移除 < 4 個占用鄰居的外圈格子，共做 N 輪。");
+        lines.push("         消除邊緣鋸齒、避免側牆生成多餘三角面和底部突刺。");
+        lines.push(`   結果：移除 ${s.eroded.toLocaleString()} 個邊緣格（每輪縮 ${s.cellSize} mm）`);
+      }
+      lines.push("");
+
+      lines.push(`⑥ 表面平滑（Laplacian）：${s.smoothIter > 0 ? tick(true, `${s.smoothIter} 次`) : tick(false, "值為 0")}`);
+      if (s.smoothIter > 0) {
+        lines.push("   原理：每格高度 = (自身 + 上下左右鄰居) ÷ (1 + 鄰居數)，重複 N 次。");
+        lines.push("         補平掃描噪訊、坑洞與高度差異；");
+        lines.push(`         底部邊緣 ring 額外做 ${s.smoothIter * 2} 次 1D 環狀 Laplacian 讓底邊變直。`);
+      }
+      lines.push("");
+
+      lines.push("─────────────────────────────────────");
+      lines.push("【網格資訊】");
+      lines.push(`  輸入點數：${s.pointCount.toLocaleString()}`);
+      lines.push(`  輪廓格子：${s.cellSize} mm  →  格子陣列 ${Math.round(mesh.allPos.length / 2)} 個頂點`);
+      lines.push(`  前表面：${mesh.frontCount.toLocaleString()} 個三角面`);
+      lines.push(`  後表面：${mesh.backCount.toLocaleString()} 個三角面`);
+      lines.push(`  側牆：${mesh.sideCount.toLocaleString()} 個三角面（${s.ringVerts} 個邊緣頂點）`);
+      lines.push(`  總計：${mesh.triangles.length.toLocaleString()} 個三角面`);
+      lines.push("");
+      lines.push(`  加厚方式：${s.thickenMode}`);
+      lines.push(`  厚度：${s.t} mm`);
+      lines.push(`  補平邊緣（flatBottom）：${s.flatBottom ? "是（全局 e3 偏移 + D-P 輪廓簡化）" : "否（逐頂點法線，適合折彎件）"}`);
+      lines.push("─────────────────────────────────────");
+      return lines.join("\n");
+    }
+
+    // Download helper (same pattern as PLY export)
+    async function downloadBlob(blob, suggestedName, description, ext) {
+      if ("showSaveFilePicker" in window) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{ description, accept: { "application/octet-stream": [ext] } }]
+          });
+          const w = await handle.createWritable();
+          await w.write(blob); await w.close();
+          return suggestedName;
+        } catch (err) {
+          if (err.name === "AbortError") return null;
+          throw err;
+        }
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = suggestedName;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        return suggestedName;
+      }
+    }
+
+    stepGenerateBtn.addEventListener("click", async () => {
+      if (!stepSelectedFile) return;
+      const t = Number(steelT.value);
+      const cell = Number(steelCell.value);
+      if (!t || !cell) { stepLog.textContent += "請填寫厚度與輪廓格子大小\n"; return; }
+
+      stepGenerateBtn.disabled = true;
+      stepLog.style.display = "block";
+      stepLog.textContent += `\n讀取 ${stepSelectedFile.name}…\n`;
+      stepLog.scrollTop = stepLog.scrollHeight;
+      await new Promise(requestAnimationFrame);
+
+      try {
+        const { positions, count } = await parsePlyFile(stepSelectedFile);
+        stepLog.textContent += `  點數：${count.toLocaleString()}\n`;
+        if (count < 3) throw new Error("點數不足");
+
+        const plane = pcaFitPlane(positions, count);
+        stepLog.textContent += `  擬合平面法線：(${plane.e3.map(x=>x.toFixed(3)).join(", ")})\n`;
+        stepLog.scrollTop = stepLog.scrollHeight;
+        await new Promise(requestAnimationFrame);
+
+        const flatBottom  = document.querySelector("#stepFlatBottom").checked;
+        const fillHoles   = document.querySelector("#stepFillHoles").checked;
+        const smoothIter  = Math.max(0, parseInt(document.querySelector("#steelSmooth").value)  || 0);
+        const erodeN      = Math.max(0, parseInt(document.querySelector("#steelErode").value)   || 0);
+        const bridgeFill  = Math.max(0, parseInt(document.querySelector("#steelBridge").value)  || 0);
+        const hFilter     = Math.max(0, parseFloat(document.querySelector("#steelHFilter").value) || 0);
+        const mesh = buildThickenedMesh(positions, count, plane, cell, t, flatBottom, fillHoles, smoothIter, erodeN, bridgeFill, hFilter);
+        stepLog.textContent += "\n" + meshProcessingReport(mesh, plane) + "\n";
+        stepLog.scrollTop = stepLog.scrollHeight;
+        await new Promise(requestAnimationFrame);
+
+        const stepText = trianglesToStep(mesh.allPos, mesh.triangles);
+        const blob = new Blob([stepText], { type: "application/step" });
+        const baseName = stepSelectedFile.name.replace(/\.ply$/i, "");
+        const name = `${baseName}_t${t}${flatBottom ? "_flat" : ""}.stp`;
+        const saved = await downloadBlob(blob, name, "STEP file", ".stp");
+        stepLog.textContent += saved ? `已儲存：${saved}\n` : "已取消\n";
+      } catch (err) {
+        stepLog.textContent += `STEP 失敗：${err.message}\n`;
+      }
+
+      stepLog.scrollTop = stepLog.scrollHeight;
+      stepGenerateBtn.disabled = false;
+      gltfGenerateBtn.disabled = false;
+    });
+
+    gltfGenerateBtn.addEventListener("click", async () => {
+      if (!stepSelectedFile) return;
+      const t = Number(steelT.value);
+      const cell = Number(steelCell.value);
+      if (!t || !cell) { stepLog.textContent += "請填寫厚度與輪廓格子大小\n"; return; }
+
+      gltfGenerateBtn.disabled = true;
+      stepGenerateBtn.disabled = true;
+      stepLog.style.display = "block";
+      stepLog.textContent += `\n讀取 ${stepSelectedFile.name}…\n`;
+      stepLog.scrollTop = stepLog.scrollHeight;
+      await new Promise(requestAnimationFrame);
+
+      try {
+        const { positions, count } = await parsePlyFile(stepSelectedFile);
+        stepLog.textContent += `  點數：${count.toLocaleString()}\n`;
+        if (count < 3) throw new Error("點數不足");
+
+        const plane = pcaFitPlane(positions, count);
+        stepLog.textContent += `  擬合平面法線：(${plane.e3.map(x=>x.toFixed(3)).join(", ")})\n`;
+        stepLog.scrollTop = stepLog.scrollHeight;
+        await new Promise(requestAnimationFrame);
+
+        const flatBottom  = document.querySelector("#stepFlatBottom").checked;
+        const fillHoles   = document.querySelector("#stepFillHoles").checked;
+        const smoothIter  = Math.max(0, parseInt(document.querySelector("#steelSmooth").value)  || 0);
+        const erodeN      = Math.max(0, parseInt(document.querySelector("#steelErode").value)   || 0);
+        const bridgeFill  = Math.max(0, parseInt(document.querySelector("#steelBridge").value)  || 0);
+        const hFilter     = Math.max(0, parseFloat(document.querySelector("#steelHFilter").value) || 0);
+        const mesh = buildThickenedMesh(positions, count, plane, cell, t, flatBottom, fillHoles, smoothIter, erodeN, bridgeFill, hFilter);
+        stepLog.textContent += "\n" + meshProcessingReport(mesh, plane) + "\n";
+        stepLog.scrollTop = stepLog.scrollHeight;
+        await new Promise(requestAnimationFrame);
+
+        const glbBuffer = trianglesToGltfBinary(mesh.allPos, mesh.triangles);
+        const blob = new Blob([glbBuffer], { type: "model/gltf-binary" });
+        const baseName = stepSelectedFile.name.replace(/\.ply$/i, "");
+        const name = `${baseName}_t${t}${flatBottom ? "_flat" : ""}.glb`;
+        const saved = await downloadBlob(blob, name, "glTF Binary", ".glb");
+        stepLog.textContent += saved ? `已儲存：${saved}\n` : "已取消\n";
+      } catch (err) {
+        stepLog.textContent += `glTF 失敗：${err.message}\n`;
+      }
+
+      stepLog.scrollTop = stepLog.scrollHeight;
+      gltfGenerateBtn.disabled = false;
+      stepGenerateBtn.disabled = false;
+    });
+
+    renderStitchQueue();
+
+    // ── 2D View ────────────────────────────────────────────────────────────────
+    const view2dBtn    = document.querySelector("#view2dBtn");
+    const view2dModal  = document.querySelector("#view2dModal");
+    const view2dCloseBtn = document.querySelector("#view2dCloseBtn");
+
+    // Enable button once a stitch preview has been rendered
+    function updateView2dBtn() {
+      view2dBtn.disabled = clouds.length === 0;
+    }
+
+    // Gather world-space XYZ from all visible THREE.Points in `clouds`
+    function gatherViewPoints() {
+      const pts = [];
+      const v = new THREE.Vector3();
+      for (const cloud of clouds) {
+        const pos = cloud.geometry.attributes.position.array;
+        const mat = cloud.matrixWorld;
+        for (let i = 0; i < pos.length; i += 3) {
+          v.set(pos[i], pos[i+1], pos[i+2]);
+          v.applyMatrix4(mat);
+          pts.push(v.x, v.y, v.z);
+        }
+      }
+      return pts;
+    }
+
+    function renderOrthoView(canvas, pts, axisH, axisV, labelH, labelV) {
+      const PAD = 52, SZ = 700;
+      canvas.width = SZ; canvas.height = SZ;
+      const ctx = canvas.getContext("2d");
+
+      let minH=Infinity, maxH=-Infinity, minV=Infinity, maxV=-Infinity;
+      for (let i=0; i<pts.length; i+=3) {
+        const h=pts[i+axisH], v=pts[i+axisV];
+        if(h<minH)minH=h; if(h>maxH)maxH=h; if(v<minV)minV=v; if(v>maxV)maxV=v;
+      }
+      const spanH=maxH-minH||1, spanV=maxV-minV||1;
+      const scale = Math.min((SZ-2*PAD)/spanH, (SZ-2*PAD)/spanV);
+      const drawW=spanH*scale, drawH=spanV*scale;
+      const offH=(SZ-drawW)/2, offV=(SZ-drawH)/2;
+
+      // Background + border
+      ctx.fillStyle="#0d1117"; ctx.fillRect(0,0,SZ,SZ);
+      ctx.strokeStyle="rgba(255,255,255,0.15)"; ctx.lineWidth=1;
+      ctx.strokeRect(offH, offV, drawW, drawH);
+
+      // Points via ImageData (fast)
+      const img = ctx.getImageData(0,0,SZ,SZ); const d=img.data;
+      for (let i=0; i<pts.length; i+=3) {
+        const px=Math.round((pts[i+axisH]-minH)*scale+offH);
+        const py=Math.round(SZ-1-((pts[i+axisV]-minV)*scale+offV));
+        if(px<0||px>=SZ||py<0||py>=SZ) continue;
+        const idx=(py*SZ+px)*4;
+        d[idx]=0x0e; d[idx+1]=0xa5; d[idx+2]=0xc8; d[idx+3]=255;
+      }
+      ctx.putImageData(img,0,0);
+
+      // Dimension labels
+      ctx.fillStyle="#aeb7bd"; ctx.font="13px monospace"; ctx.textAlign="center";
+      ctx.fillText(`${labelH}: ${spanH.toFixed(1)} mm`, SZ/2, offV+drawH+18);
+      ctx.save(); ctx.translate(offH-18, SZ/2); ctx.rotate(-Math.PI/2);
+      ctx.fillText(`${labelV}: ${spanV.toFixed(1)} mm`, 0, 0); ctx.restore();
+
+      // Corner labels
+      ctx.fillStyle="rgba(255,255,255,0.35)"; ctx.font="11px monospace";
+      ctx.textAlign="left";
+      ctx.fillText(`${labelH}=${minH.toFixed(1)}`, offH+3, offV+drawH-4);
+      ctx.textAlign="right";
+      ctx.fillText(`${maxH.toFixed(1)}`, offH+drawW-3, offV+drawH-4);
+
+      // Scale bar: pick a nice round length
+      const rawBar = spanH/5;
+      const mag = Math.pow(10, Math.floor(Math.log10(rawBar)));
+      const nice = [1,2,5].map(m=>m*mag).find(v=>v>=rawBar*0.4) || mag*5;
+      const barPx = nice*scale;
+      const bx = offH+drawW-barPx-4, by = offV+10;
+      ctx.fillStyle="rgba(0,0,0,0.45)"; ctx.fillRect(bx-4, by-14, barPx+8, 20);
+      ctx.strokeStyle="#f7f7f4"; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx+barPx,by);
+      ctx.moveTo(bx,by-5); ctx.lineTo(bx,by+5);
+      ctx.moveTo(bx+barPx,by-5); ctx.lineTo(bx+barPx,by+5); ctx.stroke();
+      ctx.fillStyle="#f7f7f4"; ctx.textAlign="center"; ctx.font="11px monospace";
+      ctx.fillText(nice<1?nice.toFixed(2):nice<10?nice.toFixed(1):`${nice}` + " mm", bx+barPx/2, by-2);
+    }
+
+    view2dBtn.addEventListener("click", () => {
+      const pts = gatherViewPoints();
+      if (!pts.length) { alert("請先載入或拼接點雲再產生 2D 視圖。"); return; }
+      renderOrthoView(document.getElementById("view2dTop"),   pts, 0, 1, "X", "Y");
+      renderOrthoView(document.getElementById("view2dFront"), pts, 0, 2, "X", "Z");
+      renderOrthoView(document.getElementById("view2dSide"),  pts, 1, 2, "Y", "Z");
+      view2dModal.style.display = "flex";
+    });
+
+    view2dCloseBtn.addEventListener("click", () => { view2dModal.style.display = "none"; });
+    view2dModal.addEventListener("click", e => { if(e.target===view2dModal) view2dModal.style.display="none"; });
+
+    ["Top","Front","Side"].forEach(name => {
+      document.getElementById(`view2d${name}Export`).addEventListener("click", () => {
+        const c = document.getElementById(`view2d${name}`);
+        const labels = {Top:"top_XY", Front:"front_XZ", Side:"side_YZ"};
+        const a = document.createElement("a");
+        a.download = `view2d_${labels[name]}.png`;
+        a.href = c.toDataURL("image/png");
+        a.click();
+      });
+    });
+
+    // Hook into previewStitchData to enable button after a stitch preview
+    const _origPreviewStitch = previewStitchData;
+    previewStitchData = function(...args) { _origPreviewStitch(...args); updateView2dBtn(); };
+
+  </script>
+
+  <!-- 2D View Modal -->
+  <div id="view2dModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:500;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px;">
+    <div style="background:#1a1e24;border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:24px;width:min(1100px,100%);margin:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <span style="color:#f7f7f4;font-size:15px;font-weight:600;">2D 正投影視圖</span>
+        <button id="view2dCloseBtn" type="button" style="background:none;border:1px solid rgba(255,255,255,0.2);color:#aeb7bd;width:32px;height:32px;border-radius:6px;cursor:pointer;font-size:20px;line-height:1;">×</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+        <div>
+          <div style="color:#aeb7bd;font-size:11px;text-align:center;margin-bottom:5px;">俯視 Top View &nbsp;(X – Y)</div>
+          <canvas id="view2dTop" style="width:100%;border-radius:6px;display:block;"></canvas>
+          <button id="view2dTopExport" type="button" style="width:100%;margin-top:6px;">存 PNG</button>
+        </div>
+        <div>
+          <div style="color:#aeb7bd;font-size:11px;text-align:center;margin-bottom:5px;">正視 Front View &nbsp;(X – Z)</div>
+          <canvas id="view2dFront" style="width:100%;border-radius:6px;display:block;"></canvas>
+          <button id="view2dFrontExport" type="button" style="width:100%;margin-top:6px;">存 PNG</button>
+        </div>
+        <div>
+          <div style="color:#aeb7bd;font-size:11px;text-align:center;margin-bottom:5px;">側視 Side View &nbsp;(Y – Z)</div>
+          <canvas id="view2dSide" style="width:100%;border-radius:6px;display:block;"></canvas>
+          <button id="view2dSideExport" type="button" style="width:100%;margin-top:6px;">存 PNG</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

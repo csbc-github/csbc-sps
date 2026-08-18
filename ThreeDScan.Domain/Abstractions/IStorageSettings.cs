@@ -5,4 +5,7 @@ public interface IStorageSettings
 {
     /// <summary>掃描影像、Ref 圖與預覽檔的根目錄。</summary>
     string ContentsRoot { get; }
+
+    /// <summary>掃描 PLY 匯出根目錄（解析後的絕對路徑）。</summary>
+    string ExportRoot { get; }
 }

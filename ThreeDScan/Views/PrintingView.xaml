@@ -29,7 +29,7 @@
                         <Button Content="停止" Padding="14,6" Margin="0,0,6,0"
                                 Command="{Binding StopScanCommand}"/>
                         <Button Content="測試載入 3D 檔" Padding="14,6"
-                                ToolTip="座標不調整；依 X/Y/Z 範圍最大者做彩虹著色。點太多時依序跳點"
+                                ToolTip="可載入 PLY（點雲）或 GLB（網格），切換上方模式比對視覺效果"
                                 Command="{Binding TestLoadPointCloudCommand}"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
@@ -38,6 +38,9 @@
                                      Style="{StaticResource ToggleButtonStyle}"/>
                         <RadioButton Content="3D 點雲" GroupName="PrintingViewMode"
                                      IsChecked="{Binding Is3DMode}"
+                                     Style="{StaticResource ToggleButtonStyle}" Margin="6,0,0,0"/>
+                        <RadioButton Content="3D GLB" GroupName="PrintingViewMode"
+                                     IsChecked="{Binding IsGlbMode}"
                                      Style="{StaticResource ToggleButtonStyle}" Margin="6,0,0,0"/>
                     </StackPanel>
                 </DockPanel>
@@ -70,6 +73,9 @@
                     <controls:PointCloudViewport
                         Visibility="{Binding Is3DMode, Converter={StaticResource BoolToVis}}"
                         Vertices="{Binding PointCloudVertices}"/>
+                    <controls:GlbMeshViewport
+                        Visibility="{Binding IsGlbMode, Converter={StaticResource BoolToVis}}"
+                        GlbPath="{Binding GlbPath}"/>
                 </Grid>
             </DockPanel>
         </controls:AdaptiveSplitView.PrimaryContent>
