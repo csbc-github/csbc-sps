@@ -34,3 +34,54 @@ Content-Type: application/json
 {
   "scannerId": "SURF-CAM-01"
 }
+
+### 滾輪校正（尚未實作）
+POST {{ThreeDScan.Api_HostAddress}}/api/calibration/roller
+Content-Type: application/json
+
+{
+  "scannerId": "SURF-CAM-01"
+}
+
+### 線掃描（尚未實作）
+POST {{ThreeDScan.Api_HostAddress}}/api/scan/line
+Content-Type: application/json
+
+{
+  "scannerId": "SURF-CAM-01",
+  "rollerSpeed": 50.0
+}
+
+### 面掃描第一次（尚未實作）
+POST {{ThreeDScan.Api_HostAddress}}/api/scan/surface
+Content-Type: application/json
+
+{
+  "scannerId": "SURF-CAM-01",
+  "final": false,
+  "measureThickness": false
+}
+
+### 面掃描最後一次＋厚度
+POST {{ThreeDScan.Api_HostAddress}}/api/scan/surface
+Content-Type: application/json
+
+{
+  "scannerId": "SURF-CAM-01",
+  "taskId": "REPLACE_WITH_SURFACE_TASK_ID",
+  "final": true,
+  "measureThickness": true,
+  "thicknessPointA": { "x": 10.0, "y": 20.0, "z": 0.0 },
+  "thicknessPointB": { "x": 10.0, "y": 80.0, "z": 0.0 }
+}
+
+### 面掃描附加檔 ZIP（尚未實作）
+GET {{ThreeDScan.Api_HostAddress}}/api/scan/surface/REPLACE_WITH_SURFACE_TASK_ID/attachments
+
+### 孔洞掃描（尚未實作）
+POST {{ThreeDScan.Api_HostAddress}}/api/scan/hole
+Content-Type: application/json
+
+{
+  "scannerId": "SURF-CAM-01"
+}

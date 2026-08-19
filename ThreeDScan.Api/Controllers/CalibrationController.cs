@@ -31,4 +31,14 @@ public sealed class CalibrationController : ControllerBase
         var result = await _calibration.SetupReferenceAsync(request, ct);
         return result.Success ? Ok(result) : BadRequest(result);
     }
+
+    /// <summary>無校正物時掃描滾輪台，取得掃描器到滾輪的 Z 距離。</summary>
+    [HttpPost("roller")]
+    public async Task<IActionResult> CalibrateRoller(
+        [FromBody] RollerCalibrationRequest request,
+        CancellationToken ct)
+    {
+        var result = await _calibration.CalibrateRollerAsync(request, ct);
+        return SpecApiActionResult.From(result);
+    }
 }

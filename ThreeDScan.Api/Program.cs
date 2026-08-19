@@ -3,12 +3,12 @@ using ThreeDScan.Api.Auth;
 using ThreeDScan.Api.Hubs;
 using ThreeDScan.Api.Services;
 using ThreeDScan.Application.Calibration;
+using ThreeDScan.Application.Scan;
 using ThreeDScan.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
 builder.Services.AddSignalR();
 builder.Services.AddCors(options =>
 {
@@ -22,6 +22,7 @@ builder.Services.Configure<CalibrationSettings>(builder.Configuration.GetSection
 builder.Services.AddThreeDScanInfrastructure(builder.Configuration);
 builder.Services.AddSingleton<InstrumentCalibrationService>();
 builder.Services.AddScoped<ICalibrationAppService, CalibrationAppService>();
+builder.Services.AddScoped<IScanAppService, ScanAppService>();
 builder.Services.AddSingleton<ICalibrationPreviewPublisher, SignalRCalibrationPreviewPublisher>();
 
 var app = builder.Build();
@@ -35,11 +36,6 @@ if (!string.IsNullOrWhiteSpace(contentsRoot))
         RequestPath = "/calibration-preview-files",
         FileProvider = new PhysicalFileProvider(contentsRoot),
     });
-}
-
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
 }
 
 app.UseCors();

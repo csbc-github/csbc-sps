@@ -17,4 +17,9 @@ public interface ICalibrationAppService
     Task<ApiResponse<ReferenceSetupData>> SetupReferenceAsync(
         ReferenceSetupRequest request,
         CancellationToken ct = default);
+
+    /// <summary>無校正物時掃描滾輪台，取得掃描器到滾輪的 Z 距離。</summary>
+    Task<ApiResponse<RollerCalibrationData>> CalibrateRollerAsync(
+        RollerCalibrationRequest request,
+        CancellationToken ct = default);
 }
