@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using ThreeDScan.Application.Calibration.Dtos;
+using ThreeDScan.Application.Common;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
 
@@ -808,6 +809,16 @@ public sealed class CalibrationAppService : ICalibrationAppService
                 Ok = b.IsWithinTolerance,
             }).ToList(),
         };
+
+    /// <inheritdoc />
+    public Task<ApiResponse<RollerCalibrationData>> CalibrateRollerAsync(
+        RollerCalibrationRequest request,
+        CancellationToken ct = default)
+    {
+        _ = request;
+        _ = ct;
+        return Task.FromResult(SpecNotImplemented.Response<RollerCalibrationData>("POST /api/calibration/roller"));
+    }
 
     /// <summary>依台船傳入 standardBalls 數量設定 SDK PatternMatch 偵測上限。</summary>
     private static LjCalibrationParameters WithDetectCount(LjCalibrationParameters source, int ballCount) =>

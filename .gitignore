@@ -44,7 +44,8 @@ debug-*.log
 *.coveragexml
 coverage*/
 
-## Local / generated notes
+## Local scratch (not part of the product)
+LocalDevelop/
 _manual_*.txt
 _peak_*.txt
 _setsetting_example.txt
