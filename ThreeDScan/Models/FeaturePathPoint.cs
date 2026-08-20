@@ -11,9 +11,39 @@ public class FeaturePathPoint : ViewModelBase
     private double _z;
     private bool _isActive;
 
-    public string NodeId { get => _nodeId; set => SetProperty(ref _nodeId, value); }  // 例如 P01~P12
-    public double X { get => _x; set => SetProperty(ref _x, value); }
-    public double Y { get => _y; set => SetProperty(ref _y, value); }
-    public double Z { get => _z; set => SetProperty(ref _z, value); }
-    public bool IsActive { get => _isActive; set => SetProperty(ref _isActive, value); }
+    public string NodeId { get
+    {
+        return _nodeId;
+    } set
+    {
+        SetProperty(ref _nodeId, value);
+    } }  // 例如 P01~P12
+    public double X { get
+    {
+        return _x;
+    } set
+    {
+        SetProperty(ref _x, value);
+    } }
+    public double Y { get
+    {
+        return _y;
+    } set
+    {
+        SetProperty(ref _y, value);
+    } }
+    public double Z { get
+    {
+        return _z;
+    } set
+    {
+        SetProperty(ref _z, value);
+    } }
+    public bool IsActive { get
+    {
+        return _isActive;
+    } set
+    {
+        SetProperty(ref _isActive, value);
+    } }
 }

@@ -2,14 +2,14 @@ using Keyence.LjDevCommon;
 using Keyence.LjDevMeasure;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
-using ThreeDScan.Infrastructure.LjSdk;
+using ThreeDScan.Infrastructure.Measure.Models;
 
 namespace ThreeDScan.Infrastructure.Measure;
 
 /// <summary>
 /// 對齊 LJScanWinform UpdateViewport：載入影像後 Execute，供 WPF Lj3DView 顯示。
 /// </summary>
-public static class LjViewportMeasureRunner
+public static class LjViewportMeasureService
 {
     public static LjViewportMeasureResult MeasureForViewport(
         string contentsFolder,
@@ -48,11 +48,4 @@ public static class LjViewportMeasureRunner
             BallSettings.ClearScope();
         }
     }
-}
-
-public sealed class LjViewportMeasureResult
-{
-    public required LHeightImage Height { get; init; }
-    public required LGrayImage Gray { get; init; }
-    public required IList<ILToolInfo> ToolResults { get; init; }
 }

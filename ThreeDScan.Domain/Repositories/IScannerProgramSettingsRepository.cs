@@ -1,7 +1,7 @@
-namespace ThreeDScan.Domain.Abstractions;
+namespace ThreeDScan.Domain.Repositories;
 
 /// <summary>掃描器拍攝參數二進位 Blob 持久化與歷程。</summary>
-public interface IScannerProgramSettingsStore
+public interface IScannerProgramSettingsRepository
 {
     /// <summary>寫入或更新當前設定，並追加一筆歷程記錄。</summary>
     Task UpsertWithHistoryAsync(

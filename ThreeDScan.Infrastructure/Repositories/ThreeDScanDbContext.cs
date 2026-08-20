@@ -1,19 +1,61 @@
 using Microsoft.EntityFrameworkCore;
-using ThreeDScan.Infrastructure.Data.Entities;
+using ThreeDScan.Infrastructure.Repositories.Models;
 
-namespace ThreeDScan.Infrastructure.Data;
+namespace ThreeDScan.Infrastructure.Repositories;
 
 public sealed class ThreeDScanDbContext : DbContext
 {
     public ThreeDScanDbContext(DbContextOptions<ThreeDScanDbContext> options) : base(options) { }
 
-    public DbSet<CompensationHistoryEntity> CompensationHistory => Set<CompensationHistoryEntity>();
-    public DbSet<ScannerConfigEntity> ScannerConfigs => Set<ScannerConfigEntity>();
-    public DbSet<ScannerProgramSettingsEntity> ScannerProgramSettings => Set<ScannerProgramSettingsEntity>();
-    public DbSet<ScannerProgramSettingsHistoryEntity> ScannerProgramSettingsHistory => Set<ScannerProgramSettingsHistoryEntity>();
-    public DbSet<ScannerProgramGroupNameEntity> ScannerProgramGroupNames => Set<ScannerProgramGroupNameEntity>();
-    public DbSet<OperationLogEntity> OperationLogs => Set<OperationLogEntity>();
-    public DbSet<InstrumentCalibrationTaskEntity> InstrumentCalibrationTasks => Set<InstrumentCalibrationTaskEntity>();
+    public DbSet<CompensationHistoryEntity> CompensationHistory
+    {
+        get
+        {
+            return Set<CompensationHistoryEntity>();
+        }
+    }
+    public DbSet<ScannerConfigEntity> ScannerConfigs
+    {
+        get
+        {
+            return Set<ScannerConfigEntity>();
+        }
+    }
+    public DbSet<ScannerProgramSettingsEntity> ScannerProgramSettings
+    {
+        get
+        {
+            return Set<ScannerProgramSettingsEntity>();
+        }
+    }
+    public DbSet<ScannerProgramSettingsHistoryEntity> ScannerProgramSettingsHistory
+    {
+        get
+        {
+            return Set<ScannerProgramSettingsHistoryEntity>();
+        }
+    }
+    public DbSet<ScannerProgramGroupNameEntity> ScannerProgramGroupNames
+    {
+        get
+        {
+            return Set<ScannerProgramGroupNameEntity>();
+        }
+    }
+    public DbSet<OperationLogEntity> OperationLogs
+    {
+        get
+        {
+            return Set<OperationLogEntity>();
+        }
+    }
+    public DbSet<InstrumentCalibrationTaskEntity> InstrumentCalibrationTasks
+    {
+        get
+        {
+            return Set<InstrumentCalibrationTaskEntity>();
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

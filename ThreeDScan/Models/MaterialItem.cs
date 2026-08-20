@@ -11,13 +11,43 @@ public class MaterialItem : ViewModelBase
     private CoordinateInfo _rightCorner = new();
     private CoordinateInfo _topPoint = new();
 
-    public string Name { get => _name; set => SetProperty(ref _name, value); }
-    public ScanStatus Status { get => _status; set => SetProperty(ref _status, value); }
+    public string Name { get
+    {
+        return _name;
+    } set
+    {
+        SetProperty(ref _name, value);
+    } }
+    public ScanStatus Status { get
+    {
+        return _status;
+    } set
+    {
+        SetProperty(ref _status, value);
+    } }
 
     // 左邊角點（依 SA §7 角鋼三特徵點定義）
-    public CoordinateInfo LeftCorner { get => _leftCorner; set => SetProperty(ref _leftCorner, value); }
+    public CoordinateInfo LeftCorner { get
+    {
+        return _leftCorner;
+    } set
+    {
+        SetProperty(ref _leftCorner, value);
+    } }
     // 右邊角點
-    public CoordinateInfo RightCorner { get => _rightCorner; set => SetProperty(ref _rightCorner, value); }
+    public CoordinateInfo RightCorner { get
+    {
+        return _rightCorner;
+    } set
+    {
+        SetProperty(ref _rightCorner, value);
+    } }
     // 頂點（倒 V 交會處）
-    public CoordinateInfo TopPoint { get => _topPoint; set => SetProperty(ref _topPoint, value); }
+    public CoordinateInfo TopPoint { get
+    {
+        return _topPoint;
+    } set
+    {
+        SetProperty(ref _topPoint, value);
+    } }
 }

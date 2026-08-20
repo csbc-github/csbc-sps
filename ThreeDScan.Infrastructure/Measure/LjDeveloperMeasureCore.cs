@@ -1,4 +1,4 @@
-namespace ThreeDScan.Infrastructure.LjSdk;
+namespace ThreeDScan.Infrastructure.Measure;
 
 using Keyence.LjDevCommon;
 using Keyence.LjDevMeasure;
@@ -74,6 +74,7 @@ internal sealed class LjDeveloperMeasureCore
 
     #region 設定/更新圖形訊息
 
+    /// <summary>用目前高度／輝度重訓圖形搜尋樣板（區域已是 ActiveRef）。</summary>
     public void UpdatePattern(LHeightImage referenceHeightImage, LGrayImage referenceGrayImage)
     {
         AppendLog($"---- {DateTime.Now:HH:mm:ss.fff} UpdatePattern（重訓圖形搜尋樣板）----");
@@ -84,6 +85,7 @@ internal sealed class LjDeveloperMeasureCore
 
     #region 設定/更新參考值
 
+    /// <summary>重算 Pattern／Sphere／基準面的 baseline，供後續 Execute／Zero@Ref 探測。</summary>
     public void UpdateReference(LHeightImage referenceHeightImage, LGrayImage referenceGrayImage)
     {
         AppendLog($"---- {DateTime.Now:HH:mm:ss.fff} UpdateReference（重新 baseline 球擬合）----");
@@ -102,6 +104,7 @@ internal sealed class LjDeveloperMeasureCore
 
     #region 參考中心
 
+    /// <summary>從 BallSettings（即 ScannerConfig）載入 Ref 種子到樣板 ROI 與球擬合 ROI。</summary>
     public void ReloadReferenceFromConfig()
     {
         ApplyReferenceCenters(
@@ -113,9 +116,13 @@ internal sealed class LjDeveloperMeasureCore
             $"---- {DateTime.Now:HH:mm:ss.fff} ReloadReferenceFromConfig：Ref=({BallSettings.RefPatternX:F3}, {BallSettings.RefPatternY:F3}) ----");
     }
 
+    /// <summary>把目前使用的 Pattern／Sphere 中心改成指定座標（尋球成功後用來鎖定新球心）。</summary>
     public void SetReferenceCenters(double patternX, double patternY, double sphereX, double sphereY)
-        => ApplyReferenceCenters(patternX, patternY, sphereX, sphereY);
+    {
+        ApplyReferenceCenters(patternX, patternY, sphereX, sphereY);
+    }
 
+    /// <summary>同步 _activeRef* 與 SDK 工具 ROI；不寫資料庫。</summary>
     private void ApplyReferenceCenters(double patternX, double patternY, double sphereX, double sphereY)
     {
         _activeRefPatternX = patternX;
@@ -135,6 +142,10 @@ internal sealed class LjDeveloperMeasureCore
 
     #region 執行
 
+    /// <summary>
+    /// 儀器校正量測：PatternMatch 取分數最高若干候選，球擬合後依「直徑最接近預期值」保留 BallCount 顆。
+    /// 不強制保留 Ref 種子那顆；Ref 球直徑稍差就可能被其他合格候選擠掉。
+    /// </summary>
     public IList<ILToolInfo> Execute(LHeightImage inputHeightImage, LGrayImage inputGrayImage)
     {
         var results = new List<ILToolInfo>();
@@ -207,6 +218,7 @@ internal sealed class LjDeveloperMeasureCore
             sphereCandidates.Add((i, x, y, z, d, pmScore, deltaSrc, info));
         }
 
+        // 直徑越接近 24.9 越優先；同分才比 PM 分數。Ref 那顆沒有加權。
         sphereCandidates.Sort((a, b) =>
         {
             var da = Math.Abs(a.D - BallSettings.ExpectedBallDiameter);
@@ -219,6 +231,7 @@ internal sealed class LjDeveloperMeasureCore
         var keptCenters = new List<(double X, double Y)>();
         var keepCount = 0;
 
+        // 依直徑排序後取前 BallCount 顆；過近視為同一顆。Ref 種子沒有保送名額。
         foreach (var c in sphereCandidates)
         {
             var isDuplicate = keptCenters.Any(k =>
@@ -250,7 +263,8 @@ internal sealed class LjDeveloperMeasureCore
     }
 
     private static LDeltaPosition CreateZeroDeltaAt(double centerX, double centerY)
-        => new LDeltaPosition
+    {
+        return new LDeltaPosition
         {
             Enable = true,
             X = 0,
@@ -258,6 +272,7 @@ internal sealed class LjDeveloperMeasureCore
             Theta = 0,
             Center = new LDPoint2D { X = centerX, Y = centerY },
         };
+    }
 
     /// <summary>
     /// 對單一 PM 候選依固定優先序嘗試 delta，取第一個直徑可接受的結果。
@@ -469,14 +484,19 @@ internal sealed class LjDeveloperMeasureCore
         return -(a * x + b * y) / c;
     }
 
-    private static string FormatNullable(double? v) => v is double d ? d.ToString("F3") : "n/a";
+    private static string FormatNullable(double? v)
+    {
+        return v is double d ? d.ToString("F3") : "n/a";
+    }
 
     #endregion
 
     #region 校正驗證
 
     /// <summary>
-    /// 校正前尋球：在 PM 候選與 Ref 附近小範圍格點，找出直徑最接近預期值的球心。
+    /// 儀器校正尋球：在 Ref 種子附近對每個候選做球擬合，留下直徑最接近預期值的球心。
+    /// 候選＝種子本身 + 半徑內的 PM 點 + 網格點（預設 R=25mm、step=3mm）。
+    /// 不保證回傳點是種子上那顆球的視覺中心；畫面上看起來「不是球心」多半是網格另選了一點。
     /// </summary>
     public bool TryDiscoverCalibrationBallCenter(
         LHeightImage inputHeightImage,
@@ -509,7 +529,7 @@ internal sealed class LjDeveloperMeasureCore
             (_activeRefPatternX, _activeRefPatternY, "Ref")
         };
 
-        // 手放球容許較大偏移；仍以直徑門檻過濾假球，並設絕對上限避免全視野掃描。
+        // 網格是為「手放球偏離種子」找球，不是把種子當答案。上限見 LjMeasureSettings。
         var gridStep = BallSettings.CalibrationDiscoverGridStepMm;
         var gridRadius = Math.Min(
             BallSettings.CalibrationDiscoverAbsoluteMaxMm,
@@ -524,6 +544,7 @@ internal sealed class LjDeveloperMeasureCore
             var p = eachResults[i].AbsolutePosition.CenterPosition;
             var dx = p.X - _activeRefPatternX;
             var dy = p.Y - _activeRefPatternY;
+            // 只收種子半徑內的 PM，避免全視野假球進候選。
             if (dx * dx + dy * dy > gridRadius * gridRadius) continue;
             candidates.Add((p.X, p.Y, $"PM[{i}] score={score:F1}"));
         }
@@ -531,6 +552,7 @@ internal sealed class LjDeveloperMeasureCore
         AppendLog(
             $"---- {DateTime.Now:HH:mm:ss.fff} 校正尋球：候選 {candidates.Count} 點 + 網格 R={gridRadius:F0}mm step={gridStep:F1}mm ----");
 
+        // 以種子為圓心鋪格點；log 的 Grid(+11,-13) 就是這裡產生的。
         for (var dx = -gridRadius; dx <= gridRadius; dx += gridStep)
         {
             for (var dy = -gridRadius; dy <= gridRadius; dy += gridStep)
@@ -551,6 +573,7 @@ internal sealed class LjDeveloperMeasureCore
         var bestY = centerY;
         var bestD = diameter;
         var bestSource = "";
+        // 門檻外最接近的點，只供失敗訊息，不會寫成 Ref。
         var bestAnyError = double.MaxValue;
         var bestAnyD = double.NaN;
         var bestAnyX = double.NaN;
@@ -562,6 +585,7 @@ internal sealed class LjDeveloperMeasureCore
             if (!TryProbeSphereAt(inputHeightImage, c.X, c.Y, out var px, out var py, out var pd))
                 continue;
 
+            // 評分：|擬合直徑 − 預期球徑|，不是到種子的距離。
             var err = Math.Abs(pd - BallSettings.ExpectedBallDiameter);
             if (err < bestAnyError)
             {
@@ -586,6 +610,7 @@ internal sealed class LjDeveloperMeasureCore
 
         if (!bestFound)
         {
+            // 沒合格點：把 ROI 還原，避免半套尋球結果留在記憶體。
             ApplyReferenceCenters(originalPatternX, originalPatternY, originalSphereX, originalSphereY);
             message = $"未找到直徑 {BallSettings.ExpectedBallDiameter}±{BallSettings.MaxDiameterError} mm 的校正球。";
             if (!double.IsNaN(bestAnyD))
@@ -596,6 +621,7 @@ internal sealed class LjDeveloperMeasureCore
             return false;
         }
 
+        // 記憶體中的 Ref 改為優勝點；寫 DB 由 SetupReferenceAsync 負責。
         ApplyReferenceCenters(bestX, bestY, bestX, bestY);
         centerX = bestX;
         centerY = bestY;
@@ -605,6 +631,10 @@ internal sealed class LjDeveloperMeasureCore
         return true;
     }
 
+    /// <summary>
+    /// 在指定 ROI 中心做一次球擬合，回傳擬合球心 XY 與直徑。
+    /// region 只是探測位置；回傳的 fittedXY 可能偏離 region（最小平方擬合結果）。
+    /// </summary>
     private bool TryProbeSphereAt(
         LHeightImage inputHeightImage,
         double regionCenterX,
@@ -743,21 +773,53 @@ internal sealed class LjDeveloperMeasureCore
 
     #region Functions
 
-    public double ActiveRefPatternX => _activeRefPatternX;
-    public double ActiveRefPatternY => _activeRefPatternY;
-    public double ActiveRefSphereX => _activeRefSphereX;
-    public double ActiveRefSphereY => _activeRefSphereY;
+    public double ActiveRefPatternX
+    {
+        get
+        {
+            return _activeRefPatternX;
+        }
+    }
+    public double ActiveRefPatternY
+    {
+        get
+        {
+            return _activeRefPatternY;
+        }
+    }
+    public double ActiveRefSphereX
+    {
+        get
+        {
+            return _activeRefSphereX;
+        }
+    }
+    public double ActiveRefSphereY
+    {
+        get
+        {
+            return _activeRefSphereY;
+        }
+    }
 
     public string[] GetDisplayText(IList<ILToolInfo> results)
-        => results.Select(result => result.DisplayText()).ToArray();
+    {
+        return results.Select(result => result.DisplayText()).ToArray();
+    }
 
     public ILToolMeasureValues[] GetMeasureValues(IList<ILToolInfo> results)
-        => results.Select(result => result.ToolMeasureValues()).ToArray();
+    {
+        return results.Select(result => result.ToolMeasureValues()).ToArray();
+    }
 
-    public void LogScannerEvent(string text) => AppendLog(text);
+    public void LogScannerEvent(string text)
+    {
+        AppendLog(text);
+    }
 
     private static Dictionary<LUnitType, string> CreateUnitDictionary()
-        => new Dictionary<LUnitType, string>
+    {
+        return new Dictionary<LUnitType, string>
         {
             { LUnitType.None, "" },
             { LUnitType.Mm, "mm" },
@@ -767,23 +829,28 @@ internal sealed class LjDeveloperMeasureCore
             { LUnitType.Number, "個" },
             { LUnitType.Percent, "%" },
         };
+    }
 
     private static Dictionary<LSphereResultType, string> CreateSphereResultTypeList()
-        => new Dictionary<LSphereResultType, string>
+    {
+        return new Dictionary<LSphereResultType, string>
         {
             { LSphereResultType.DetectSphereSphereCenterX, "中心X" },
             { LSphereResultType.DetectSphereSphereCenterY, "中心Y" },
             { LSphereResultType.DetectSphereSphereCenterZ, "中心Z" },
             { LSphereResultType.DetectSphereSphereDiameter, "直徑" },
         };
+    }
 
     private static Dictionary<LPlaneResultType, string> CreatePlaneResultTypeList()
-        => new Dictionary<LPlaneResultType, string>
+    {
+        return new Dictionary<LPlaneResultType, string>
         {
             { LPlaneResultType.PlaneA, "平面A" },
             { LPlaneResultType.PlaneB, "平面B" },
             { LPlaneResultType.PlaneC, "平面C" },
         };
+    }
 
     private LPatternMatchToolInfo CreatePatternMatchToolInfo(Dictionary<LUnitType, string> unitDic)
     {

@@ -1,17 +1,19 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
-using ThreeDScan.Domain.Abstractions;
-using ThreeDScan.Infrastructure.Data;
-using ThreeDScan.Infrastructure.Data.Entities;
+using ThreeDScan.Domain.Repositories;
+using ThreeDScan.Infrastructure.Repositories.Models;
 
-namespace ThreeDScan.Infrastructure.Persistence;
+namespace ThreeDScan.Infrastructure.Repositories;
 
 /// <summary>掃描器拍攝參數 Blob 與歷程資料庫存取（EF Core）。</summary>
-public sealed class ScannerProgramSettingsStore : IScannerProgramSettingsStore
+public sealed class ScannerProgramSettingsRepository : IScannerProgramSettingsRepository
 {
     private readonly ThreeDScanDbContext _db;
 
-    public ScannerProgramSettingsStore(ThreeDScanDbContext db) => _db = db;
+    public ScannerProgramSettingsRepository(ThreeDScanDbContext db)
+    {
+        _db = db;
+    }
 
     /// <inheritdoc />
     public async Task<byte[]?> GetBlobAsync(string scannerId, byte programNo, CancellationToken ct = default)

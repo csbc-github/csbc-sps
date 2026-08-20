@@ -1,17 +1,19 @@
 using Microsoft.EntityFrameworkCore;
-using ThreeDScan.Domain.Abstractions;
+using ThreeDScan.Domain.Repositories;
 using ThreeDScan.Domain.Models;
-using ThreeDScan.Infrastructure.Data;
-using ThreeDScan.Infrastructure.Data.Entities;
+using ThreeDScan.Infrastructure.Repositories.Models;
 
-namespace ThreeDScan.Infrastructure.Persistence;
+namespace ThreeDScan.Infrastructure.Repositories;
 
 /// <summary>儀器校正補償歷程資料庫存取（EF Core）。</summary>
-public sealed class CompensationStore : ICompensationStore
+public sealed class CompensationRepository : ICompensationRepository
 {
     private readonly ThreeDScanDbContext _db;
 
-    public CompensationStore(ThreeDScanDbContext db) => _db = db;
+    public CompensationRepository(ThreeDScanDbContext db)
+    {
+        _db = db;
+    }
 
     /// <inheritdoc />
     public async Task<CompensationOffset?> GetLatestAsync(string scannerId, CancellationToken ct = default)
@@ -45,18 +47,23 @@ public sealed class CompensationStore : ICompensationStore
 
     /// <inheritdoc />
     public async Task<bool> HasAsync(string scannerId, CancellationToken ct = default)
-        => await _db.CompensationHistory.AnyAsync(x => x.ScannerId == scannerId, ct);
-
-    private static CompensationOffset Map(CompensationHistoryEntity row) => new()
     {
-        ScannerId = row.ScannerId,
-        OffsetX = row.OffsetX,
-        OffsetY = row.OffsetY,
-        OffsetZ = row.OffsetZ,
-        Rmse = row.Rmse,
-        MachineArea = row.MachineArea,
-        CalibratedAt = row.CalibratedAt,
-        Operator = row.Operator,
-        TraceId = row.TraceId,
-    };
+        return await _db.CompensationHistory.AnyAsync(x => x.ScannerId == scannerId, ct);
+    }
+
+    private static CompensationOffset Map(CompensationHistoryEntity row)
+    {
+        return new()
+        {
+            ScannerId = row.ScannerId,
+            OffsetX = row.OffsetX,
+            OffsetY = row.OffsetY,
+            OffsetZ = row.OffsetZ,
+            Rmse = row.Rmse,
+            MachineArea = row.MachineArea,
+            CalibratedAt = row.CalibratedAt,
+            Operator = row.Operator,
+            TraceId = row.TraceId,
+        };
+    }
 }

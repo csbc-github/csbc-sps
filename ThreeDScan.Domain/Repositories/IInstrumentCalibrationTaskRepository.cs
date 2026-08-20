@@ -1,9 +1,9 @@
 using ThreeDScan.Domain.Models;
 
-namespace ThreeDScan.Domain.Abstractions;
+namespace ThreeDScan.Domain.Repositories;
 
 /// <summary>UC-01 兩次拍攝任務暫存（InstrumentCalibrationTask）。</summary>
-public interface IInstrumentCalibrationTaskStore
+public interface IInstrumentCalibrationTaskRepository
 {
     Task CreateAsync(InstrumentCalibrationTaskRecord task, CancellationToken ct = default);
 

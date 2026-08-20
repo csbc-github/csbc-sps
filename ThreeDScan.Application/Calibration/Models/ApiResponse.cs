@@ -1,4 +1,4 @@
-namespace ThreeDScan.Application.Calibration.Dtos;
+namespace ThreeDScan.Application.Calibration.Models;
 
 /// <summary>校正 API 統一回應包裝（成功／失敗與錯誤碼）。</summary>
 public sealed class ApiResponse<T>
@@ -9,27 +9,36 @@ public sealed class ApiResponse<T>
     public string? ErrorCode { get; init; }
     public string? ErrorMessage { get; init; }
 
-    public static ApiResponse<T> Ok(T data) => new()
+    public static ApiResponse<T> Ok(T data)
     {
-        Success = true,
-        Data = data,
-        Timestamp = DateTimeOffset.Now,
-    };
+        return new()
+        {
+            Success = true,
+            Data = data,
+            Timestamp = DateTimeOffset.Now,
+        };
+    }
 
-    public static ApiResponse<T> Fail(string errorCode, string message) => new()
+    public static ApiResponse<T> Fail(string errorCode, string message)
     {
-        Success = false,
-        ErrorCode = errorCode,
-        ErrorMessage = message,
-        Timestamp = DateTimeOffset.Now,
-    };
+        return new()
+        {
+            Success = false,
+            ErrorCode = errorCode,
+            ErrorMessage = message,
+            Timestamp = DateTimeOffset.Now,
+        };
+    }
 
-    public static ApiResponse<T> Fail(string errorCode, string message, T data) => new()
+    public static ApiResponse<T> Fail(string errorCode, string message, T data)
     {
-        Success = false,
-        ErrorCode = errorCode,
-        ErrorMessage = message,
-        Data = data,
-        Timestamp = DateTimeOffset.Now,
-    };
+        return new()
+        {
+            Success = false,
+            ErrorCode = errorCode,
+            ErrorMessage = message,
+            Data = data,
+            Timestamp = DateTimeOffset.Now,
+        };
+    }
 }

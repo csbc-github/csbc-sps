@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace ThreeDScan.Application.Calibration.Dtos;
+namespace ThreeDScan.Application.Calibration.Models;
 
 /// <summary>三維座標 (mm)，用於掃描器預期位置或絕對座標。</summary>
 public sealed class CoordinateDto

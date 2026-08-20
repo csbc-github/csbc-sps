@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ThreeDScan.Common;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
+using ThreeDScan.Domain.Repositories;
 
 namespace ThreeDScan.ViewModels;
 
@@ -62,7 +63,10 @@ public sealed class ScannerSettingsViewModel : ViewModelBase
     /// <summary>目前選取的掃描器；變更時重新載入群組清單。</summary>
     public string SelectedScannerId
     {
-        get => _selectedScannerId;
+        get
+        {
+            return _selectedScannerId;
+        }
         set
         {
             if (!SetProperty(ref _selectedScannerId, value)) return;
@@ -76,7 +80,10 @@ public sealed class ScannerSettingsViewModel : ViewModelBase
     /// <summary>目前選取的拍攝群組；變更時自動從控制器讀取參數（除非 <see cref="_suppressGroupAutoLoad"/>）。</summary>
     public ScannerProgramGroup? SelectedGroup
     {
-        get => _selectedGroup;
+        get
+        {
+            return _selectedGroup;
+        }
         set
         {
             if (!SetProperty(ref _selectedGroup, value)) return;
@@ -92,19 +99,34 @@ public sealed class ScannerSettingsViewModel : ViewModelBase
     }
 
     /// <summary>忙碌中時停用整個表單。</summary>
-    public bool IsFormEnabled => !IsBusy;
+    public bool IsFormEnabled
+    {
+        get
+        {
+            return !IsBusy;
+        }
+    }
 
     /// <summary>狀態列訊息（載入中、成功、失敗提示）。</summary>
     public string StatusText
     {
-        get => _statusText;
-        private set => SetProperty(ref _statusText, value);
+        get
+        {
+            return _statusText;
+        }
+        private set
+        {
+            SetProperty(ref _statusText, value);
+        }
     }
 
     /// <summary>是否正在執行非同步操作（顯示遮罩並停用表單）。</summary>
     public bool IsBusy
     {
-        get => _isBusy;
+        get
+        {
+            return _isBusy;
+        }
         private set
         {
             if (!SetProperty(ref _isBusy, value)) return;
@@ -116,7 +138,10 @@ public sealed class ScannerSettingsViewModel : ViewModelBase
     /// <summary>目前群組是否已有資料庫備份（決定「從資料庫還原」是否可用）。</summary>
     public bool HasDatabaseBackup
     {
-        get => _hasDatabaseBackup;
+        get
+        {
+            return _hasDatabaseBackup;
+        }
         private set
         {
             if (!SetProperty(ref _hasDatabaseBackup, value)) return;
@@ -124,13 +149,31 @@ public sealed class ScannerSettingsViewModel : ViewModelBase
         }
     }
 
-    private bool CanOperate => !IsBusy
+    private bool CanOperate
+    {
+        get
+        {
+            return !IsBusy
         && !string.IsNullOrWhiteSpace(SelectedScannerId)
         && SelectedGroup is not null;
+        }
+    }
 
-    private bool CanRestoreFromDatabase => CanOperate && HasDatabaseBackup;
+    private bool CanRestoreFromDatabase
+    {
+        get
+        {
+            return CanOperate && HasDatabaseBackup;
+        }
+    }
 
-    private string GroupLabel => SelectedGroup?.ListLabel ?? "（未選群組）";
+    private string GroupLabel
+    {
+        get
+        {
+            return SelectedGroup?.ListLabel ?? "（未選群組）";
+        }
+    }
 
     /// <summary>手動從 LJ 控制器重新讀取目前群組參數至表單。</summary>
     public ICommand LoadFromControllerCommand { get; }
@@ -183,8 +226,8 @@ public sealed class ScannerSettingsViewModel : ViewModelBase
     private async Task ReloadGroupsAsync(byte defaultProgramNo)
     {
         using var scope = WpfServiceProviderFactory.CreateScope(_config);
-        var groupStore = scope.ServiceProvider.GetRequiredService<IScannerProgramGroupStore>();
-        var groups = await groupStore.GetOrCreateAsync(SelectedScannerId);
+        var groupRepository = scope.ServiceProvider.GetRequiredService<IScannerProgramGroupRepository>();
+        var groups = await groupRepository.GetOrCreateAsync(SelectedScannerId);
 
         Groups.Clear();
         foreach (var group in groups)
@@ -195,7 +238,9 @@ public sealed class ScannerSettingsViewModel : ViewModelBase
 
     /// <summary>切換群組時：讀取備份狀態與控制器參數。</summary>
     private async Task LoadGroupContextAsync()
-        => await RunExclusiveAsync("正在載入群組資料…", LoadGroupContextCoreAsync);
+    {
+        await RunExclusiveAsync("正在載入群組資料…", LoadGroupContextCoreAsync);
+    }
 
     /// <summary>查詢資料庫是否有 Blob 備份，並從控制器讀取參數填入 <see cref="Form"/>。</summary>
     private async Task LoadGroupContextCoreAsync()
@@ -218,7 +263,9 @@ public sealed class ScannerSettingsViewModel : ViewModelBase
     }
 
     private async Task LoadFromControllerAsync()
-        => await RunExclusiveAsync("正在從控制器讀取…", LoadGroupContextCoreAsync);
+    {
+        await RunExclusiveAsync("正在從控制器讀取…", LoadGroupContextCoreAsync);
+    }
 
     /// <summary>確認後將 <see cref="Form"/> 寫入控制器並同步資料庫。</summary>
     private async Task SaveToControllerAsync()
@@ -334,7 +381,9 @@ public sealed class ScannerSettingsViewModel : ViewModelBase
 
     /// <summary>讀取目前掃描器的 Y 方向數據間隔（mm）。</summary>
     private double ResolveYDataIntervalMm()
-        => _config.GetValue<double?>($"Scanners:{SelectedScannerId}:YDataIntervalMm") ?? 0.8;
+    {
+        return _config.GetValue<double?>($"Scanners:{SelectedScannerId}:YDataIntervalMm") ?? 0.8;
+    }
 
     /// <summary>Save 前確認 Navigator 未連線，避免設定互相覆蓋。</summary>
     private bool ConfirmSave()
@@ -369,5 +418,8 @@ public sealed class ScannerSettingsViewModel : ViewModelBase
         WpfMessageBox.ShowInfo("掃描參數已寫入控制器並備份。" + exposureHint, DialogTitle);
     }
 
-    private void RaiseCommandStates() => CommandManager.InvalidateRequerySuggested();
+    private void RaiseCommandStates()
+    {
+        CommandManager.InvalidateRequerySuggested();
+    }
 }

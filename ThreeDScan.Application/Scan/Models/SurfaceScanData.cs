@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ThreeDScan.Application.Scan.Dtos;
+namespace ThreeDScan.Application.Scan.Models;
 
 /// <summary>面掃描結果：任務狀態、點雲位置與可選厚度。</summary>
 public sealed class SurfaceScanData

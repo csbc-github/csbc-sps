@@ -9,9 +9,27 @@ public class CoordinateInfo : ViewModelBase
     private double _y;
     private double _z;
 
-    public double X { get => _x; set => SetProperty(ref _x, value); }
-    public double Y { get => _y; set => SetProperty(ref _y, value); }
-    public double Z { get => _z; set => SetProperty(ref _z, value); }
+    public double X { get
+    {
+        return _x;
+    } set
+    {
+        SetProperty(ref _x, value);
+    } }
+    public double Y { get
+    {
+        return _y;
+    } set
+    {
+        SetProperty(ref _y, value);
+    } }
+    public double Z { get
+    {
+        return _z;
+    } set
+    {
+        SetProperty(ref _z, value);
+    } }
 
     public CoordinateInfo() { }
 
@@ -20,5 +38,8 @@ public class CoordinateInfo : ViewModelBase
         _x = x; _y = y; _z = z;
     }
 
-    public override string ToString() => $"({X:F3}, {Y:F3}, {Z:F3}) mm";
+    public override string ToString()
+    {
+        return $"({X:F3}, {Y:F3}, {Z:F3}) mm";
+    }
 }

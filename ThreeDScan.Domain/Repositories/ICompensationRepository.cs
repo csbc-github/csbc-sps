@@ -1,9 +1,9 @@
 using ThreeDScan.Domain.Models;
 
-namespace ThreeDScan.Domain.Abstractions;
+namespace ThreeDScan.Domain.Repositories;
 
 /// <summary>儀器校正補償值（CompensationHistory）持久化。</summary>
-public interface ICompensationStore
+public interface ICompensationRepository
 {
     /// <summary>取得該掃描器最新一筆補償記錄；無歷程時回傳 null。</summary>
     Task<CompensationOffset?> GetLatestAsync(string scannerId, CancellationToken ct = default);

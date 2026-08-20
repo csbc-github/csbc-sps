@@ -20,8 +20,12 @@ internal static class WpfServiceProviderFactory
     }
 
     public static IServiceScope CreateScope(IConfiguration config)
-        => Get(config).CreateScope();
+    {
+        return Get(config).CreateScope();
+    }
 
     public static IScannerRegistry GetScannerRegistry(IConfiguration config)
-        => Get(config).GetRequiredService<IScannerRegistry>();
+    {
+        return Get(config).GetRequiredService<IScannerRegistry>();
+    }
 }

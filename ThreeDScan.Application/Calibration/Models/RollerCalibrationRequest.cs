@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace ThreeDScan.Application.Calibration.Dtos;
+namespace ThreeDScan.Application.Calibration.Models;
 
 /// <summary>滾輪校正請求：掃描滾輪台以取得 Z 距離。</summary>
 public sealed class RollerCalibrationRequest

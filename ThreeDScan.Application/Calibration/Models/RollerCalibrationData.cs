@@ -1,4 +1,4 @@
-namespace ThreeDScan.Application.Calibration.Dtos;
+namespace ThreeDScan.Application.Calibration.Models;
 
 /// <summary>滾輪校正結果：掃描器到滾輪台的 Z 距離。</summary>
 public sealed class RollerCalibrationData

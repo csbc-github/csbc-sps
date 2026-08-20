@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace ThreeDScan.Application.Calibration.Dtos;
+namespace ThreeDScan.Application.Calibration.Models;
 
 /// <summary>標準球已知絕對座標（台船傳入）。</summary>
 public sealed class StandardBallDto

@@ -1,9 +1,10 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
-using ThreeDScan.Application.Calibration.Dtos;
+using ThreeDScan.Application.Calibration.Models;
 using ThreeDScan.Application.Common;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
+using ThreeDScan.Domain.Repositories;
 
 namespace ThreeDScan.Application.Calibration;
 
@@ -11,10 +12,10 @@ namespace ThreeDScan.Application.Calibration;
 public sealed class CalibrationAppService : ICalibrationAppService
 {
     private readonly IScannerRegistry _registry;
-    private readonly IScannerConfigStore _configStore;
-    private readonly ICompensationStore _compensationStore;
-    private readonly IOperationLogStore _operationLogStore;
-    private readonly IInstrumentCalibrationTaskStore _taskStore;
+    private readonly IScannerConfigRepository _configRepository;
+    private readonly ICompensationRepository _compensationRepository;
+    private readonly IOperationLogRepository _operationLogRepository;
+    private readonly IInstrumentCalibrationTaskRepository _taskRepository;
     private readonly IScannerCaptureFactory _captureFactory;
     private readonly ILjSphereMeasureEngine _measureEngine;
     private readonly ICalibrationPreviewPublisher _previewPublisher;
@@ -26,10 +27,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
     /// <summary>建立校正應用服務（依賴注入）。</summary>
     public CalibrationAppService(
         IScannerRegistry registry,
-        IScannerConfigStore configStore,
-        ICompensationStore compensationStore,
-        IOperationLogStore operationLogStore,
-        IInstrumentCalibrationTaskStore taskStore,
+        IScannerConfigRepository configRepository,
+        ICompensationRepository compensationRepository,
+        IOperationLogRepository operationLogRepository,
+        IInstrumentCalibrationTaskRepository taskRepository,
         IScannerCaptureFactory captureFactory,
         ILjSphereMeasureEngine measureEngine,
         ICalibrationPreviewPublisher previewPublisher,
@@ -39,10 +40,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
         InstrumentCalibrationService? instrumentCalibration = null)
     {
         _registry = registry;
-        _configStore = configStore;
-        _compensationStore = compensationStore;
-        _operationLogStore = operationLogStore;
-        _taskStore = taskStore;
+        _configRepository = configRepository;
+        _compensationRepository = compensationRepository;
+        _operationLogRepository = operationLogRepository;
+        _taskRepository = taskRepository;
         _captureFactory = captureFactory;
         _measureEngine = measureEngine;
         _previewPublisher = previewPublisher;
@@ -53,6 +54,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// 兩次拍攝：final=false 建立 task 並回 seq=1；final=true 合併並依品質寫補償或 CAL_002。
+    /// 第一次成功不檢查 RMSE 門檻；球數不足在 CaptureAndComputeFrameAsync 就失敗。
+    /// </remarks>
     public async Task<ApiResponse<InstrumentCalibrationData>> CalibrateInstrumentAsync(
         InstrumentCalibrationRequest request,
         CancellationToken ct = default)
@@ -65,6 +70,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
 
         try
         {
+            // 契約：兩次拍攝的 final / taskId 組合必須成對。
             if (request.Final && string.IsNullOrWhiteSpace(request.TaskId))
             {
                 return await InstrumentFailAsync(
@@ -86,15 +92,17 @@ public sealed class CalibrationAppService : ICalibrationAppService
 
             var programNo = _registry.ResolveProgramNo(request.ScannerId, request.NavigatorScanNo ?? endpoint.NavigatorScanNo);
 
-            config = await _configStore.GetAsync(request.ScannerId, ct);
+            // Ref 影像與種子都在 ScannerConfig；沒種子不能量。
+            config = await _configRepository.GetAsync(request.ScannerId, ct);
             if (config is null)
                 return await InstrumentFailAsync(request, traceId, "CAL_CFG_003",
                     $"找不到 ScannerConfig（{request.ScannerId}）。請先執行 seed-scannerconfig.sql，再執行 Ref 建立 API。", null, ct);
 
+            // 第二次拍攝：task 必須仍是 Pending，且球數與第一次相同。
             InstrumentCalibrationTaskRecord? pendingTask = null;
             if (request.Final)
             {
-                pendingTask = await _taskStore.GetAsync(request.TaskId!, ct);
+                pendingTask = await _taskRepository.GetAsync(request.TaskId!, ct);
                 var taskError = ValidatePendingTask(pendingTask, request);
                 if (taskError is not null)
                 {
@@ -103,6 +111,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
                 }
             }
 
+            // 拍攝 + PatternMatch 尋球 + 與台船 known 座標配對計算補償。
             var frame = await CaptureAndComputeFrameAsync(
                 request, config, programNo, traceId, ct);
             if (frame.Error is not null)
@@ -156,6 +165,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         }
     }
 
+    /// <summary>第二次拍攝前檢查 task 是否仍可合併（存在、同掃描器、未結束、未逾時、球數一致）。</summary>
     private static (string Code, string Message)? ValidatePendingTask(
         InstrumentCalibrationTaskRecord? task,
         InstrumentCalibrationRequest request)
@@ -180,6 +190,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
         return null;
     }
 
+    /// <summary>
+    /// 拍一張、跑 SDK 尋球、與 standardBalls 配對算出本幀補償。
+    /// KeptCount=0 或配對球數不足會帶 Error，不進 task。
+    /// </summary>
     private async Task<FrameComputeResult> CaptureAndComputeFrameAsync(
         InstrumentCalibrationRequest request,
         ScannerConfigRecord config,
@@ -196,6 +210,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
 
         var measure = await _measureEngine.MeasureAsync(request.ScannerId, config, capture, measureParams, ct);
 
+        // SDK 一顆都沒留：CAL_FEED_001（與「有抓到但少於台船顆數」同一碼，訊息不同）。
         if (measure.KeptCount == 0)
         {
             var feedMsg =
@@ -250,6 +265,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         };
     }
 
+    /// <summary>第一次拍攝：存 Pending task，回 seq=1 / AwaitingNextShot。此步不擋 RMSE。</summary>
     private async Task<ApiResponse<InstrumentCalibrationData>> BeginTaskAsync(
         InstrumentCalibrationRequest request,
         string traceId,
@@ -262,7 +278,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         var ttl = Math.Max(1, _calibrationSettings.InstrumentTaskTtlMinutes);
         var taskId = Guid.NewGuid().ToString("N");
 
-        await _taskStore.CreateAsync(new InstrumentCalibrationTaskRecord
+        await _taskRepository.CreateAsync(new InstrumentCalibrationTaskRecord
         {
             TaskId = taskId,
             ScannerId = request.ScannerId,
@@ -305,6 +321,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
         return await InstrumentOkAsync(request, traceId, data, ct);
     }
 
+    /// <summary>
+    /// 第二次拍攝：與 seq=1 合併 XY／Z，品質過才寫 CompensationHistory。
+    /// 品質未過回 CAL_002，task 仍標記完成（不可重用同一 taskId）。
+    /// </summary>
     private async Task<ApiResponse<InstrumentCalibrationData>> FinalizeTaskAsync(
         InstrumentCalibrationRequest request,
         string traceId,
@@ -325,9 +345,9 @@ public sealed class CalibrationAppService : ICalibrationAppService
             _calibrationSettings.ZDeviationThresholdMm);
 
         var now = DateTimeOffset.Now;
-        await _taskStore.CompleteAsync(seq1.TaskId, ct);
+        await _taskRepository.CompleteAsync(seq1.TaskId, ct);
 
-        // 規格：品質未過 → 不回成功結構，直接 CAL_002；原補償不受影響
+        // 規格：品質未過 → 不回成功結構，直接 CAL_002；原補償不受影響。
         if (!merged.QualityOk)
         {
             var failMsg =
@@ -368,7 +388,8 @@ public sealed class CalibrationAppService : ICalibrationAppService
             return await InstrumentFailAsync(request, traceId, "CAL_002", failMsg, diagnostic, ct);
         }
 
-        await _compensationStore.AppendAsync(new CompensationOffset
+        // 品質通過才寫入補償；MachineArea 來自 appsettings 該掃描器設定。
+        await _compensationRepository.AppendAsync(new CompensationOffset
         {
             ScannerId = request.ScannerId,
             OffsetX = merged.Compensation.OffsetX,
@@ -419,6 +440,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         return await InstrumentOkAsync(request, traceId, data, ct);
     }
 
+    /// <summary>組出給客戶／監看用的儀器校正 data（含量測球、補償、task 狀態）。</summary>
     private static InstrumentCalibrationData BuildInstrumentData(
         InstrumentCalibrationRequest request,
         string traceId,
@@ -428,8 +450,9 @@ public sealed class CalibrationAppService : ICalibrationAppService
         int seq,
         double? zDeviation,
         DateTimeOffset calibratedAt,
-        string? status) =>
-        new()
+        string? status)
+    {
+        return new()
         {
             ScannerId = request.ScannerId,
             TraceId = traceId,
@@ -456,7 +479,9 @@ public sealed class CalibrationAppService : ICalibrationAppService
             Status = status,
             ZDeviation = zDeviation,
         };
+    }
 
+    /// <summary>單次拍攝的中間結果：影像路徑、SDK 球、配對計算、或本幀錯誤。</summary>
     private sealed class FrameComputeResult
     {
         public ScannerCaptureResult? Capture { get; init; }
@@ -472,6 +497,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// 步驟：讀 DB 種子 → 再拍一張（非測試掃描那張）→ SDK 尋球 → 成功才 Upsert。
+    /// Ref X/Y 寫的是尋球結果，不是 existing 裡手動填的值；ExpectedBallDiameter 則刻意不覆寫。
+    /// </remarks>
     public async Task<ApiResponse<ReferenceSetupData>> SetupReferenceAsync(
         ReferenceSetupRequest request,
         CancellationToken ct = default)
@@ -482,20 +511,23 @@ public sealed class CalibrationAppService : ICalibrationAppService
             if (!_registry.TryGetEndpoint(request.ScannerId, out var endpoint))
                 return await ReferenceFailAsync(request, traceId, "CAL_CFG_001", $"未知 ScannerId: {request.ScannerId}", ct);
 
+            // Navigator Scan No → SDK 程式號；內容目錄 = ContentsRoot/{ScannerId}。
             var programNo = _registry.ResolveProgramNo(request.ScannerId, request.NavigatorScanNo ?? endpoint.NavigatorScanNo);
             var contentsFolder = _registry.ResolveScannerContentsFolder(request.ScannerId, _storage.ContentsRoot);
-            var existing = await _configStore.GetAsync(request.ScannerId, ct);
+            var existing = await _configRepository.GetAsync(request.ScannerId, ct);
             var effectiveParams = LjCalibrationMerge.ForScanner(existing, _calibrationParams);
 
+            // 再拍攝：測試掃描座標不會帶進來，只透過 existing.Ref* 當種子。
             var capture = await _captureFactory.GetCapture(request.ScannerId).CaptureAsync(programNo, ct);
             var setup = await _measureEngine.SetupReferenceAsync(
                 request.ScannerId, existing, capture, effectiveParams, contentsFolder, ct);
 
-            // ExpectedBallDiameter 維持 DB／種子的名義球徑，不以本次量測 discoveredDiameter 覆寫
-            //（量測有噪聲時覆寫會把錯誤標準鎖進後續 instrument）。
+            // 組要寫回 DB 的一列：Ref XY 用尋球結果；其餘校正參數沿用 existing。
+            // ExpectedBallDiameter 不以本次 discoveredDiameter 覆寫（噪聲會把錯誤標準鎖進 instrument）。
             var record = new ScannerConfigRecord
             {
                 ScannerId = request.ScannerId,
+                // 尋球擬合球心；現場手動填的種子若與擬合點不同，此處會被蓋掉。
                 RefPatternX = setup.RefPatternX,
                 RefPatternY = setup.RefPatternY,
                 RefSphereX = setup.RefSphereX,
@@ -515,12 +547,13 @@ public sealed class CalibrationAppService : ICalibrationAppService
                 DatumPlaneHeight = existing?.DatumPlaneHeight,
                 DatumPlaneAngle = existing?.DatumPlaneAngle,
             };
-            await _configStore.UpsertAsync(record, ct);
+            await _configRepository.UpsertAsync(record, ct);
 
             await LogOperationAsync(
                 traceId, request.Operator, "SetupReference", request.ScannerId,
                 success: true, errorCode: null, detail: setup.Message, ct);
 
+            // HTTP 只回 RefPattern 與直徑；RefSphere 有進 DB，不在 JSON。
             return ApiResponse<ReferenceSetupData>.Ok(new ReferenceSetupData
             {
                 ScannerId = request.ScannerId,
@@ -591,6 +624,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         }), ct);
     }
 
+    /// <summary>Production 模式剝掉監看用的球清單／Ref，只留補償與成敗。</summary>
     private CalibrationPreview ApplyPreviewMode(CalibrationPreview preview)
     {
         if (_calibrationSettings.IsDebugResponse)
@@ -610,6 +644,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         };
     }
 
+    /// <summary>配對表轉成 SignalR 預覽用的精簡座標。</summary>
     private static IReadOnlyList<MatchedBallPreview> MapMatchedBalls(IReadOnlyList<MatchedBallDto>? matched)
     {
         if (matched is null || matched.Count == 0)
@@ -660,6 +695,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         };
     }
 
+    /// <summary>基準面量測結果轉 API DTO；沒量到則 null。</summary>
     private static DatumPlaneDto? MapDatumPlane(DatumPlaneMeasureResult? plane)
     {
         if (plane is null) return null;
@@ -686,6 +722,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         return balls;
     }
 
+    /// <summary>寫 OperationLog 後回成功；data 再依 Production／Debug 裁欄位。</summary>
     private async Task<ApiResponse<InstrumentCalibrationData>> InstrumentOkAsync(
         InstrumentCalibrationRequest request,
         string traceId,
@@ -701,6 +738,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         return ApiResponse<InstrumentCalibrationData>.Ok(ApplyResponseMode(data));
     }
 
+    /// <summary>寫失敗稽核。Debug 且有 diagnostic 時把量測球一併帶回，Production 只回錯誤碼。</summary>
     private async Task<ApiResponse<InstrumentCalibrationData>> InstrumentFailAsync(
         InstrumentCalibrationRequest request,
         string traceId,
@@ -719,6 +757,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         return ApiResponse<InstrumentCalibrationData>.Fail(errorCode, errorMessage);
     }
 
+    /// <summary>Ref 失敗：只寫稽核，不推 WPF（與 instrument 不同）。</summary>
     private async Task<ApiResponse<ReferenceSetupData>> ReferenceFailAsync(
         ReferenceSetupRequest request,
         string traceId,
@@ -732,6 +771,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         return ApiResponse<ReferenceSetupData>.Fail(errorCode, errorMessage);
     }
 
+    /// <summary>寫入 dbo.OperationLog（CalibrateInstrument / SetupReference）。</summary>
     private Task LogOperationAsync(
         string traceId,
         string? operatorName,
@@ -740,8 +780,9 @@ public sealed class CalibrationAppService : ICalibrationAppService
         bool success,
         string? errorCode,
         string? detail,
-        CancellationToken ct) =>
-        _operationLogStore.AppendAsync(new OperationLogEntry
+        CancellationToken ct)
+    {
+        return _operationLogRepository.AppendAsync(new OperationLogEntry
         {
             Timestamp = DateTimeOffset.Now,
             TraceId = traceId,
@@ -753,7 +794,12 @@ public sealed class CalibrationAppService : ICalibrationAppService
             ErrorCode = errorCode,
             Detail = detail,
         }, ct);
+    }
 
+    /// <summary>
+    /// Production 只回規格欄位：seq=1 為 taskId／status；seq=2 為補償／rmseXY／zDeviation。
+    /// Debug 回完整量測球與中間值。
+    /// </summary>
     private InstrumentCalibrationData ApplyResponseMode(InstrumentCalibrationData data)
     {
         if (_calibrationSettings.IsDebugResponse)
@@ -783,13 +829,15 @@ public sealed class CalibrationAppService : ICalibrationAppService
         };
     }
 
+    /// <summary>Debug 失敗時附帶的量測明細（含不合格球）。</summary>
     private static InstrumentCalibrationData BuildDiagnosticData(
         InstrumentCalibrationRequest request,
         string traceId,
         IReadOnlyList<MeasuredBall> allBalls,
         InstrumentCalibrationComputeResult computed,
-        DatumPlaneMeasureResult? datumPlane) =>
-        new()
+        DatumPlaneMeasureResult? datumPlane)
+    {
+        return new()
         {
             ScannerId = request.ScannerId,
             TraceId = traceId,
@@ -809,6 +857,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
                 Ok = b.IsWithinTolerance,
             }).ToList(),
         };
+    }
 
     /// <inheritdoc />
     public Task<ApiResponse<RollerCalibrationData>> CalibrateRollerAsync(
@@ -821,8 +870,9 @@ public sealed class CalibrationAppService : ICalibrationAppService
     }
 
     /// <summary>依台船傳入 standardBalls 數量設定 SDK PatternMatch 偵測上限。</summary>
-    private static LjCalibrationParameters WithDetectCount(LjCalibrationParameters source, int ballCount) =>
-        new()
+    private static LjCalibrationParameters WithDetectCount(LjCalibrationParameters source, int ballCount)
+    {
+        return new()
         {
             ExpectedBallDiameter = source.ExpectedBallDiameter,
             DiameterTolerance = source.DiameterTolerance,
@@ -830,4 +880,5 @@ public sealed class CalibrationAppService : ICalibrationAppService
             MaxDiameterError = source.MaxDiameterError,
             DatumPlane = source.DatumPlane,
         };
+    }
 }

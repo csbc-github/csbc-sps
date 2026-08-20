@@ -27,14 +27,24 @@ public sealed class AuthSession
     public ClaimsPrincipal? Principal { get; private set; }
 
     /// <summary>已有 Access Token 且 Principal 標記為已驗證。</summary>
-    public bool IsAuthenticated =>
-        !string.IsNullOrEmpty(AccessToken) && Principal?.Identity?.IsAuthenticated == true;
+    public bool IsAuthenticated
+    {
+        get
+        {
+            return !string.IsNullOrEmpty(AccessToken) && Principal?.Identity?.IsAuthenticated == true;
+        }
+    }
 
     /// <summary>畫面顯示用名稱（name claim 或 Identity.Name）。</summary>
-    public string? DisplayName =>
-        Principal?.FindFirst(ClaimTypes.Name)?.Value
+    public string? DisplayName
+    {
+        get
+        {
+            return Principal?.FindFirst(ClaimTypes.Name)?.Value
         ?? Principal?.FindFirst("name")?.Value
         ?? Principal?.Identity?.Name;
+        }
+    }
 
     /// <summary>
     /// 寫入登入或 refresh 後的 Token。
@@ -67,6 +77,11 @@ public sealed class AuthSession
     }
 
     /// <summary>Access Token 已過期或接近過期，應先 Refresh 再使用。</summary>
-    public bool AccessTokenNearExpiry =>
-        AccessTokenExpiresAt is null || DateTimeOffset.UtcNow >= AccessTokenExpiresAt;
+    public bool AccessTokenNearExpiry
+    {
+        get
+        {
+            return AccessTokenExpiresAt is null || DateTimeOffset.UtcNow >= AccessTokenExpiresAt;
+        }
+    }
 }

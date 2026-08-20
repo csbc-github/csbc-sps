@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ThreeDScan.Common;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
+using ThreeDScan.Domain.Repositories;
 
 namespace ThreeDScan.ViewModels;
 
@@ -44,7 +45,10 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
     /// <summary>目前選取的掃描器；變更時重新載入群組清單。</summary>
     public string SelectedScannerId
     {
-        get => _selectedScannerId;
+        get
+        {
+            return _selectedScannerId;
+        }
         set
         {
             if (!SetProperty(ref _selectedScannerId, value)) return;
@@ -57,7 +61,10 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
     /// <summary>目前選取的拍攝群組。</summary>
     public ScannerProgramGroup? SelectedGroup
     {
-        get => _selectedGroup;
+        get
+        {
+            return _selectedGroup;
+        }
         set
         {
             if (!SetProperty(ref _selectedGroup, value)) return;
@@ -81,21 +88,36 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
     /// <summary>狀態列訊息。</summary>
     public string StatusText
     {
-        get => _statusText;
-        private set => SetProperty(ref _statusText, value);
+        get
+        {
+            return _statusText;
+        }
+        private set
+        {
+            SetProperty(ref _statusText, value);
+        }
     }
 
     /// <summary>掃描結果影像幾何資訊（尺寸、原點、係數）。</summary>
     public string GeometryText
     {
-        get => _geometryText;
-        private set => SetProperty(ref _geometryText, value);
+        get
+        {
+            return _geometryText;
+        }
+        private set
+        {
+            SetProperty(ref _geometryText, value);
+        }
     }
 
     /// <summary>是否正在執行測試掃描。</summary>
     public bool IsBusy
     {
-        get => _isBusy;
+        get
+        {
+            return _isBusy;
+        }
         private set
         {
             if (!SetProperty(ref _isBusy, value)) return;
@@ -103,16 +125,30 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
         }
     }
 
-    private bool CanScan => !IsBusy && CanOperate;
+    private bool CanScan
+    {
+        get
+        {
+            return !IsBusy && CanOperate;
+        }
+    }
 
-    private bool CanOperate =>
-        !string.IsNullOrWhiteSpace(SelectedScannerId) && SelectedGroup is not null;
+    private bool CanOperate
+    {
+        get
+        {
+            return !string.IsNullOrWhiteSpace(SelectedScannerId) && SelectedGroup is not null;
+        }
+    }
 
     /// <summary>觸發單次測試掃描。</summary>
     public ICommand ScanCommand { get; }
 
     /// <summary>強制更新 <see cref="ScanTargetLabel"/> 綁定。</summary>
-    public void RefreshScanTargetLabel() => OnPropertyChanged(nameof(ScanTargetLabel));
+    public void RefreshScanTargetLabel()
+    {
+        OnPropertyChanged(nameof(ScanTargetLabel));
+    }
 
     private void InitializeScannerIds()
     {
@@ -156,8 +192,8 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
     private async Task ReloadGroupsAndSelectAsync(byte programNo)
     {
         using var scope = WpfServiceProviderFactory.CreateScope(_config);
-        var groupStore = scope.ServiceProvider.GetRequiredService<IScannerProgramGroupStore>();
-        var groups = await groupStore.GetOrCreateAsync(SelectedScannerId);
+        var groupRepository = scope.ServiceProvider.GetRequiredService<IScannerProgramGroupRepository>();
+        var groups = await groupRepository.GetOrCreateAsync(SelectedScannerId);
 
         Groups.Clear();
         foreach (var group in groups)
@@ -218,12 +254,8 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
         }
     }
 
-    private void RaiseCommandStates() => CommandManager.InvalidateRequerySuggested();
-}
-
-/// <summary>測試掃描完成後傳遞給 3D 預覽視窗的影像路徑。</summary>
-public sealed class ScannerCapturePreviewEventArgs : EventArgs
-{
-    public required string HeightImagePath { get; init; }
-    public required string GrayImagePath { get; init; }
+    private void RaiseCommandStates()
+    {
+        CommandManager.InvalidateRequerySuggested();
+    }
 }

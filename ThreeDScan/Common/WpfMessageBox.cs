@@ -7,15 +7,21 @@ internal static class WpfMessageBox
 {
     /// <summary>顯示資訊訊息。</summary>
     public static void ShowInfo(string message, string title)
-        => Show(message, title, MessageBoxImage.Information);
+    {
+        Show(message, title, MessageBoxImage.Information);
+    }
 
     /// <summary>顯示警告訊息。</summary>
     public static void ShowWarning(string message, string title)
-        => Show(message, title, MessageBoxImage.Warning);
+    {
+        Show(message, title, MessageBoxImage.Warning);
+    }
 
     /// <summary>顯示錯誤訊息（圖示為 Warning，與既有對話框風格一致）。</summary>
     public static void ShowError(string message, string title)
-        => Show(message, title, MessageBoxImage.Warning);
+    {
+        Show(message, title, MessageBoxImage.Warning);
+    }
 
     /// <summary>
     /// 顯示訊息框；若目前不在 UI 執行緒則透過 <see cref="Application.Dispatcher"/> 切換。

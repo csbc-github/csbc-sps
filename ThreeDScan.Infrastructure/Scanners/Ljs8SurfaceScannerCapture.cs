@@ -26,7 +26,9 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
 
     /// <inheritdoc />
     public Task<ScannerCaptureResult> CaptureAsync(byte programNo, CancellationToken ct = default)
-        => Task.Run(() => CaptureCore(programNo), ct);
+    {
+        return Task.Run(() => CaptureCore(programNo), ct);
+    }
 
     private ScannerCaptureResult CaptureCore(byte programNo)
     {

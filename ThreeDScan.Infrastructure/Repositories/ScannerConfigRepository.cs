@@ -1,17 +1,19 @@
 using Microsoft.EntityFrameworkCore;
-using ThreeDScan.Domain.Abstractions;
+using ThreeDScan.Domain.Repositories;
 using ThreeDScan.Domain.Models;
-using ThreeDScan.Infrastructure.Data;
-using ThreeDScan.Infrastructure.Data.Entities;
+using ThreeDScan.Infrastructure.Repositories.Models;
 
-namespace ThreeDScan.Infrastructure.Persistence;
+namespace ThreeDScan.Infrastructure.Repositories;
 
 /// <summary>ScannerConfig 資料庫存取（EF Core）。</summary>
-public sealed class ScannerConfigStore : IScannerConfigStore
+public sealed class ScannerConfigRepository : IScannerConfigRepository
 {
     private readonly ThreeDScanDbContext _db;
 
-    public ScannerConfigStore(ThreeDScanDbContext db) => _db = db;
+    public ScannerConfigRepository(ThreeDScanDbContext db)
+    {
+        _db = db;
+    }
 
     /// <inheritdoc />
     public async Task<ScannerConfigRecord?> GetAsync(string scannerId, CancellationToken ct = default)
@@ -49,28 +51,31 @@ public sealed class ScannerConfigStore : IScannerConfigStore
         await _db.SaveChangesAsync(ct);
     }
 
-    private static ScannerConfigEntity ToEntity(ScannerConfigRecord record) => new()
+    private static ScannerConfigEntity ToEntity(ScannerConfigRecord record)
     {
-        ScannerId = record.ScannerId,
-        RefPatternX = record.RefPatternX,
-        RefPatternY = record.RefPatternY,
-        RefSphereX = record.RefSphereX,
-        RefSphereY = record.RefSphereY,
-        ContentsFolder = record.ContentsFolder,
-        UpdatedAt = record.UpdatedAt,
-        UpdatedBy = record.UpdatedBy,
-        TraceId = record.TraceId,
-        ExpectedBallDiameter = record.ExpectedBallDiameter,
-        DiameterTolerance = record.DiameterTolerance,
-        MaxDiameterError = record.MaxDiameterError,
-        BallCount = record.BallCount,
-        DatumPlaneEnabled = record.DatumPlaneEnabled,
-        DatumPlaneCenterX = record.DatumPlaneCenterX,
-        DatumPlaneCenterY = record.DatumPlaneCenterY,
-        DatumPlaneWidth = record.DatumPlaneWidth,
-        DatumPlaneHeight = record.DatumPlaneHeight,
-        DatumPlaneAngle = record.DatumPlaneAngle,
-    };
+        return new()
+        {
+            ScannerId = record.ScannerId,
+            RefPatternX = record.RefPatternX,
+            RefPatternY = record.RefPatternY,
+            RefSphereX = record.RefSphereX,
+            RefSphereY = record.RefSphereY,
+            ContentsFolder = record.ContentsFolder,
+            UpdatedAt = record.UpdatedAt,
+            UpdatedBy = record.UpdatedBy,
+            TraceId = record.TraceId,
+            ExpectedBallDiameter = record.ExpectedBallDiameter,
+            DiameterTolerance = record.DiameterTolerance,
+            MaxDiameterError = record.MaxDiameterError,
+            BallCount = record.BallCount,
+            DatumPlaneEnabled = record.DatumPlaneEnabled,
+            DatumPlaneCenterX = record.DatumPlaneCenterX,
+            DatumPlaneCenterY = record.DatumPlaneCenterY,
+            DatumPlaneWidth = record.DatumPlaneWidth,
+            DatumPlaneHeight = record.DatumPlaneHeight,
+            DatumPlaneAngle = record.DatumPlaneAngle,
+        };
+    }
 
     private static void MergeCalibration(ScannerConfigEntity target, ScannerConfigRecord source)
     {
@@ -86,26 +91,29 @@ public sealed class ScannerConfigStore : IScannerConfigStore
         if (source.DatumPlaneAngle is double a) target.DatumPlaneAngle = a;
     }
 
-    private static ScannerConfigRecord Map(ScannerConfigEntity row) => new()
+    private static ScannerConfigRecord Map(ScannerConfigEntity row)
     {
-        ScannerId = row.ScannerId,
-        RefPatternX = row.RefPatternX,
-        RefPatternY = row.RefPatternY,
-        RefSphereX = row.RefSphereX,
-        RefSphereY = row.RefSphereY,
-        ContentsFolder = row.ContentsFolder,
-        UpdatedAt = row.UpdatedAt,
-        UpdatedBy = row.UpdatedBy,
-        TraceId = row.TraceId,
-        ExpectedBallDiameter = row.ExpectedBallDiameter,
-        DiameterTolerance = row.DiameterTolerance,
-        MaxDiameterError = row.MaxDiameterError,
-        BallCount = row.BallCount,
-        DatumPlaneEnabled = row.DatumPlaneEnabled,
-        DatumPlaneCenterX = row.DatumPlaneCenterX,
-        DatumPlaneCenterY = row.DatumPlaneCenterY,
-        DatumPlaneWidth = row.DatumPlaneWidth,
-        DatumPlaneHeight = row.DatumPlaneHeight,
-        DatumPlaneAngle = row.DatumPlaneAngle,
-    };
+        return new()
+        {
+            ScannerId = row.ScannerId,
+            RefPatternX = row.RefPatternX,
+            RefPatternY = row.RefPatternY,
+            RefSphereX = row.RefSphereX,
+            RefSphereY = row.RefSphereY,
+            ContentsFolder = row.ContentsFolder,
+            UpdatedAt = row.UpdatedAt,
+            UpdatedBy = row.UpdatedBy,
+            TraceId = row.TraceId,
+            ExpectedBallDiameter = row.ExpectedBallDiameter,
+            DiameterTolerance = row.DiameterTolerance,
+            MaxDiameterError = row.MaxDiameterError,
+            BallCount = row.BallCount,
+            DatumPlaneEnabled = row.DatumPlaneEnabled,
+            DatumPlaneCenterX = row.DatumPlaneCenterX,
+            DatumPlaneCenterY = row.DatumPlaneCenterY,
+            DatumPlaneWidth = row.DatumPlaneWidth,
+            DatumPlaneHeight = row.DatumPlaneHeight,
+            DatumPlaneAngle = row.DatumPlaneAngle,
+        };
+    }
 }

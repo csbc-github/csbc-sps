@@ -1,7 +1,8 @@
-﻿using System.Windows;
+using System.Windows;
 using Microsoft.Extensions.Configuration;
 using ThreeDScan.Auth;
 using ThreeDScan.Domain.Abstractions;
+using ThreeDScan.Domain.Models;
 using ThreeDScan.ViewModels;
 using ThreeDScan.Views;
 
@@ -69,7 +70,9 @@ public partial class MainWindow : Window
     }
 
     private async void OnClosedAsync(object? sender, EventArgs e)
-        => await _vm.CalibrationMonitorVM.DisposeAsync();
+    {
+        await _vm.CalibrationMonitorVM.DisposeAsync();
+    }
 
     private void OnOpenScannerSettings(object sender, RoutedEventArgs e)
     {

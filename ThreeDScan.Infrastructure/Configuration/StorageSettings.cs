@@ -8,8 +8,17 @@ public sealed class StorageSettings : IStorageSettings
 {
     private readonly StorageOptions _options;
 
-    public StorageSettings(IOptions<StorageOptions> options) => _options = options.Value;
+    public StorageSettings(IOptions<StorageOptions> options)
+    {
+        _options = options.Value;
+    }
 
     /// <inheritdoc />
-    public string ContentsRoot => _options.ContentsRoot;
+    public string ContentsRoot
+    {
+        get
+        {
+            return _options.ContentsRoot;
+        }
+    }
 }

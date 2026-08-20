@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using ThreeDScan.Application.Calibration.Dtos;
+using ThreeDScan.Application.Calibration.Models;
 using ThreeDScan.Application.Common;
 
 namespace ThreeDScan.Api.Controllers;

@@ -11,8 +11,12 @@ public sealed class CaptureImageGeometry
     public double CoefficientY { get; init; }
 
     public double ToPixelX(double physicalX)
-        => CoefficientX != 0 ? (physicalX - OriginX) / CoefficientX : 0;
+    {
+        return CoefficientX != 0 ? (physicalX - OriginX) / CoefficientX : 0;
+    }
 
     public double ToPixelY(double physicalY)
-        => CoefficientY != 0 ? (physicalY - OriginY) / CoefficientY : 0;
+    {
+        return CoefficientY != 0 ? (physicalY - OriginY) / CoefficientY : 0;
+    }
 }

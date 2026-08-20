@@ -13,7 +13,10 @@ public interface ILjSphereMeasureEngine
         LjCalibrationParameters parameters,
         CancellationToken ct = default);
 
-    /// <summary>建立或更新 Ref 參考影像與種子座標（開發用 Ref 建立 API）。</summary>
+    /// <summary>
+    /// 在已擷取影像上建立／更新 Ref：以 ScannerConfig 種子尋球、重訓樣板、寫出 ref_height/gray.png。
+    /// 回傳的 Ref* 是尋球擬合球心，呼叫端會寫回 DB（可能與種子不同）。
+    /// </summary>
     Task<ReferenceSetupResult> SetupReferenceAsync(
         string scannerId,
         ScannerConfigRecord? existingConfig,
@@ -21,32 +24,4 @@ public interface ILjSphereMeasureEngine
         LjCalibrationParameters parameters,
         string contentsFolder,
         CancellationToken ct = default);
-}
-
-/// <summary>LJ 量測參數（appsettings 預設值，可與 ScannerConfig 合併）。</summary>
-public sealed class LjCalibrationParameters
-{
-    public double ExpectedBallDiameter { get; init; } = 24.9;
-    public double DiameterTolerance { get; init; } = 1.0;
-    public int BallCount { get; init; } = 3;
-    public double MaxDiameterError { get; init; } = 5.0;
-
-    /// <summary>滾輪／基準面平面 ROI（LPlaneTool）。</summary>
-    public DatumPlaneSettings DatumPlane { get; init; } = new();
-}
-
-/// <summary>基準面（滾輪）平面量測 ROI，對應 ScannerConfig DatumPlane* 欄位。</summary>
-public sealed class DatumPlaneSettings
-{
-    public bool Enabled { get; init; } = true;
-
-    public double CenterX { get; init; } = 160;
-
-    public double CenterY { get; init; } = 120;
-
-    public double Width { get; init; } = 120;
-
-    public double Height { get; init; } = 80;
-
-    public double Angle { get; init; }
 }

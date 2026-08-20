@@ -1,5 +1,6 @@
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
+using ThreeDScan.Domain.Repositories;
 using ThreeDScan.Infrastructure.Configuration;
 
 namespace ThreeDScan.Infrastructure.Scanners;
@@ -8,14 +9,14 @@ namespace ThreeDScan.Infrastructure.Scanners;
 public sealed class ScannerProgramSettingsService : IScannerProgramSettingsService
 {
     private readonly IScannerRegistry _registry;
-    private readonly IScannerProgramSettingsStore _store;
+    private readonly IScannerProgramSettingsRepository _repository;
 
     public ScannerProgramSettingsService(
         IScannerRegistry registry,
-        IScannerProgramSettingsStore store)
+        IScannerProgramSettingsRepository repository)
     {
         _registry = registry;
-        _store = store;
+        _repository = repository;
     }
 
     /// <inheritdoc />
@@ -23,7 +24,9 @@ public sealed class ScannerProgramSettingsService : IScannerProgramSettingsServi
         string scannerId,
         byte programNo,
         CancellationToken ct = default)
-        => Task.Run(() => ReadFromControllerCore(scannerId, programNo), ct);
+    {
+        return Task.Run(() => ReadFromControllerCore(scannerId, programNo), ct);
+    }
 
     /// <inheritdoc />
     public Task SaveToControllerAsync(
@@ -32,14 +35,18 @@ public sealed class ScannerProgramSettingsService : IScannerProgramSettingsServi
         ScannerCaptureSettings settings,
         string? updatedBy = null,
         CancellationToken ct = default)
-        => Task.Run(() => SaveToControllerCore(scannerId, programNo, settings, updatedBy), ct);
+    {
+        return Task.Run(() => SaveToControllerCore(scannerId, programNo, settings, updatedBy), ct);
+    }
 
     /// <inheritdoc />
     public Task<ScannerCaptureSettings> ReadFromDatabaseAsync(
         string scannerId,
         byte programNo,
         CancellationToken ct = default)
-        => Task.Run(() => ReadFromDatabaseCore(scannerId, programNo), ct);
+    {
+        return Task.Run(() => ReadFromDatabaseCore(scannerId, programNo), ct);
+    }
 
     /// <inheritdoc />
     public Task ApplyRunningSettingsAsync(
@@ -47,14 +54,18 @@ public sealed class ScannerProgramSettingsService : IScannerProgramSettingsServi
         byte programNo,
         ScannerCaptureSettings settings,
         CancellationToken ct = default)
-        => Task.Run(() => ApplyRunningSettingsCore(scannerId, programNo, settings), ct);
+    {
+        return Task.Run(() => ApplyRunningSettingsCore(scannerId, programNo, settings), ct);
+    }
 
     /// <inheritdoc />
     public Task<byte[]?> GetStoredBlobAsync(
         string scannerId,
         byte programNo,
         CancellationToken ct = default)
-        => _store.GetBlobAsync(scannerId, programNo, ct);
+    {
+        return _repository.GetBlobAsync(scannerId, programNo, ct);
+    }
 
     private ScannerCaptureSettings ReadFromControllerCore(string scannerId, byte programNo)
     {
@@ -116,7 +127,7 @@ public sealed class ScannerProgramSettingsService : IScannerProgramSettingsServi
     {
         var blob = session.GetBatch(Ljs8ProgramConstants.SettingDepthSave, programNo);
         var traceId = Guid.NewGuid().ToString("N");
-        _store.UpsertWithHistoryAsync(
+        _repository.UpsertWithHistoryAsync(
             scannerId,
             programNo,
             blob,
@@ -128,7 +139,7 @@ public sealed class ScannerProgramSettingsService : IScannerProgramSettingsServi
 
     private ScannerCaptureSettings ReadFromDatabaseCore(string scannerId, byte programNo)
     {
-        var blob = _store.GetBlobAsync(scannerId, programNo, CancellationToken.None)
+        var blob = _repository.GetBlobAsync(scannerId, programNo, CancellationToken.None)
             .GetAwaiter().GetResult();
         if (blob is null || blob.Length == 0)
             throw new InvalidOperationException(

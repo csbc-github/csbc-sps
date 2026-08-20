@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
-namespace ThreeDScan.Application.Calibration.Dtos;
+namespace ThreeDScan.Application.Calibration.Models;
 
 /// <summary>POST /api/calibration/instrument 請求（API 串接規格 UC-01）。</summary>
 public sealed class InstrumentCalibrationRequest

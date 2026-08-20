@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace ThreeDScan.Application.Calibration.Dtos;
+namespace ThreeDScan.Application.Calibration.Models;
 
 public sealed class ReferenceSetupRequest
 {

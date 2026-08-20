@@ -37,14 +37,3 @@ public sealed class CalibrationPreview
     /// <summary>配對明細（失敗時供 WPF 對照 known vs measured）。</summary>
     public IReadOnlyList<MatchedBallPreview> MatchedBalls { get; init; } = Array.Empty<MatchedBallPreview>();
 }
-
-/// <summary>SignalR 推送的配對球摘要。</summary>
-public sealed class MatchedBallPreview
-{
-    public string BallId { get; init; } = "";
-    public double KnownX { get; init; }
-    public double KnownY { get; init; }
-    public double MeasuredX { get; init; }
-    public double MeasuredY { get; init; }
-    public double ResidualMm { get; init; }
-}

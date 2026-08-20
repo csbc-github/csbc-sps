@@ -1,17 +1,19 @@
 using Microsoft.EntityFrameworkCore;
-using ThreeDScan.Domain.Abstractions;
+using ThreeDScan.Domain.Repositories;
 using ThreeDScan.Domain.Models;
-using ThreeDScan.Infrastructure.Data;
-using ThreeDScan.Infrastructure.Data.Entities;
+using ThreeDScan.Infrastructure.Repositories.Models;
 
-namespace ThreeDScan.Infrastructure.Persistence;
+namespace ThreeDScan.Infrastructure.Repositories;
 
 /// <summary>UC-01 兩次拍攝任務資料庫存取。</summary>
-public sealed class InstrumentCalibrationTaskStore : IInstrumentCalibrationTaskStore
+public sealed class InstrumentCalibrationTaskRepository : IInstrumentCalibrationTaskRepository
 {
     private readonly ThreeDScanDbContext _db;
 
-    public InstrumentCalibrationTaskStore(ThreeDScanDbContext db) => _db = db;
+    public InstrumentCalibrationTaskRepository(ThreeDScanDbContext db)
+    {
+        _db = db;
+    }
 
     /// <inheritdoc />
     public async Task CreateAsync(InstrumentCalibrationTaskRecord task, CancellationToken ct = default)
@@ -59,23 +61,26 @@ public sealed class InstrumentCalibrationTaskStore : IInstrumentCalibrationTaskS
         await _db.SaveChangesAsync(ct);
     }
 
-    private static InstrumentCalibrationTaskRecord Map(InstrumentCalibrationTaskEntity row) => new()
+    private static InstrumentCalibrationTaskRecord Map(InstrumentCalibrationTaskEntity row)
     {
-        TaskId = row.TaskId,
-        ScannerId = row.ScannerId,
-        Status = row.Status,
-        CreatedAt = row.CreatedAt,
-        UpdatedAt = row.UpdatedAt,
-        ExpiresAt = row.ExpiresAt,
-        ExpectedX = row.ExpectedX,
-        ExpectedY = row.ExpectedY,
-        ExpectedZ = row.ExpectedZ,
-        BallCount = row.BallCount,
-        ScannerToFloorZ = row.ScannerToFloorZ,
-        ActualX = row.ActualX,
-        ActualY = row.ActualY,
-        Rmse = row.Rmse,
-        FrameJson = row.FrameJson,
-        TraceIdSeq1 = row.TraceIdSeq1,
-    };
+        return new()
+        {
+            TaskId = row.TaskId,
+            ScannerId = row.ScannerId,
+            Status = row.Status,
+            CreatedAt = row.CreatedAt,
+            UpdatedAt = row.UpdatedAt,
+            ExpiresAt = row.ExpiresAt,
+            ExpectedX = row.ExpectedX,
+            ExpectedY = row.ExpectedY,
+            ExpectedZ = row.ExpectedZ,
+            BallCount = row.BallCount,
+            ScannerToFloorZ = row.ScannerToFloorZ,
+            ActualX = row.ActualX,
+            ActualY = row.ActualY,
+            Rmse = row.Rmse,
+            FrameJson = row.FrameJson,
+            TraceIdSeq1 = row.TraceIdSeq1,
+        };
+    }
 }

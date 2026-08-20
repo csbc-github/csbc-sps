@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace ThreeDScan.Application.Scan.Dtos;
+namespace ThreeDScan.Application.Scan.Models;
 
 /// <summary>孔洞掃描請求。</summary>
 public sealed class HoleScanRequest

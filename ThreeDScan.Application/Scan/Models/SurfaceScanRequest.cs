@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ThreeDScan.Application.Calibration.Dtos;
+using ThreeDScan.Application.Calibration.Models;
 
-namespace ThreeDScan.Application.Scan.Dtos;
+namespace ThreeDScan.Application.Scan.Models;
 
 /// <summary>面掃描請求；可分段呼叫，最後一次完成拼接。</summary>
 public sealed class SurfaceScanRequest : IValidatableObject

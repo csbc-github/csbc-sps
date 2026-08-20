@@ -1,4 +1,4 @@
-namespace ThreeDScan.Infrastructure.Data.Entities;
+namespace ThreeDScan.Infrastructure.Repositories.Models;
 
 public sealed class InstrumentCalibrationTaskEntity
 {

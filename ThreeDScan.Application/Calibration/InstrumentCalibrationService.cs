@@ -1,4 +1,4 @@
-using ThreeDScan.Application.Calibration.Dtos;
+using ThreeDScan.Application.Calibration.Models;
 using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Application.Calibration;
@@ -262,75 +262,14 @@ public sealed class InstrumentCalibrationService
     }
 
     /// <summary>將 API 座標 DTO 轉為內部三維向量。</summary>
-    private static Vec3 ToVec(CoordinateDto c) => new(c.X, c.Y, c.Z);
+    private static Vec3 ToVec(CoordinateDto c)
+    {
+        return new(c.X, c.Y, c.Z);
+    }
 
     /// <summary>三維向量（內部計算用）。</summary>
     private readonly record struct Vec3(double X, double Y, double Z);
 
     /// <summary>配對後的標準球與量測球（含 BallId）。</summary>
     private readonly record struct BallPair(string BallId, Vec3 Known, Vec3 Measured);
-}
-
-/// <summary>儀器校正計算結果（補償、配對明細）。</summary>
-public sealed class InstrumentCalibrationComputeResult
-{
-    /// <summary>掃描器補償值 offset = 實際位置 − 預期位置 (mm)。</summary>
-    public CompensationDto Compensation { get; init; } = new();
-
-    /// <summary>校正殘差 RMSE (mm)。</summary>
-    public double Rmse { get; init; }
-
-    /// <summary>反推的掃描器實際絕對位置。</summary>
-    public CoordinateDto ActualScannerPosition { get; init; } = new();
-
-    /// <summary>各顆球的配對與殘差明細。</summary>
-    public IReadOnlyList<MatchedBallDto> MatchedBalls { get; init; } = Array.Empty<MatchedBallDto>();
-
-    /// <summary>量測推算的掃描器到地板（滾輪面）Z 距離 (mm)。</summary>
-    public double ScannerToFloorZ { get; init; }
-}
-
-/// <summary>單顆標準球與量測球的配對結果。</summary>
-public sealed class MatchedBallDto
-{
-    /// <summary>台船傳入的球識別碼。</summary>
-    public string BallId { get; init; } = "";
-
-    /// <summary>量測球心 X (掃描器座標系, mm)。</summary>
-    public double MeasuredX { get; init; }
-
-    /// <summary>量測球心 Y (掃描器座標系, mm)。</summary>
-    public double MeasuredY { get; init; }
-
-    /// <summary>量測球心 Z (掃描器座標系, mm)。</summary>
-    public double MeasuredZ { get; init; }
-
-    /// <summary>已知絕對座標 X (mm)。</summary>
-    public double KnownX { get; init; }
-
-    /// <summary>已知絕對座標 Y (mm)。</summary>
-    public double KnownY { get; init; }
-
-    /// <summary>已知絕對座標 Z (mm)。</summary>
-    public double KnownZ { get; init; }
-
-    /// <summary>該顆球參與之球距誤差最大值 (mm)；單球為 0。</summary>
-    public double ResidualMm { get; init; }
-}
-
-/// <summary>儀器校正業務例外，帶 SD 錯誤代碼。</summary>
-public sealed class InstrumentCalibrationException : Exception
-{
-    /// <summary>
-    /// 建立校正例外。
-    /// </summary>
-    /// <param name="errorCode">API 錯誤代碼（如 CAL_FEED_001）。</param>
-    /// <param name="message">錯誤訊息。</param>
-    public InstrumentCalibrationException(string errorCode, string message) : base(message)
-    {
-        ErrorCode = errorCode;
-    }
-
-    /// <summary>API 錯誤代碼。</summary>
-    public string ErrorCode { get; }
 }

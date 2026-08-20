@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ThreeDScan.Common;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
+using ThreeDScan.Domain.Repositories;
 
 namespace ThreeDScan.ViewModels;
 
@@ -50,7 +51,10 @@ public sealed class ScannerGroupNameViewModel : ViewModelBase
     /// <summary>目前選取的掃描器；變更時重新載入群組清單。</summary>
     public string SelectedScannerId
     {
-        get => _selectedScannerId;
+        get
+        {
+            return _selectedScannerId;
+        }
         set
         {
             if (!SetProperty(ref _selectedScannerId, value)) return;
@@ -62,7 +66,10 @@ public sealed class ScannerGroupNameViewModel : ViewModelBase
     /// <summary>目前選取的拍攝群組；變更時同步 <see cref="EditableGroupName"/>。</summary>
     public ScannerProgramGroup? SelectedGroup
     {
-        get => _selectedGroup;
+        get
+        {
+            return _selectedGroup;
+        }
         set
         {
             if (!SetProperty(ref _selectedGroup, value)) return;
@@ -73,14 +80,23 @@ public sealed class ScannerGroupNameViewModel : ViewModelBase
     }
 
     /// <summary>提示呼叫校正 API 時應帶入的 navigatorScanNo。</summary>
-    public string SelectedGroupApiHint => SelectedGroup is null
+    public string SelectedGroupApiHint
+    {
+        get
+        {
+            return SelectedGroup is null
         ? ""
         : $"API 請帶 navigatorScanNo：{SelectedGroup.NavigatorScanNo}";
+        }
+    }
 
     /// <summary>使用者編輯中的群組顯示名稱。</summary>
     public string EditableGroupName
     {
-        get => _editableGroupName;
+        get
+        {
+            return _editableGroupName;
+        }
         set
         {
             if (SetProperty(ref _editableGroupName, value))
@@ -91,14 +107,23 @@ public sealed class ScannerGroupNameViewModel : ViewModelBase
     /// <summary>狀態列訊息。</summary>
     public string StatusText
     {
-        get => _statusText;
-        private set => SetProperty(ref _statusText, value);
+        get
+        {
+            return _statusText;
+        }
+        private set
+        {
+            SetProperty(ref _statusText, value);
+        }
     }
 
     /// <summary>是否正在儲存群組名稱。</summary>
     public bool IsBusy
     {
-        get => _isBusy;
+        get
+        {
+            return _isBusy;
+        }
         private set
         {
             if (!SetProperty(ref _isBusy, value)) return;
@@ -106,11 +131,17 @@ public sealed class ScannerGroupNameViewModel : ViewModelBase
         }
     }
 
-    private bool CanSave => !IsBusy
+    private bool CanSave
+    {
+        get
+        {
+            return !IsBusy
         && !string.IsNullOrWhiteSpace(SelectedScannerId)
         && SelectedGroup is not null
         && !string.IsNullOrWhiteSpace(EditableGroupName)
         && !string.Equals(EditableGroupName.Trim(), SelectedGroup.DisplayName, StringComparison.Ordinal);
+        }
+    }
 
     /// <summary>將 <see cref="EditableGroupName"/> 寫入資料庫。</summary>
     public ICommand SaveGroupNameCommand { get; }
@@ -152,8 +183,8 @@ public sealed class ScannerGroupNameViewModel : ViewModelBase
         {
             IsBusy = true;
             using var scope = WpfServiceProviderFactory.CreateScope(_config);
-            var groupStore = scope.ServiceProvider.GetRequiredService<IScannerProgramGroupStore>();
-            await groupStore.UpdateDisplayNameAsync(
+            var groupRepository = scope.ServiceProvider.GetRequiredService<IScannerProgramGroupRepository>();
+            await groupRepository.UpdateDisplayNameAsync(
                 SelectedScannerId,
                 programNo,
                 trimmed,
@@ -175,8 +206,8 @@ public sealed class ScannerGroupNameViewModel : ViewModelBase
     private async Task ReloadGroupsAndSelectAsync(byte programNo)
     {
         using var scope = WpfServiceProviderFactory.CreateScope(_config);
-        var groupStore = scope.ServiceProvider.GetRequiredService<IScannerProgramGroupStore>();
-        var groups = await groupStore.GetOrCreateAsync(SelectedScannerId);
+        var groupRepository = scope.ServiceProvider.GetRequiredService<IScannerProgramGroupRepository>();
+        var groups = await groupRepository.GetOrCreateAsync(SelectedScannerId);
 
         Groups.Clear();
         foreach (var group in groups)
@@ -185,5 +216,8 @@ public sealed class ScannerGroupNameViewModel : ViewModelBase
         SelectedGroup = Groups.FirstOrDefault(g => g.ProgramNo == programNo) ?? Groups.FirstOrDefault();
     }
 
-    private void RaiseCommandStates() => CommandManager.InvalidateRequerySuggested();
+    private void RaiseCommandStates()
+    {
+        CommandManager.InvalidateRequerySuggested();
+    }
 }

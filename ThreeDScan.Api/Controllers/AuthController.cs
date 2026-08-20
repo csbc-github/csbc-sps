@@ -86,7 +86,10 @@ public sealed class AuthController : ControllerBase
     /// <summary>簡易探測端點（啟用驗證時與其他 API 同樣需 Bearer）。</summary>
     [HttpGet("ping")]
     [Produces("application/json")]
-    public IActionResult Ping() => Ok(new { ok = true, utc = DateTime.UtcNow });
+    public IActionResult Ping()
+    {
+        return Ok(new { ok = true, utc = DateTime.UtcNow });
+    }
 
     /// <summary>自 <c>Authorization</c> header 取出 Bearer token 字串。</summary>
     private string? GetBearerToken()

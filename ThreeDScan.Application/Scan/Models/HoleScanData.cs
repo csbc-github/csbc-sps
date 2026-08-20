@@ -1,6 +1,6 @@
-using ThreeDScan.Application.Calibration.Dtos;
+using ThreeDScan.Application.Calibration.Models;
 
-namespace ThreeDScan.Application.Scan.Dtos;
+namespace ThreeDScan.Application.Scan.Models;
 
 /// <summary>孔洞掃描結果：邊界座標序列。</summary>
 public sealed class HoleScanData

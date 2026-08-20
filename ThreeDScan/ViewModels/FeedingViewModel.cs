@@ -34,18 +34,51 @@ public class FeedingViewModel : ViewModelBase
 
     public ObservableCollection<MaterialItem> Materials { get; } = new();
 
-    public double TotalArea { get => _totalArea; set => SetProperty(ref _totalArea, value); }
-    public int ContourCount { get => _contourCount; set => SetProperty(ref _contourCount, value); }
-    public string ScanStatusText { get => _scanStatusText; set => SetProperty(ref _scanStatusText, value); }
+    public double TotalArea { get
+    {
+        return _totalArea;
+    } set
+    {
+        SetProperty(ref _totalArea, value);
+    } }
+    public int ContourCount { get
+    {
+        return _contourCount;
+    } set
+    {
+        SetProperty(ref _contourCount, value);
+    } }
+    public string ScanStatusText { get
+    {
+        return _scanStatusText;
+    } set
+    {
+        SetProperty(ref _scanStatusText, value);
+    } }
 
     // 進料區整體狀態燈（綠/黃/紅），對應 SA NFR-U-01
-    public SystemStatus OverallStatus { get => _overallStatus; set => SetProperty(ref _overallStatus, value); }
+    public SystemStatus OverallStatus { get
+    {
+        return _overallStatus;
+    } set
+    {
+        SetProperty(ref _overallStatus, value);
+    } }
 
-    public LidarFrame? CurrentFrame { get => _currentFrame; set => SetProperty(ref _currentFrame, value); }
+    public LidarFrame? CurrentFrame { get
+    {
+        return _currentFrame;
+    } set
+    {
+        SetProperty(ref _currentFrame, value);
+    } }
 
     public bool IsScanning
     {
-        get => _isScanning;
+        get
+        {
+            return _isScanning;
+        }
         set
         {
             if (SetProperty(ref _isScanning, value))
@@ -57,22 +90,58 @@ public class FeedingViewModel : ViewModelBase
     public ICommand StopScanCommand { get; }
 
     /// <summary>角度下限（°），空白＝不限制。例：只取朝下方時可填 70。</summary>
-    public string LidarCalibAngleMinDeg { get => _lidarCalibAngleMinDeg; set => SetProperty(ref _lidarCalibAngleMinDeg, value); }
+    public string LidarCalibAngleMinDeg { get
+    {
+        return _lidarCalibAngleMinDeg;
+    } set
+    {
+        SetProperty(ref _lidarCalibAngleMinDeg, value);
+    } }
 
     /// <summary>角度上限（°），空白＝不限制。例：110。</summary>
-    public string LidarCalibAngleMaxDeg { get => _lidarCalibAngleMaxDeg; set => SetProperty(ref _lidarCalibAngleMaxDeg, value); }
+    public string LidarCalibAngleMaxDeg { get
+    {
+        return _lidarCalibAngleMaxDeg;
+    } set
+    {
+        SetProperty(ref _lidarCalibAngleMaxDeg, value);
+    } }
 
     /// <summary>角度平移（°），加在公式 θ = i·解析度 − 起始角 之後。</summary>
-    public string LidarCalibAngleCorrectionDeg { get => _lidarCalibAngleCorrectionDeg; set => SetProperty(ref _lidarCalibAngleCorrectionDeg, value); }
+    public string LidarCalibAngleCorrectionDeg { get
+    {
+        return _lidarCalibAngleCorrectionDeg;
+    } set
+    {
+        SetProperty(ref _lidarCalibAngleCorrectionDeg, value);
+    } }
 
     /// <summary>X 平移（mm），畫面與物料區 X 一併平移。</summary>
-    public string LidarCalibXOffsetMm { get => _lidarCalibXOffsetMm; set => SetProperty(ref _lidarCalibXOffsetMm, value); }
+    public string LidarCalibXOffsetMm { get
+    {
+        return _lidarCalibXOffsetMm;
+    } set
+    {
+        SetProperty(ref _lidarCalibXOffsetMm, value);
+    } }
 
     /// <summary>Z 平移（mm），整條剖面上下平移。</summary>
-    public string LidarCalibZOffsetMm { get => _lidarCalibZOffsetMm; set => SetProperty(ref _lidarCalibZOffsetMm, value); }
+    public string LidarCalibZOffsetMm { get
+    {
+        return _lidarCalibZOffsetMm;
+    } set
+    {
+        SetProperty(ref _lidarCalibZOffsetMm, value);
+    } }
 
     /// <summary>參考面 Y（mm，雷達座標），空白＝自動用有效點 Y 的中位數。</summary>
-    public string LidarCalibReferenceYMm { get => _lidarCalibReferenceYMm; set => SetProperty(ref _lidarCalibReferenceYMm, value); }
+    public string LidarCalibReferenceYMm { get
+    {
+        return _lidarCalibReferenceYMm;
+    } set
+    {
+        SetProperty(ref _lidarCalibReferenceYMm, value);
+    } }
 
     public FeedingViewModel()
     {

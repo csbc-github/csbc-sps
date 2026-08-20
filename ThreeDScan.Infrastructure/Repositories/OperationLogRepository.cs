@@ -1,16 +1,18 @@
-using ThreeDScan.Domain.Abstractions;
+using ThreeDScan.Domain.Repositories;
 using ThreeDScan.Domain.Models;
-using ThreeDScan.Infrastructure.Data;
-using ThreeDScan.Infrastructure.Data.Entities;
+using ThreeDScan.Infrastructure.Repositories.Models;
 
-namespace ThreeDScan.Infrastructure.Persistence;
+namespace ThreeDScan.Infrastructure.Repositories;
 
 /// <summary>操作稽核日誌資料庫存取（EF Core）。</summary>
-public sealed class OperationLogStore : IOperationLogStore
+public sealed class OperationLogRepository : IOperationLogRepository
 {
     private readonly ThreeDScanDbContext _db;
 
-    public OperationLogStore(ThreeDScanDbContext db) => _db = db;
+    public OperationLogRepository(ThreeDScanDbContext db)
+    {
+        _db = db;
+    }
 
     /// <inheritdoc />
     public async Task AppendAsync(OperationLogEntry entry, CancellationToken ct = default)

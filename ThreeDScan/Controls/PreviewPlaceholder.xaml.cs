@@ -10,11 +10,23 @@ public partial class PreviewPlaceholder : UserControl
 
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(
         nameof(Title), typeof(string), typeof(PreviewPlaceholder), new PropertyMetadata(string.Empty));
-    public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
+    public string Title { get
+    {
+        return (string)GetValue(TitleProperty);
+    } set
+    {
+        SetValue(TitleProperty, value);
+    } }
 
     public static readonly DependencyProperty SubTitleProperty = DependencyProperty.Register(
         nameof(SubTitle), typeof(string), typeof(PreviewPlaceholder), new PropertyMetadata(string.Empty));
-    public string SubTitle { get => (string)GetValue(SubTitleProperty); set => SetValue(SubTitleProperty, value); }
+    public string SubTitle { get
+    {
+        return (string)GetValue(SubTitleProperty);
+    } set
+    {
+        SetValue(SubTitleProperty, value);
+    } }
 
     public static readonly DependencyProperty ImageSourceProperty = DependencyProperty.Register(
         nameof(ImageSource), typeof(ImageSource), typeof(PreviewPlaceholder),
@@ -22,8 +34,14 @@ public partial class PreviewPlaceholder : UserControl
 
     public ImageSource? ImageSource
     {
-        get => (ImageSource?)GetValue(ImageSourceProperty);
-        set => SetValue(ImageSourceProperty, value);
+        get
+        {
+            return (ImageSource?)GetValue(ImageSourceProperty);
+        }
+        set
+        {
+            SetValue(ImageSourceProperty, value);
+        }
     }
 
     public static readonly DependencyProperty PlaceholderVisibilityProperty = DependencyProperty.Register(
@@ -32,8 +50,14 @@ public partial class PreviewPlaceholder : UserControl
 
     public Visibility PlaceholderVisibility
     {
-        get => (Visibility)GetValue(PlaceholderVisibilityProperty);
-        set => SetValue(PlaceholderVisibilityProperty, value);
+        get
+        {
+            return (Visibility)GetValue(PlaceholderVisibilityProperty);
+        }
+        set
+        {
+            SetValue(PlaceholderVisibilityProperty, value);
+        }
     }
 
     private static void OnImageSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

@@ -7,6 +7,7 @@ using ThreeDScan.Common;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Infrastructure.Measure;
+using ThreeDScan.Infrastructure.Measure.Models;
 
 namespace ThreeDScan.ViewModels;
 
@@ -36,9 +37,21 @@ public class CalibrationMonitorViewModel : ViewModelBase, IAsyncDisposable
     }
 
     /// <summary>與 Api <c>Calibration:ResponseMode</c> 對齊；Debug 才顯示球清單與 3D。</summary>
-    public bool IsDebugMode => _isDebugMode;
+    public bool IsDebugMode
+    {
+        get
+        {
+            return _isDebugMode;
+        }
+    }
 
-    public Visibility DebugPanelVisibility => _isDebugMode ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility DebugPanelVisibility
+    {
+        get
+        {
+            return _isDebugMode ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
 
     public ObservableCollection<BallRow> Balls { get; } = new();
 
@@ -46,32 +59,62 @@ public class CalibrationMonitorViewModel : ViewModelBase, IAsyncDisposable
 
     public string ConnectionState
     {
-        get => _connectionState;
-        set => SetProperty(ref _connectionState, value);
+        get
+        {
+            return _connectionState;
+        }
+        set
+        {
+            SetProperty(ref _connectionState, value);
+        }
     }
 
     public string LastScannerId
     {
-        get => _lastScannerId;
-        set => SetProperty(ref _lastScannerId, value);
+        get
+        {
+            return _lastScannerId;
+        }
+        set
+        {
+            SetProperty(ref _lastScannerId, value);
+        }
     }
 
     public string StatusText
     {
-        get => _statusText;
-        set => SetProperty(ref _statusText, value);
+        get
+        {
+            return _statusText;
+        }
+        set
+        {
+            SetProperty(ref _statusText, value);
+        }
     }
 
     public string DetailText
     {
-        get => _detailText;
-        set => SetProperty(ref _detailText, value);
+        get
+        {
+            return _detailText;
+        }
+        set
+        {
+            SetProperty(ref _detailText, value);
+        }
     }
 
     public string ViewportStatus
     {
-        get => _viewportStatus;
-        set => SetProperty(ref _viewportStatus, value);
+        get
+        {
+            return _viewportStatus;
+        }
+        set
+        {
+            SetProperty(ref _viewportStatus, value);
+        }
     }
 
     /// <summary>
@@ -208,7 +251,7 @@ public class CalibrationMonitorViewModel : ViewModelBase, IAsyncDisposable
             };
 
             var viewportParams = BuildViewportParams(msg);
-            var result = LjViewportMeasureRunner.MeasureForViewport(
+            var result = LjViewportMeasureService.MeasureForViewport(
                 msg.ContentsFolder,
                 heightPath,
                 grayPath,

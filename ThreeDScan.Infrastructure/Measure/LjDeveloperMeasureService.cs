@@ -2,13 +2,12 @@ using Keyence.LjDevCommon;
 using Keyence.LjDevMeasure;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
-using ThreeDScan.Infrastructure.LjSdk;
 using ThreeDScan.Infrastructure.Scanners;
 
 namespace ThreeDScan.Infrastructure.Measure;
 
 /// <summary>LJ Developer SDK 尋球與 Ref 建立實作。</summary>
-public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
+public sealed class LjDeveloperMeasureService : ILjSphereMeasureEngine
 {
     /// <inheritdoc />
     public Task<SphereMeasureResult> MeasureAsync(
@@ -17,9 +16,12 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
         ScannerCaptureResult capture,
         LjCalibrationParameters parameters,
         CancellationToken ct = default)
-        => Task.Run(() => MeasureCore(scannerId, config, capture, parameters), ct);
+    {
+        return Task.Run(() => MeasureCore(scannerId, config, capture, parameters), ct);
+    }
 
     /// <inheritdoc />
+    /// <remarks>實際邏輯在 <see cref="SetupReferenceCore"/>：種子尋球 → 重訓樣板 → 覆蓋 png。</remarks>
     public Task<ReferenceSetupResult> SetupReferenceAsync(
         string scannerId,
         ScannerConfigRecord? existingConfig,
@@ -27,8 +29,11 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
         LjCalibrationParameters parameters,
         string contentsFolder,
         CancellationToken ct = default)
-        => Task.Run(() => SetupReferenceCore(scannerId, existingConfig, capture, parameters, contentsFolder), ct);
+    {
+        return Task.Run(() => SetupReferenceCore(scannerId, existingConfig, capture, parameters, contentsFolder), ct);
+    }
 
+    /// <summary>儀器校正量測：載入 Ref 圖、Execute 尋球、抽出球心、可選量基準面。</summary>
     private static SphereMeasureResult MeasureCore(
         string scannerId,
         ScannerConfigRecord config,
@@ -45,6 +50,7 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
             var measure = CreateMeasure(config.ContentsFolder);
             var (height, gray) = LoadCapture(capture);
 
+            // PatternMatch + 球擬合；保留規則見 Execute（直徑優先，不保證含 Ref 球）。
             var results = measure.Execute(height, gray);
             var balls = ExtractBalls(results, parameters).ToList();
 
@@ -69,6 +75,10 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
         }
     }
 
+    /// <summary>
+    /// Ref 建立核心：existingConfig.Ref* 只當尋球種子。
+    /// 成功後 ActiveRef* 改為擬合球心，呼叫端會寫回 DB；失敗則不覆蓋 png。
+    /// </summary>
     private static ReferenceSetupResult SetupReferenceCore(
         string scannerId,
         ScannerConfigRecord? existingConfig,
@@ -98,9 +108,10 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
 
             var measure = CreateMeasure(contentsFolder);
 
-            // 對齊 Winform CalibrateButton：先 ReloadReferenceFromConfig 再量測
+            // 把 DB 種子載入 Pattern／Sphere ROI，之後尋球才知道從哪裡開始。
             measure.ReloadReferenceFromConfig();
 
+            // 在種子附近網格＋PM 候選探測；選直徑最接近預期值者（可離開種子數十 mm）。
             if (!measure.TryDiscoverCalibrationBallCenter(
                     height, out var discoverX, out var discoverY, out var discoverD, out var discoverMessage))
             {
@@ -108,37 +119,22 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
                     "校正尋球失敗：" + discoverMessage + " 已取消覆蓋 ref_*.png。");
             }
 
+            // 後續樣板與球擬合都改以尋到的點為中心，不再用手動種子。
             measure.SetReferenceCenters(discoverX, discoverY, discoverX, discoverY);
             measure.UpdatePattern(height, gray);
             measure.UpdateReference(height, gray);
 
+            // 用 Zero@Ref 再探一次；直徑不合格則整筆失敗、不覆蓋 png。
             if (!measure.TryValidateCalibrationProbe(
                     height, out _, out _, out _, out _, out var validateMessage))
             {
                 throw new InvalidOperationException(validateMessage + " 已取消覆蓋 ref_*.png。");
             }
 
-            // 樣板／Ref 以尋球成功後的 UpdatePattern（上段）為準，不再依 Execute
-            // 直徑排序第一顆重寫，避免視野內有多球時樣板被換成 B/C。
-            // var result = measure.Execute(height, gray);
-            // if (measure.TryGetFirstKeptSphere(
-            //         result, out var ballX, out var ballY, out _, out var ballD, out _))
-            // {
-            //     measure.SetReferenceCenters(ballX, ballY, ballX, ballY);
-            //     measure.UpdatePattern(height, gray);
-            //     measure.UpdateReference(height, gray);
-            //
-            //     if (!measure.TryValidateCalibrationProbe(
-            //             height, out _, out _, out _, out _, out validateMessage))
-            //     {
-            //         throw new InvalidOperationException(
-            //             "以量測球心重訓後驗證失敗：" + validateMessage + " 已取消覆蓋 ref_*.png。");
-            //     }
-            //
-            //     result = measure.Execute(height, gray);
-            // }
+            // 舊作法：Execute 後用直徑第一顆當樣板，多球時會鎖到 B/C，已停用。
+            // 樣板／Ref 以尋球成功後的 UpdatePattern（上段）為準。
 
-            // 對齊 Winform PersistReferenceCenters + PersistCalibration
+            // 對齊 Winform PersistCalibration：舊 png 進 backup 後寫入本次高度／輝度當新 Ref 圖。
             PersistRefImages(contentsFolder, height, gray);
 
             return new ReferenceSetupResult
@@ -159,12 +155,14 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
         }
     }
 
+    /// <summary>建構量測核心前確認 ref_height.png 存在（樣板從這張圖訓）。</summary>
     private static LjDeveloperMeasureCore CreateMeasure(string contentsFolder)
     {
         EnsureRefImagesExist(contentsFolder);
         return new LjDeveloperMeasureCore(contentsFolder);
     }
 
+    /// <summary>沒有 Ref 圖就不能量；請先跑 reference-setup。</summary>
     private static void EnsureRefImagesExist(string contentsFolder)
     {
         var heightPath = Path.Combine(contentsFolder, "ref_height.png");
@@ -173,6 +171,7 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
             $"找不到參考影像 {heightPath}。請先執行 POST /api/calibration/reference-setup。");
     }
 
+    /// <summary>舊 ref png 複製到 backup/ 後寫入本次影像。尋球失敗不應走到這裡。</summary>
     private static void PersistRefImages(string contentsFolder, LHeightImage height, LGrayImage gray)
     {
         var backupDir = Path.Combine(contentsFolder, "backup");
@@ -192,6 +191,7 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
             throw new InvalidOperationException($"寫入 ref 影像失敗: height={hErr}, gray={gErr}");
     }
 
+    /// <summary>優先用擷取快取的高度／輝度；沒快取才從檔案讀。</summary>
     private static (LHeightImage Height, LGrayImage Gray) LoadCapture(ScannerCaptureResult capture)
     {
         if (ScanCaptureCache.TryGet(capture.CaptureId, out var h, out var g))
@@ -206,6 +206,7 @@ public sealed class LjDeveloperMeasureEngine : ILjSphereMeasureEngine
         return (height, gray);
     }
 
+    /// <summary>從 Execute 結果抽出直徑合格的球；Index 為保留順序而非 PM 槽位。</summary>
     private static IEnumerable<MeasuredBall> ExtractBalls(
         IList<ILToolInfo> results,
         LjCalibrationParameters parameters)

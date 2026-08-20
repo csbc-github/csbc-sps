@@ -1,18 +1,20 @@
 using Microsoft.EntityFrameworkCore;
 using ThreeDScan.Domain;
-using ThreeDScan.Domain.Abstractions;
+using ThreeDScan.Domain.Repositories;
 using ThreeDScan.Domain.Models;
-using ThreeDScan.Infrastructure.Data;
-using ThreeDScan.Infrastructure.Data.Entities;
+using ThreeDScan.Infrastructure.Repositories.Models;
 
-namespace ThreeDScan.Infrastructure.Persistence;
+namespace ThreeDScan.Infrastructure.Repositories;
 
 /// <summary>掃描器拍攝群組顯示名稱資料庫存取（EF Core）。</summary>
-public sealed class ScannerProgramGroupStore : IScannerProgramGroupStore
+public sealed class ScannerProgramGroupRepository : IScannerProgramGroupRepository
 {
     private readonly ThreeDScanDbContext _db;
 
-    public ScannerProgramGroupStore(ThreeDScanDbContext db) => _db = db;
+    public ScannerProgramGroupRepository(ThreeDScanDbContext db)
+    {
+        _db = db;
+    }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ScannerProgramGroup>> GetOrCreateAsync(

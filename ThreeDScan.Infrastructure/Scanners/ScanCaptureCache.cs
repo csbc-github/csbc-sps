@@ -7,7 +7,9 @@ internal static class ScanCaptureCache
     private static readonly Dictionary<string, (LHeightImage Height, LGrayImage Gray)> Cache = new();
 
     public static void Store(string captureId, LHeightImage height, LGrayImage gray)
-        => Cache[captureId] = (height, gray);
+    {
+        Cache[captureId] = (height, gray);
+    }
 
     public static bool TryGet(string captureId, out LHeightImage height, out LGrayImage gray)
     {
@@ -22,5 +24,8 @@ internal static class ScanCaptureCache
         return false;
     }
 
-    public static void Remove(string captureId) => Cache.Remove(captureId);
+    public static void Remove(string captureId)
+    {
+        Cache.Remove(captureId);
+    }
 }

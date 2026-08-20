@@ -1,4 +1,4 @@
-namespace ThreeDScan.Application.Calibration.Dtos;
+namespace ThreeDScan.Application.Calibration.Models;
 
 /// <summary>POST /api/calibration/reference 成功回應資料。</summary>
 public sealed class ReferenceSetupData

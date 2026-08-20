@@ -20,6 +20,11 @@ public sealed class CalibrationSettings
     public int InstrumentTaskTtlMinutes { get; set; } = 30;
 
     /// <summary>是否為除錯回應模式。</summary>
-    public bool IsDebugResponse =>
-        string.Equals(ResponseMode, "Debug", StringComparison.OrdinalIgnoreCase);
+    public bool IsDebugResponse
+    {
+        get
+        {
+            return string.Equals(ResponseMode, "Debug", StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }
