@@ -14,8 +14,8 @@ public interface ICalibrationAppService
         CancellationToken ct = default);
 
     /// <summary>
-    /// 開發用 Ref 建立：再拍攝 → 以 DB 既有 Ref 為種子尋球 → 覆寫 ScannerConfig.Ref* 與 ref_*.png。
-    /// 不推送 WPF。尋球評分是「直徑最接近預期值」，不是「離種子最近」，寫回座標可能離開手動填的點。
+    /// 開發用 Ref 建立：拍攝一張 → 在 DB 指定的 Ref XY 擬合 → 覆寫 ScannerConfig.Ref* 與 ref_*.png。
+    /// 不推送 WPF。不搜尋附近；寫回的是該點擬合球心。
     /// </summary>
     Task<ApiResponse<ReferenceSetupData>> SetupReferenceAsync(
         ReferenceSetupRequest request,

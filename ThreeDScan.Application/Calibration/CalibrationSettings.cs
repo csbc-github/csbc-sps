@@ -19,6 +19,11 @@ public sealed class CalibrationSettings
     /// <summary>InstrumentCalibrationTask 暫存有效分鐘數（預設 30）。</summary>
     public int InstrumentTaskTtlMinutes { get; set; } = 30;
 
+    /// <summary>
+    /// 測試模式：不連掃描器、不寫補償／Ref，直接回固定範例供串接。
+    /// </summary>
+    public bool TestMode { get; set; }
+
     /// <summary>是否為除錯回應模式。</summary>
     public bool IsDebugResponse
     {

@@ -26,10 +26,9 @@ public sealed class CalibrationController : ControllerBase
     }
 
     /// <summary>
-    /// 開發用 Ref 建立（對齊 LJScanWinform 校正按鈕）。不推送 WPF。
-    /// 現場流程：測試掃描讀球心 → 手動寫入 ScannerConfig.Ref* → 再呼叫本 API。
-    /// 注意：API 會再拍一張圖，在 DB 種子附近網格尋球，成功後覆寫 Ref X/Y 與 ref_*.png
-    /// （不是把你手動填的座標原樣當球心鎖住）。
+    /// 開發用 Ref 建立。不推送 WPF。
+    /// 現場：測試掃描讀球心 → 寫入 ScannerConfig.Ref* → 呼叫本 API。
+    /// 拍攝一張，在 DB 指定 XY 擬合；成功後覆寫 Ref X/Y 與 ref_*.png。
     /// </summary>
     [HttpPost("reference-setup")]
     public async Task<IActionResult> SetupReference(

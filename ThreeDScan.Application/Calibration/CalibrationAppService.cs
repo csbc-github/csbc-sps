@@ -87,6 +87,11 @@ public sealed class CalibrationAppService : ICalibrationAppService
                     null, ct);
             }
 
+            if (_calibrationSettings.TestMode)
+            {
+                return BuildInstrumentTestModeResponse(request, traceId);
+            }
+
             if (!_registry.TryGetEndpoint(request.ScannerId, out var endpoint))
                 return await InstrumentFailAsync(request, traceId, "CAL_CFG_001", $"未知 ScannerId: {request.ScannerId}", null, ct);
 
@@ -498,8 +503,8 @@ public sealed class CalibrationAppService : ICalibrationAppService
 
     /// <inheritdoc />
     /// <remarks>
-    /// 步驟：讀 DB 種子 → 再拍一張（非測試掃描那張）→ SDK 尋球 → 成功才 Upsert。
-    /// Ref X/Y 寫的是尋球結果，不是 existing 裡手動填的值；ExpectedBallDiameter 則刻意不覆寫。
+    /// 讀 DB 指定 XY → 拍攝一張 → 在該點擬合 → 成功才 Upsert。
+    /// Ref X/Y 寫該次擬合球心；ExpectedBallDiameter 不覆寫。
     /// </remarks>
     public async Task<ApiResponse<ReferenceSetupData>> SetupReferenceAsync(
         ReferenceSetupRequest request,
@@ -508,6 +513,12 @@ public sealed class CalibrationAppService : ICalibrationAppService
         var traceId = Guid.NewGuid().ToString("N");
         try
         {
+            if (_calibrationSettings.TestMode)
+            {
+                return ApiResponse<ReferenceSetupData>.Ok(
+                    ReferenceSetupTestFixture.Create(request.ScannerId, traceId));
+            }
+
             if (!_registry.TryGetEndpoint(request.ScannerId, out var endpoint))
                 return await ReferenceFailAsync(request, traceId, "CAL_CFG_001", $"未知 ScannerId: {request.ScannerId}", ct);
 
@@ -517,17 +528,15 @@ public sealed class CalibrationAppService : ICalibrationAppService
             var existing = await _configRepository.GetAsync(request.ScannerId, ct);
             var effectiveParams = LjCalibrationMerge.ForScanner(existing, _calibrationParams);
 
-            // 再拍攝：測試掃描座標不會帶進來，只透過 existing.Ref* 當種子。
             var capture = await _captureFactory.GetCapture(request.ScannerId).CaptureAsync(programNo, ct);
             var setup = await _measureEngine.SetupReferenceAsync(
                 request.ScannerId, existing, capture, effectiveParams, contentsFolder, ct);
 
-            // 組要寫回 DB 的一列：Ref XY 用尋球結果；其餘校正參數沿用 existing。
-            // ExpectedBallDiameter 不以本次 discoveredDiameter 覆寫（噪聲會把錯誤標準鎖進 instrument）。
+            // Ref XY 寫該點擬合球心；其餘校正參數沿用 existing。
+            // ExpectedBallDiameter 不以本次 discoveredDiameter 覆寫。
             var record = new ScannerConfigRecord
             {
                 ScannerId = request.ScannerId,
-                // 尋球擬合球心；現場手動填的種子若與擬合點不同，此處會被蓋掉。
                 RefPatternX = setup.RefPatternX,
                 RefPatternY = setup.RefPatternY,
                 RefSphereX = setup.RefSphereX,
@@ -797,7 +806,26 @@ public sealed class CalibrationAppService : ICalibrationAppService
     }
 
     /// <summary>
-    /// Production 只回規格欄位：seq=1 為 taskId／status；seq=2 為補償／rmseXY／zDeviation。
+    /// 測試模式：不連掃描器、不寫 task／補償，依 final 回固定第一次或第二次範例。
+    /// </summary>
+    private ApiResponse<InstrumentCalibrationData> BuildInstrumentTestModeResponse(
+        InstrumentCalibrationRequest request,
+        string traceId)
+    {
+        if (!request.Final)
+        {
+            var taskId = Guid.NewGuid().ToString("N");
+            var first = InstrumentCalibrationTestFixture.CreateFirstShot(
+                request.ScannerId, taskId, traceId);
+            return ApiResponse<InstrumentCalibrationData>.Ok(ApplyResponseMode(first));
+        }
+
+        var second = InstrumentCalibrationTestFixture.CreateSecondShot(
+            request.ScannerId, request.TaskId!, traceId);
+        return ApiResponse<InstrumentCalibrationData>.Ok(ApplyResponseMode(second));
+    }
+
+    /// <summary>
     /// Debug 回完整量測球與中間值。
     /// </summary>
     private InstrumentCalibrationData ApplyResponseMode(InstrumentCalibrationData data)

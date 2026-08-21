@@ -63,7 +63,10 @@ public static class AuthenticationServiceCollectionExtensions
                     // SignalR 無法像 REST 一樣方便帶 Authorization header，改從 query 取 access_token
                     OnMessageReceived = context =>
                     {
+                        Console.WriteLine("aaaaaaaaaaaaaaaa");
                         var accessToken = context.Request.Query["access_token"];
+                        Console.WriteLine(accessToken);
+                        Console.WriteLine(context.Request.Headers["Authorization"]);
                         var path = context.HttpContext.Request.Path;
                         if (!string.IsNullOrEmpty(accessToken) &&
                             path.StartsWithSegments(CalibrationPreviewHub.HubPath))

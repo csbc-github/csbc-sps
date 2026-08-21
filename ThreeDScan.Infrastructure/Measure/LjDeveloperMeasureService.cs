@@ -21,7 +21,7 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureEngine
     }
 
     /// <inheritdoc />
-    /// <remarks>實際邏輯在 <see cref="SetupReferenceCore"/>：種子尋球 → 重訓樣板 → 覆蓋 png。</remarks>
+    /// <remarks>實際邏輯在 <see cref="SetupReferenceCore"/>：指定座標擬合 → 重訓樣板 → 覆蓋 png。</remarks>
     public Task<ReferenceSetupResult> SetupReferenceAsync(
         string scannerId,
         ScannerConfigRecord? existingConfig,
@@ -50,7 +50,7 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureEngine
             var measure = CreateMeasure(config.ContentsFolder);
             var (height, gray) = LoadCapture(capture);
 
-            // PatternMatch + 球擬合；保留規則見 Execute（直徑優先，不保證含 Ref 球）。
+            // PatternMatch + 在 PM 對到的 XY 擬合；直徑只當及格，不依直徑排序。
             var results = measure.Execute(height, gray);
             var balls = ExtractBalls(results, parameters).ToList();
 
@@ -76,8 +76,8 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureEngine
     }
 
     /// <summary>
-    /// Ref 建立核心：existingConfig.Ref* 只當尋球種子。
-    /// 成功後 ActiveRef* 改為擬合球心，呼叫端會寫回 DB；失敗則不覆蓋 png。
+    /// Ref 建立核心：在 existingConfig.Ref* 指定座標擬合。
+    /// 成功後 ActiveRef* 改為該次擬合球心，呼叫端寫回 DB；失敗則不覆蓋 png。
     /// </summary>
     private static ReferenceSetupResult SetupReferenceCore(
         string scannerId,
@@ -108,18 +108,15 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureEngine
 
             var measure = CreateMeasure(contentsFolder);
 
-            // 把 DB 種子載入 Pattern／Sphere ROI，之後尋球才知道從哪裡開始。
             measure.ReloadReferenceFromConfig();
 
-            // 在種子附近網格＋PM 候選探測；選直徑最接近預期值者（可離開種子數十 mm）。
-            if (!measure.TryDiscoverCalibrationBallCenter(
+            if (!measure.TryFitCalibrationBallAtRef(
                     height, out var discoverX, out var discoverY, out var discoverD, out var discoverMessage))
             {
                 throw new InvalidOperationException(
-                    "校正尋球失敗：" + discoverMessage + " 已取消覆蓋 ref_*.png。");
+                    "Ref 擬合失敗：" + discoverMessage + " 已取消覆蓋 ref_*.png。");
             }
 
-            // 後續樣板與球擬合都改以尋到的點為中心，不再用手動種子。
             measure.SetReferenceCenters(discoverX, discoverY, discoverX, discoverY);
             measure.UpdatePattern(height, gray);
             measure.UpdateReference(height, gray);
@@ -131,8 +128,7 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureEngine
                 throw new InvalidOperationException(validateMessage + " 已取消覆蓋 ref_*.png。");
             }
 
-            // 舊作法：Execute 後用直徑第一顆當樣板，多球時會鎖到 B/C，已停用。
-            // 樣板／Ref 以尋球成功後的 UpdatePattern（上段）為準。
+            // 樣板／Ref 以該點擬合後的 UpdatePattern 為準。
 
             // 對齊 Winform PersistCalibration：舊 png 進 backup 後寫入本次高度／輝度當新 Ref 圖。
             PersistRefImages(contentsFolder, height, gray);

@@ -143,8 +143,7 @@ internal sealed class LjDeveloperMeasureCore
     #region 執行
 
     /// <summary>
-    /// 儀器校正量測：PatternMatch 取分數最高若干候選，球擬合後依「直徑最接近預期值」保留 BallCount 顆。
-    /// 不強制保留 Ref 種子那顆；Ref 球直徑稍差就可能被其他合格候選擠掉。
+    /// 儀器校正量測：PatternMatch 找候選，只在該 XY 擬合；直徑及格才留，按 PM 分數順序取 BallCount 顆。
     /// </summary>
     public IList<ILToolInfo> Execute(LHeightImage inputHeightImage, LGrayImage inputGrayImage)
     {
@@ -218,20 +217,20 @@ internal sealed class LjDeveloperMeasureCore
             sphereCandidates.Add((i, x, y, z, d, pmScore, deltaSrc, info));
         }
 
-        // 直徑越接近 24.9 越優先；同分才比 PM 分數。Ref 那顆沒有加權。
-        sphereCandidates.Sort((a, b) =>
-        {
-            var da = Math.Abs(a.D - BallSettings.ExpectedBallDiameter);
-            var db = Math.Abs(b.D - BallSettings.ExpectedBallDiameter);
-            var cmp = da.CompareTo(db);
-            return cmp != 0 ? cmp : b.PmScore.CompareTo(a.PmScore);
-        });
+        // 原作法：依 |D−24.9| 排序後取球（假球徑較準時會擠掉真球）。
+        // sphereCandidates.Sort((a, b) =>
+        // {
+        //     var da = Math.Abs(a.D - BallSettings.ExpectedBallDiameter);
+        //     var db = Math.Abs(b.D - BallSettings.ExpectedBallDiameter);
+        //     var cmp = da.CompareTo(db);
+        //     return cmp != 0 ? cmp : b.PmScore.CompareTo(a.PmScore);
+        // });
 
         var minSepSq = BallSettings.MinSphereCenterSeparationMm * BallSettings.MinSphereCenterSeparationMm;
         var keptCenters = new List<(double X, double Y)>();
         var keepCount = 0;
 
-        // 依直徑排序後取前 BallCount 顆；過近視為同一顆。Ref 種子沒有保送名額。
+        // 維持 PM 分數順序（uniquePmIndices 已排序）；直徑只在擬合時當及格與否。
         foreach (var c in sphereCandidates)
         {
             var isDuplicate = keptCenters.Any(k =>
@@ -275,10 +274,93 @@ internal sealed class LjDeveloperMeasureCore
     }
 
     /// <summary>
-    /// 對單一 PM 候選依固定優先序嘗試 delta，取第一個直徑可接受的結果。
-    /// 不用「多策略比最接近預期直徑」——噪聲會讓各次選到不同 delta，造成球不動但 D/座標飄。
+    /// 對單一 PM 候選：只在 PM 回報的 XY 做一次球擬合。
+    /// 直徑只當及格與否；擬合球心須靠近該 PM 點。
     /// </summary>
     private bool TryFitSphereCandidate(
+        int candidateIndex,
+        double pmScore,
+        LHeightImage inputHeightImage,
+        LEachPatternMatchResult[] eachResults,
+        Dictionary<LSphereResultType, string> sphereResultTypeList,
+        Dictionary<LUnitType, string> unitDic,
+        out double x,
+        out double y,
+        out double z,
+        out double d,
+        out string deltaSrc,
+        out LSphereToolInfo info,
+        out string logLine)
+    {
+        x = y = z = d = 0;
+        deltaSrc = "PM@XY";
+        info = null;
+        logLine = "";
+
+        var pmCenter = eachResults[candidateIndex].AbsolutePosition.CenterPosition;
+        var pmX = pmCenter.X;
+        var pmY = pmCenter.Y;
+        const double maxCenterDriftMm = 5.0;
+        var maxCenterDriftSq = maxCenterDriftMm * maxCenterDriftMm;
+
+        var sphereParam = _spheres[candidateIndex].Param;
+        sphereParam.Name = $"[002]球_{candidateIndex}";
+        sphereParam.Region = new LCircle(pmX, pmY, BallSettings.SphereRadius);
+        sphereParam.Method = LSphereMethod.LeastSquare;
+        sphereParam.TargetData = LSphereTargetData.SampledDataInAllRegions;
+        _spheres[candidateIndex].Param = sphereParam;
+        _spheres[candidateIndex].UpdateReference(inputHeightImage);
+        _spheres[candidateIndex].Execute(inputHeightImage, CreateZeroDeltaAt(pmX, pmY));
+
+        var candidateInfo = new LSphereToolInfo(
+            _spheres[candidateIndex], sphereResultTypeList, unitDic, 2 + candidateIndex);
+        var sv = candidateInfo.ToolMeasureValues().Values;
+        if (sv == null || sv.Length < 4)
+        {
+            logLine = $"  [{candidateIndex}] PM=({pmX:F2}, {pmY:F2}) 無法取得球擬合結果";
+            return false;
+        }
+
+        var cx = sv[0].Value;
+        var cy = sv[1].Value;
+        var cz = sv[2].Value;
+        var cd = sv[3].Value;
+        if (double.IsNaN(cd) || double.IsInfinity(cd))
+        {
+            logLine = $"  [{candidateIndex}] PM=({pmX:F2}, {pmY:F2}) 擬合直徑無效";
+            return false;
+        }
+
+        var driftX = cx - pmX;
+        var driftY = cy - pmY;
+        if (driftX * driftX + driftY * driftY > maxCenterDriftSq)
+        {
+            logLine =
+                $"  [{candidateIndex}] PM=({pmX:F2}, {pmY:F2}) 擬合球心=({cx:F2}, {cy:F2}) " +
+                $"偏離 > {maxCenterDriftMm:F0} mm -> 丟棄";
+            return false;
+        }
+
+        if (!BallSettings.IsAcceptableSphereDiameter(cd))
+        {
+            logLine =
+                $"  [{candidateIndex}] PM@XY X={cx:F2}, Y={cy:F2}, Z={cz:F2}, D={cd:F3}, " +
+                $"score={pmScore:F1} -> 丟棄(超過 MaxDiameterError)";
+            return false;
+        }
+
+        x = cx;
+        y = cy;
+        z = cz;
+        d = cd;
+        info = candidateInfo;
+        logLine =
+            $"  [{candidateIndex}] PM@XY X={x:F2}, Y={y:F2}, Z={z:F2}, D={d:F3}, score={pmScore:F1} -> 候選保留";
+        return true;
+    }
+
+#if false
+    private bool TryFitSphereCandidateByDelta(
         int candidateIndex,
         double pmScore,
         LHeightImage inputHeightImage,
@@ -299,7 +381,6 @@ internal sealed class LjDeveloperMeasureCore
         logLine = "";
 
         var pmCenter = eachResults[candidateIndex].AbsolutePosition.CenterPosition;
-        // 球心必須接近對應 PM 候選；若飄離太遠，多半是地面/錯配假球。
         var maxCenterDriftMm = Math.Max(BallSettings.ExpectedBallDiameter * 1.2, BallSettings.SphereRadius * 2.5);
         var maxCenterDriftSq = maxCenterDriftMm * maxCenterDriftMm;
 
@@ -372,7 +453,6 @@ internal sealed class LjDeveloperMeasureCore
             deltas.Add((d, source));
         }
 
-        // 優先序固定，讓「球不動」時較常走同一條 delta。
         if (eachResults != null && candidateIndex < eachResults.Length)
         {
             var rel = eachResults[candidateIndex].RegionRelatedPosition;
@@ -407,6 +487,7 @@ internal sealed class LjDeveloperMeasureCore
 
         return deltas;
     }
+#endif
 
     #endregion
 
@@ -494,146 +575,56 @@ internal sealed class LjDeveloperMeasureCore
     #region 校正驗證
 
     /// <summary>
-    /// 儀器校正尋球：在 Ref 種子附近對每個候選做球擬合，留下直徑最接近預期值的球心。
-    /// 候選＝種子本身 + 半徑內的 PM 點 + 網格點（預設 R=25mm、step=3mm）。
-    /// 不保證回傳點是種子上那顆球的視覺中心；畫面上看起來「不是球心」多半是網格另選了一點。
+    /// 在 ScannerConfig 指定的 Ref XY 做一次球擬合。
+    /// 不搜尋附近、不用 Pattern Match、不與其他點比直徑；寫回的是該點的擬合球心。
     /// </summary>
-    public bool TryDiscoverCalibrationBallCenter(
+    public bool TryFitCalibrationBallAtRef(
         LHeightImage inputHeightImage,
         out double centerX,
         out double centerY,
         out double diameter,
         out string message)
     {
-        centerX = _activeRefPatternX;
-        centerY = _activeRefPatternY;
+        var seedX = _activeRefPatternX;
+        var seedY = _activeRefPatternY;
+        centerX = seedX;
+        centerY = seedY;
         diameter = double.NaN;
         message = "";
 
         AppendLog(
-            $"---- {DateTime.Now:HH:mm:ss.fff} 校正尋球開始：seed Ref=({_activeRefPatternX:F3}, {_activeRefPatternY:F3}) ----");
+            $"---- {DateTime.Now:HH:mm:ss.fff} Ref 擬合開始：指定座標=({seedX:F3}, {seedY:F3}) ----");
 
-        _patternMatch.Execute(inputHeightImage);
-        var eachResults = _patternMatch.Result?.EachResults;
-        if (eachResults == null || eachResults.Length == 0)
+        if (!TryProbeSphereAt(inputHeightImage, seedX, seedY, out var fittedX, out var fittedY, out var fittedD))
         {
-            message = "PatternMatch 無候選，請確認球在視野內。";
+            message = $"球擬合失敗：無法在指定 Ref 座標 ({seedX:F3}, {seedY:F3}) 讀取量測值。";
+            AppendLog($"---- {DateTime.Now:HH:mm:ss.fff} {message} ----");
             return false;
         }
 
-        var unitDic = CreateUnitDictionary();
-        var pmInfo = CreatePatternMatchToolInfo(unitDic);
-        var pmEach = pmInfo.ToolMeasureValues().EachValues;
-        var candidates = new List<(double X, double Y, string Source)>
+        if (!BallSettings.IsAcceptableSphereDiameter(fittedD))
         {
-            (_activeRefPatternX, _activeRefPatternY, "Ref")
-        };
-
-        // 網格是為「手放球偏離種子」找球，不是把種子當答案。上限見 LjMeasureSettings。
-        var gridStep = BallSettings.CalibrationDiscoverGridStepMm;
-        var gridRadius = Math.Min(
-            BallSettings.CalibrationDiscoverAbsoluteMaxMm,
-            BallSettings.CalibrationDiscoverSearchRadiusMm);
-
-        var detectedCount = Math.Min(BallCount, eachResults.Length);
-        for (var i = 0; i < detectedCount; i++)
-        {
-            var score = GetPmScore(pmEach, i);
-            if (score <= 0) continue;
-
-            var p = eachResults[i].AbsolutePosition.CenterPosition;
-            var dx = p.X - _activeRefPatternX;
-            var dy = p.Y - _activeRefPatternY;
-            // 只收種子半徑內的 PM，避免全視野假球進候選。
-            if (dx * dx + dy * dy > gridRadius * gridRadius) continue;
-            candidates.Add((p.X, p.Y, $"PM[{i}] score={score:F1}"));
-        }
-
-        AppendLog(
-            $"---- {DateTime.Now:HH:mm:ss.fff} 校正尋球：候選 {candidates.Count} 點 + 網格 R={gridRadius:F0}mm step={gridStep:F1}mm ----");
-
-        // 以種子為圓心鋪格點；log 的 Grid(+11,-13) 就是這裡產生的。
-        for (var dx = -gridRadius; dx <= gridRadius; dx += gridStep)
-        {
-            for (var dy = -gridRadius; dy <= gridRadius; dy += gridStep)
-            {
-                if (dx * dx + dy * dy > gridRadius * gridRadius) continue;
-                candidates.Add((_activeRefPatternX + dx, _activeRefPatternY + dy, $"Grid({dx:+0;-0;0},{dy:+0;-0;0})"));
-            }
-        }
-
-        var originalPatternX = _activeRefPatternX;
-        var originalPatternY = _activeRefPatternY;
-        var originalSphereX = _activeRefSphereX;
-        var originalSphereY = _activeRefSphereY;
-
-        var bestFound = false;
-        var bestError = double.MaxValue;
-        var bestX = centerX;
-        var bestY = centerY;
-        var bestD = diameter;
-        var bestSource = "";
-        // 門檻外最接近的點，只供失敗訊息，不會寫成 Ref。
-        var bestAnyError = double.MaxValue;
-        var bestAnyD = double.NaN;
-        var bestAnyX = double.NaN;
-        var bestAnyY = double.NaN;
-        var bestAnySource = "";
-
-        foreach (var c in candidates)
-        {
-            if (!TryProbeSphereAt(inputHeightImage, c.X, c.Y, out var px, out var py, out var pd))
-                continue;
-
-            // 評分：|擬合直徑 − 預期球徑|，不是到種子的距離。
-            var err = Math.Abs(pd - BallSettings.ExpectedBallDiameter);
-            if (err < bestAnyError)
-            {
-                bestAnyError = err;
-                bestAnyD = pd;
-                bestAnyX = px;
-                bestAnyY = py;
-                bestAnySource = c.Source;
-            }
-            if (err > BallSettings.MaxDiameterError) continue;
-
-            if (err < bestError)
-            {
-                bestFound = true;
-                bestError = err;
-                bestX = px;
-                bestY = py;
-                bestD = pd;
-                bestSource = c.Source;
-            }
-        }
-
-        if (!bestFound)
-        {
-            // 沒合格點：把 ROI 還原，避免半套尋球結果留在記憶體。
-            ApplyReferenceCenters(originalPatternX, originalPatternY, originalSphereX, originalSphereY);
-            message = $"未找到直徑 {BallSettings.ExpectedBallDiameter}±{BallSettings.MaxDiameterError} mm 的校正球。";
-            if (!double.IsNaN(bestAnyD))
-            {
-                message += $" 最接近候選：({bestAnyX:F2}, {bestAnyY:F2}), D={bestAnyD:F3}, 來源={bestAnySource}。";
-            }
-            AppendLog($"---- {DateTime.Now:HH:mm:ss.fff} 校正尋球失敗：{message} ----");
+            message =
+                $"球擬合失敗：指定 Ref 座標量得 D={fittedD:F3} mm" +
+                $"（預期 {BallSettings.ExpectedBallDiameter}±{BallSettings.MaxDiameterError}）。";
+            AppendLog($"---- {DateTime.Now:HH:mm:ss.fff} {message} ----");
             return false;
         }
 
-        // 記憶體中的 Ref 改為優勝點；寫 DB 由 SetupReferenceAsync 負責。
-        ApplyReferenceCenters(bestX, bestY, bestX, bestY);
-        centerX = bestX;
-        centerY = bestY;
-        diameter = bestD;
-        message = $"校正尋球成功：({bestX:F2}, {bestY:F2})，D={bestD:F3} mm，來源={bestSource}";
+        ApplyReferenceCenters(fittedX, fittedY, fittedX, fittedY);
+        centerX = fittedX;
+        centerY = fittedY;
+        diameter = fittedD;
+        message =
+            $"Ref 擬合成功：擬合球心=({fittedX:F2}, {fittedY:F2})，D={fittedD:F3} mm" +
+            $"（指定座標 ({seedX:F3}, {seedY:F3})）。";
         AppendLog($"---- {DateTime.Now:HH:mm:ss.fff} {message} ----");
         return true;
     }
 
     /// <summary>
     /// 在指定 ROI 中心做一次球擬合，回傳擬合球心 XY 與直徑。
-    /// region 只是探測位置；回傳的 fittedXY 可能偏離 region（最小平方擬合結果）。
+    /// region 是指定的 Ref 座標；回傳的 fittedXY 是最小平方球心，可相對 region 微調。
     /// </summary>
     private bool TryProbeSphereAt(
         LHeightImage inputHeightImage,

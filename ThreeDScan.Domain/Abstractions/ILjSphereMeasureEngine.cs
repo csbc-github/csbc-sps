@@ -14,8 +14,8 @@ public interface ILjSphereMeasureEngine
         CancellationToken ct = default);
 
     /// <summary>
-    /// 在已擷取影像上建立／更新 Ref：以 ScannerConfig 種子尋球、重訓樣板、寫出 ref_height/gray.png。
-    /// 回傳的 Ref* 是尋球擬合球心，呼叫端會寫回 DB（可能與種子不同）。
+    /// 在已擷取影像上建立／更新 Ref：於 ScannerConfig 指定 XY 擬合、重訓樣板、寫出 ref_height/gray.png。
+    /// 回傳的 Ref* 是該點的擬合球心，呼叫端寫回 DB。
     /// </summary>
     Task<ReferenceSetupResult> SetupReferenceAsync(
         string scannerId,
