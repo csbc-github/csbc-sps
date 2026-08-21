@@ -7,7 +7,7 @@ using ThreeDScan.Infrastructure.Scanners;
 namespace ThreeDScan.Infrastructure.Measure;
 
 /// <summary>LJ Developer SDK 尋球與 Ref 建立實作。</summary>
-public sealed class LjDeveloperMeasureService : ILjSphereMeasureEngine
+public sealed class LjDeveloperMeasureService : ILjSphereMeasureService
 {
     /// <inheritdoc />
     public Task<SphereMeasureResult> MeasureAsync(

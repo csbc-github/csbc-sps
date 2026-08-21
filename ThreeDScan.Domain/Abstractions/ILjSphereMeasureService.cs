@@ -3,7 +3,7 @@ using ThreeDScan.Domain.Models;
 namespace ThreeDScan.Domain.Abstractions;
 
 /// <summary>LJ Developer PM + Sphere (ljd_measure)。</summary>
-public interface ILjSphereMeasureEngine
+public interface ILjSphereMeasureService
 {
     /// <summary>對已擷取影像執行 Pattern Match 尋球與球心量測（儀器校正 UC-01）。</summary>
     Task<SphereMeasureResult> MeasureAsync(

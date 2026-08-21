@@ -33,7 +33,7 @@ public static class DependencyInjection
 
         services.AddSingleton<IScannerRegistry, ScannerRegistry>();
         services.AddSingleton<IScannerCaptureFactory, ScannerCaptureFactory>();
-        services.AddSingleton<ILjSphereMeasureEngine, LjDeveloperMeasureService>();
+        services.AddSingleton<ILjSphereMeasureService, LjDeveloperMeasureService>();
         services.AddScoped<ICompensationRepository, CompensationRepository>();
         services.AddScoped<IScannerConfigRepository, ScannerConfigRepository>();
         services.AddScoped<IScannerProgramSettingsRepository, ScannerProgramSettingsRepository>();

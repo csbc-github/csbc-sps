@@ -17,7 +17,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
     private readonly IOperationLogRepository _operationLogRepository;
     private readonly IInstrumentCalibrationTaskRepository _taskRepository;
     private readonly IScannerCaptureFactory _captureFactory;
-    private readonly ILjSphereMeasureEngine _measureEngine;
+    private readonly ILjSphereMeasureService _measureService;
     private readonly ICalibrationPreviewPublisher _previewPublisher;
     private readonly LjCalibrationParameters _calibrationParams;
     private readonly CalibrationSettings _calibrationSettings;
@@ -32,7 +32,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         IOperationLogRepository operationLogRepository,
         IInstrumentCalibrationTaskRepository taskRepository,
         IScannerCaptureFactory captureFactory,
-        ILjSphereMeasureEngine measureEngine,
+        ILjSphereMeasureService measureService,
         ICalibrationPreviewPublisher previewPublisher,
         IOptions<LjCalibrationParameters> calibrationParams,
         IOptions<CalibrationSettings> calibrationSettings,
@@ -45,7 +45,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         _operationLogRepository = operationLogRepository;
         _taskRepository = taskRepository;
         _captureFactory = captureFactory;
-        _measureEngine = measureEngine;
+        _measureService = measureService;
         _previewPublisher = previewPublisher;
         _calibrationParams = calibrationParams.Value;
         _calibrationSettings = calibrationSettings.Value;
@@ -213,7 +213,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         var detectCount = Math.Clamp(request.StandardBalls.Count, 1, 10);
         var measureParams = WithDetectCount(effectiveParams, detectCount);
 
-        var measure = await _measureEngine.MeasureAsync(request.ScannerId, config, capture, measureParams, ct);
+        var measure = await _measureService.MeasureAsync(request.ScannerId, config, capture, measureParams, ct);
 
         // SDK 一顆都沒留：CAL_FEED_001（與「有抓到但少於台船顆數」同一碼，訊息不同）。
         if (measure.KeptCount == 0)
@@ -532,7 +532,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
             var effectiveParams = LjCalibrationMerge.ForScanner(existing, _calibrationParams);
 
             var capture = await _captureFactory.GetCapture(request.ScannerId).CaptureAsync(programNo, ct);
-            var setup = await _measureEngine.SetupReferenceAsync(
+            var setup = await _measureService.SetupReferenceAsync(
                 request.ScannerId, existing, capture, effectiveParams, contentsFolder, ct);
 
             // Ref XY 寫該點擬合球心；其餘校正參數沿用 existing。
