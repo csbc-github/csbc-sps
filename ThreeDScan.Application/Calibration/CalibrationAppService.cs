@@ -516,7 +516,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
             if (_calibrationSettings.TestMode)
             {
                 return ApiResponse<ReferenceSetupData>.Ok(
-                    ReferenceSetupTestFixture.Create(request.ScannerId, traceId));
+                    ReferenceSetupTestFixture.Create(
+                        request.ScannerId,
+                        traceId,
+                        _registry.ResolveScannerContentsFolder(request.ScannerId, _storage.ContentsRoot)));
             }
 
             if (!_registry.TryGetEndpoint(request.ScannerId, out var endpoint))

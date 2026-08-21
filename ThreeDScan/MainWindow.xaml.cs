@@ -1,7 +1,6 @@
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using ThreeDScan.Auth;
-using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.ViewModels;
 using ThreeDScan.Views;
@@ -20,7 +19,7 @@ public partial class MainWindow : Window
         _config = AppConfiguration.Load();
 
         var calibrationParams = new LjCalibrationParameters();
-        var contentsRoot = _config["Storage:ContentsRoot"] ?? @"D:\3DScan\contents";
+        var contentsRoot = _config["Storage:ContentsRoot"] ?? "";
         var isDebugMode = string.Equals(
             _config["Calibration:ResponseMode"], "Debug", StringComparison.OrdinalIgnoreCase);
         _vm.ShowCalibrationMonitorTab = isDebugMode;

@@ -2,5 +2,6 @@ namespace ThreeDScan.Infrastructure.Configuration;
 
 public sealed class StorageOptions
 {
-    public string ContentsRoot { get; set; } = @"D:\3DScan\contents";
+    /// <summary>預覽／Ref 根目錄，對應 appsettings <c>Storage:ContentsRoot</c>。</summary>
+    public string ContentsRoot { get; set; } = "";
 }

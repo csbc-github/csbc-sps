@@ -4,13 +4,14 @@ namespace ThreeDScan.Infrastructure.Scanners;
 
 internal static class Ljs8AgentDebugLog
 {
-    private const string LogPath = @"d:\Project\CSBS\角鋼\Program\ThreeDScan\debug-710818.log";
+    private static readonly string LogDirectory = Path.Combine(AppContext.BaseDirectory, "log");
 
     // #region agent log
     public static void Write(string location, string message, object data, string hypothesisId)
     {
         try
         {
+            Directory.CreateDirectory(LogDirectory);
             var line = JsonSerializer.Serialize(new
             {
                 sessionId = "710818",
@@ -21,7 +22,8 @@ internal static class Ljs8AgentDebugLog
                 data,
                 timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             });
-            File.AppendAllText(LogPath, line + Environment.NewLine);
+            var fileName = "debug-" + DateTime.Now.ToString("yyyyMMdd") + ".log";
+            File.AppendAllText(Path.Combine(LogDirectory, fileName), line + Environment.NewLine);
         }
         catch
         {
