@@ -5,4 +5,6 @@ public sealed class ScannerCapturePreviewEventArgs : EventArgs
 {
     public required string HeightImagePath { get; init; }
     public required string GrayImagePath { get; init; }
+    public string? PlyPath { get; init; }
+    public int PlyPointCount { get; init; }
 }

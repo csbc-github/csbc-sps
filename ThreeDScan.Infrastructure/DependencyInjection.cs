@@ -6,6 +6,7 @@ using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Infrastructure.Configuration;
 using ThreeDScan.Domain.Repositories;
+using ThreeDScan.Infrastructure.Export;
 using ThreeDScan.Infrastructure.Measure;
 using ThreeDScan.Infrastructure.Repositories;
 using ThreeDScan.Infrastructure.Scanners;

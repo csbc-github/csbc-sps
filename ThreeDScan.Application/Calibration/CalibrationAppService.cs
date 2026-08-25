@@ -206,7 +206,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         string traceId,
         CancellationToken ct)
     {
-        var capture = await _captureFactory.GetCapture(request.ScannerId).CaptureImagesAsync(programNo, ct);
+        var capture = await _captureFactory.GetCapture(request.ScannerId).CaptureAsync(programNo, ct);
         var previewPaths = SavePreviewImages(capture, request.ScannerId, programNo, traceId);
 
         var effectiveParams = LjCalibrationMerge.ForScanner(config, _calibrationParams);

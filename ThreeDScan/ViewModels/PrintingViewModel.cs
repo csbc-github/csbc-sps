@@ -40,14 +40,50 @@ public class PrintingViewModel : ViewModelBase
     private CancellationTokenSource? _scanCts;
     private Process? _runningProcess;
 
-    public bool Is2DMode { get
+    public bool Is2DMode
     {
-        return !_is3DMode;
-    } set { if (SetProperty(ref _is3DMode, !value)) OnPropertyChanged(nameof(Is3DMode)); } }
-    public bool Is3DMode { get
+        get
+        {
+            return _previewMode == PreviewMode.Height2D;
+        }
+        set
+        {
+            if (value)
+            {
+                SetPreviewMode(PreviewMode.Height2D);
+            }
+        }
+    }
+
+    public bool Is3DMode
     {
-        return _is3DMode;
-    } set { if (SetProperty(ref _is3DMode, value)) OnPropertyChanged(nameof(Is2DMode)); } }
+        get
+        {
+            return _previewMode == PreviewMode.PointCloud;
+        }
+        set
+        {
+            if (value)
+            {
+                SetPreviewMode(PreviewMode.PointCloud);
+            }
+        }
+    }
+
+    public bool IsGlbMode
+    {
+        get
+        {
+            return _previewMode == PreviewMode.Glb;
+        }
+        set
+        {
+            if (value)
+            {
+                SetPreviewMode(PreviewMode.Glb);
+            }
+        }
+    }
 
     public CoordinateInfo MachineCoordinate { get
     {
@@ -95,6 +131,13 @@ public class PrintingViewModel : ViewModelBase
     } set
     {
         SetProperty(ref _lastPlyPath, value);
+    } }
+    public string? GlbPath { get
+    {
+        return _glbPath;
+    } set
+    {
+        SetProperty(ref _glbPath, value);
     } }
     public IReadOnlyList<PointCloudRenderVertex> PointCloudVertices { get
     {

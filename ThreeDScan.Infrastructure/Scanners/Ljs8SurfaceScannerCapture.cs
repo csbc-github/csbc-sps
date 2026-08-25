@@ -39,14 +39,14 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
     /// <inheritdoc />
     public Task<ScannerCaptureResult> CaptureAsync(byte programNo, CancellationToken ct = default)
     {
-        return Task.Run(() => CaptureCore(programNo), ct);
+        return CaptureCoreAsync(programNo, processAngleSteel: false, ct);
     }
-    public Task<ScannerCaptureResult> CaptureImagesAsync(byte programNo, CancellationToken ct = default)
-        => CaptureCoreAsync(programNo, processAngleSteel: false, ct);
 
     /// <inheritdoc />
     public Task<ScannerCaptureResult> CaptureWithAngleSteelAsync(byte programNo, CancellationToken ct = default)
-        => CaptureCoreAsync(programNo, processAngleSteel: true, ct);
+    {
+        return CaptureCoreAsync(programNo, processAngleSteel: true, ct);
+    }
 
     private async Task<ScannerCaptureResult> CaptureCoreAsync(
         byte programNo,
@@ -206,7 +206,9 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
     }
 
     private static void DebugLog(string msg)
-        => System.Diagnostics.Debug.WriteLine("[ply_processor] " + msg);
+    {
+        System.Diagnostics.Debug.WriteLine("[ply_processor] " + msg);
+    }
 
     private void EnsureActiveScannerProgram(byte requested)
     {
