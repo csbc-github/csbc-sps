@@ -783,7 +783,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         return ApiResponse<ReferenceSetupData>.Fail(errorCode, errorMessage);
     }
 
-    /// <summary>寫入 dbo.OperationLog（CalibrateInstrument / SetupReference）。</summary>
+    /// <summary>寫入 dbo.OperationLog（CalibrateInstrument / SetupReference）。測試模式不寫。</summary>
     private Task LogOperationAsync(
         string traceId,
         string? operatorName,
@@ -794,6 +794,11 @@ public sealed class CalibrationAppService : ICalibrationAppService
         string? detail,
         CancellationToken ct)
     {
+        if (_calibrationSettings.TestMode)
+        {
+            return Task.CompletedTask;
+        }
+
         return _operationLogRepository.AppendAsync(new OperationLogEntry
         {
             Timestamp = DateTimeOffset.Now,
@@ -809,7 +814,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
     }
 
     /// <summary>
-    /// 測試模式：不連掃描器、不寫 task／補償，依 final 回固定第一次或第二次範例。
+    /// 測試模式：不連掃描器、不寫 task／補償／稽核，依 final 回固定第一次或第二次範例。
     /// </summary>
     private ApiResponse<InstrumentCalibrationData> BuildInstrumentTestModeResponse(
         InstrumentCalibrationRequest request,

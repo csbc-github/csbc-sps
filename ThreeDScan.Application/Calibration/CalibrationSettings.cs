@@ -20,7 +20,7 @@ public sealed class CalibrationSettings
     public int InstrumentTaskTtlMinutes { get; set; } = 30;
 
     /// <summary>
-    /// 測試模式：不連掃描器、不寫補償／Ref，直接回固定範例供串接。
+    /// 測試模式：不連掃描器、不寫補償／Ref／OperationLog，直接回固定範例供串接。
     /// </summary>
     public bool TestMode { get; set; }
 
