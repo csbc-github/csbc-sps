@@ -1,6 +1,6 @@
-using ThreeDScan.Application.Calibration.Dtos;
+using ThreeDScan.Application.Calibration.Models;
 using ThreeDScan.Application.Common;
-using ThreeDScan.Application.Scan.Dtos;
+using ThreeDScan.Application.Scan.Models;
 
 namespace ThreeDScan.Application.Scan;
 

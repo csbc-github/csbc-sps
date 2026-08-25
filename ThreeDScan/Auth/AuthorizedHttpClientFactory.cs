@@ -20,5 +20,7 @@ public static class AuthorizedHttpClientFactory
 
     /// <summary>依 Authentication 設定建立 token 來源與 HttpClient。</summary>
     public static HttpClient Create(AuthenticationOptions options, string? baseAddress = null)
-        => Create(AuthTokenServiceFactory.Create(options), baseAddress);
+    {
+        return Create(AuthTokenServiceFactory.Create(options), baseAddress);
+    }
 }

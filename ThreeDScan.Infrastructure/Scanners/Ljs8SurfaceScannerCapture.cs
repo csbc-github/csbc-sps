@@ -37,6 +37,10 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
     public string ScannerId { get; }
 
     /// <inheritdoc />
+    public Task<ScannerCaptureResult> CaptureAsync(byte programNo, CancellationToken ct = default)
+    {
+        return Task.Run(() => CaptureCore(programNo), ct);
+    }
     public Task<ScannerCaptureResult> CaptureImagesAsync(byte programNo, CancellationToken ct = default)
         => CaptureCoreAsync(programNo, processAngleSteel: false, ct);
 

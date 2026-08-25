@@ -10,7 +10,10 @@ public sealed class ScannerRegistry : IScannerRegistry
 {
     private readonly ScannerRegistryOptions _options;
 
-    public ScannerRegistry(IOptions<ScannerRegistryOptions> options) => _options = options.Value;
+    public ScannerRegistry(IOptions<ScannerRegistryOptions> options)
+    {
+        _options = options.Value;
+    }
 
     /// <inheritdoc />
     public bool TryGetEndpoint(string scannerId, out ScannerEndpoint endpoint)
@@ -47,7 +50,9 @@ public sealed class ScannerRegistry : IScannerRegistry
 
     /// <inheritdoc />
     public string ResolveScannerContentsFolder(string scannerId, string contentsRoot)
-        => Path.Combine(contentsRoot, scannerId);
+    {
+        return Path.Combine(contentsRoot, scannerId);
+    }
 
     /// <inheritdoc />
     public string ResolveContentsFolder(string scannerId, byte programNo, string contentsRoot)
@@ -59,5 +64,8 @@ public sealed class ScannerRegistry : IScannerRegistry
     }
 
     /// <summary>回傳 appsettings 中已註冊的全部 ScannerId。</summary>
-    public IReadOnlyList<string> GetAllScannerIds() => _options.Keys.ToList();
+    public IReadOnlyList<string> GetAllScannerIds()
+    {
+        return _options.Keys.ToList();
+    }
 }

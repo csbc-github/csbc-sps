@@ -13,12 +13,14 @@ public sealed class StorageSettings : IStorageSettings
     public StorageSettings(IOptions<StorageOptions> options)
     {
         _options = options.Value;
-        _exportRoot = CaptureExportPath.ResolveRoot(_options.ExportRoot);
     }
 
     /// <inheritdoc />
-    public string ContentsRoot => _options.ContentsRoot;
-
-    /// <inheritdoc />
-    public string ExportRoot => _exportRoot;
+    public string ContentsRoot
+    {
+        get
+        {
+            return _options.ContentsRoot;
+        }
+    }
 }

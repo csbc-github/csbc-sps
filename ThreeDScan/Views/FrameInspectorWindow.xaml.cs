@@ -58,13 +58,19 @@ public partial class FrameInspectorWindow : Window
         {
             int d = f.Distances[i];
             bool isValid = d > 1 && d < 999000;
-            string status = d switch
+            string status;
+            switch (d)
             {
-                0 => "無回波",
-                1 => "雜訊",
-                _ when d >= 999000 => "量程外/飽和",
-                _ => "OK"
-            };
+                case 0:
+                    status = "無回波";
+                    break;
+                case 1:
+                    status = "雜訊";
+                    break;
+                default:
+                    status = d >= 999000 ? "量程外/飽和" : "OK";
+                    break;
+            }
             if (isValid)
             {
                 valid++;

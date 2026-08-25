@@ -39,8 +39,14 @@ public partial class PointCloudViewport : UserControl
 
     public IReadOnlyList<PointCloudRenderVertex>? Vertices
     {
-        get => (IReadOnlyList<PointCloudRenderVertex>?)GetValue(VerticesProperty);
-        set => SetValue(VerticesProperty, value);
+        get
+        {
+            return (IReadOnlyList<PointCloudRenderVertex>?)GetValue(VerticesProperty);
+        }
+        set
+        {
+            SetValue(VerticesProperty, value);
+        }
     }
 
     public PointCloudViewport()
@@ -360,9 +366,15 @@ public partial class PointCloudViewport : UserControl
         e.Handled = true;
     }
 
-    private static int PackColor(Color c) => (c.R << 16) | (c.G << 8) | c.B;
+    private static int PackColor(Color c)
+    {
+        return (c.R << 16) | (c.G << 8) | c.B;
+    }
 
-    private static Color UnpackColor(int packed) => Color.FromRgb((byte)(packed >> 16), (byte)((packed >> 8) & 255), (byte)(packed & 255));
+    private static Color UnpackColor(int packed)
+    {
+        return Color.FromRgb((byte)(packed >> 16), (byte)((packed >> 8) & 255), (byte)(packed & 255));
+    }
 
     private static ModelVisual3D CreateAxisModel(Point3D a, Point3D b, Color color, double thickness)
     {

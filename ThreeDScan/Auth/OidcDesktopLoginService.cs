@@ -220,12 +220,16 @@ public sealed class OidcDesktopLoginService : IAccessTokenSource
     }
 
     /// <summary>正規化 RedirectUri；空白時使用預設 loopback。</summary>
-    private static string NormalizeRedirectUri(string redirectUri) =>
-        string.IsNullOrWhiteSpace(redirectUri) ? "http://127.0.0.1:5005/" : redirectUri.Trim();
+    private static string NormalizeRedirectUri(string redirectUri)
+    {
+        return string.IsNullOrWhiteSpace(redirectUri) ? "http://127.0.0.1:5005/" : redirectUri.Trim();
+    }
 
     /// <summary>HttpListener Prefix 需以 <c>/</c> 結尾。</summary>
-    private static string EnsureTrailingSlash(string uri) =>
-        uri.EndsWith('/') ? uri : uri + "/";
+    private static string EnsureTrailingSlash(string uri)
+    {
+        return uri.EndsWith('/') ? uri : uri + "/";
+    }
 
     /// <summary>自 redirect URL 查詢字串取出指定參數（已 URL-decode）。</summary>
     private static string? GetQueryValue(Uri? url, string key)

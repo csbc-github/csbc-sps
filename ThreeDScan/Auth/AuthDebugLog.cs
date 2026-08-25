@@ -13,7 +13,13 @@ internal static class AuthDebugLog
     private static readonly string LogPath =
         Path.Combine(AppContext.BaseDirectory, "auth-client-credentials.log");
 
-    public static string FilePath => LogPath;
+    public static string FilePath
+    {
+        get
+        {
+            return LogPath;
+        }
+    }
 
     public static void Write(string message)
     {

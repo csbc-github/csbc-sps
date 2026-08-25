@@ -1,0 +1,181 @@
+# ThreeDScan API 測試說明
+
+規格 REST 的連線設定與各支 API。尚未實作或尚未整理測試步驟的標 **待補充**。  
+JSON 為 camelCase；`Content-Type: application/json`。改設定後須重啟 Api。Development 會用 `appsettings.Development.json` 覆寫同名鍵。
+
+---
+
+## 1. 連線／參數說明
+
+### 1.1 網址
+
+以 Visual Studio 啟動後主控台的 `Now listening on:` 為準。
+
+| launch profile | 網址 |
+|---|---|
+| `http` | `http://localhost:5295` |
+| `https` | `https://localhost:7211` |
+
+### 1.2 參數
+
+| 參數 | 位置 | 說明 |
+|---|---|---|
+| `Calibration:TestMode` | `appsettings.json` | `true`：不連掃描器、不寫補償／task，回固定範例（仍檢查必填與 `final`／`taskId`）。測完改回 `false`。 |
+| `Calibration:ResponseMode` | 正式檔預設 `Production`；Development 覆寫為 `Debug` | `Production`：instrument 只回規格欄位。`Debug`：多回 balls、matchedBalls 等。 |
+| `Authentication:Enabled` | 正式檔 `true`；Development 覆寫為 `false` | `false`：可不帶 Token。`true`：須 JWT Bearer（`eyJ` 開頭、中間有 `.`）。 |
+
+`TestMode` 下 `scannerId` 不必存在於 `Scanners`；正式模式須為 `SURF-CAM-01` 或 `SURF-CAM-02`。
+
+### 1.3 共通回應
+
+| HTTP | 情況 |
+|---|---|
+| 200 | `{ success, timestamp, data, errorCode, errorMessage }`，`success: true` |
+| 400 | 同結構，`success: false`（業務錯誤或缺必填） |
+| 401 | 已開驗證且 Token 無效；`WWW-Authenticate: Bearer` |
+| 501 | 尚未實作，`errorCode` 為 `SYS_NYI` |
+
+---
+
+## 2. API 說明
+
+| 方法 | 路徑 | 狀態 |
+|---|---|---|
+| POST | `/api/calibration/instrument` | 可測（TestMode） |
+| POST | `/api/calibration/roller` | 待補充 |
+| POST | `/api/scan/line` | 待補充 |
+| POST | `/api/scan/surface` | 待補充 |
+| GET | `/api/scan/surface/{taskId}/attachments` | 待補充 |
+| POST | `/api/scan/hole` | 待補充 |
+
+### 2.1 POST `/api/calibration/instrument`
+
+儀器校正，兩次拍攝。JSON 欄位名是 **`final`**（不是 `isFinal`）。
+
+| 次數 | `final` | `taskId` |
+|---|---|---|
+| 第一次 | `false` | 不要帶（空或省略） |
+| 第二次 | `true` | 第一次回傳的 `data.taskId` |
+
+配錯 → 400，`CAL_001`（TestMode 也檢查）。
+
+必填：`scannerId`、`cameraExpectedPosition`、`standardBalls`（1～10 顆）。每顆 `ballId` 僅 `A-Z`／`0-9`／`-`；座標 ±10000。  
+選填：`navigatorScanNo`、`operator`。
+
+TestMode 回固定範例，與你傳的 `knownX/Y/Z` 無關；`taskId`、`traceId` 每次新產生。`final=true` 時仍必填 `taskId`（不查 DB）。
+
+#### 第一次 request
+
+```json
+{
+  "scannerId": "SURF-CAM-01",
+  "final": false,
+  "cameraExpectedPosition": { "x": 90, "y": 95, "z": 1100 },
+  "standardBalls": [
+    { "ballId": "BALL-01", "knownX": 481.48, "knownY": 694.51, "knownZ": 321.25 },
+    { "ballId": "BALL-02", "knownX": 744.96, "knownY": 576.74, "knownZ": 321.25 },
+    { "ballId": "BALL-03", "knownX": 676.83, "knownY": 776.70, "knownZ": 321.25 }
+  ]
+}
+```
+
+#### 第一次 response（TestMode + Debug）
+
+```json
+{
+  "success": true,
+  "timestamp": "2026-08-21T14:00:00+08:00",
+  "data": {
+    "scannerId": "SURF-CAM-01",
+    "traceId": "（新 GUID）",
+    "compensation": { "offsetX": 120.423, "offsetY": 313.99, "offsetZ": -262.907 },
+    "actualScannerPosition": { "x": 210.423, "y": 408.99, "z": 837.093 },
+    "rmseXY": 0.08,
+    "scannerToFloorZ": 837.093,
+    "taskId": "（新 GUID，第二次要帶這個）",
+    "seq": 1,
+    "status": "AwaitingNextShot",
+    "balls": [
+      { "index": 0, "x": 270.69, "y": 286.39, "z": 54.16, "diameter": 25.286, "ok": true },
+      { "index": 1, "x": 466.11, "y": 368.39, "z": 61.15, "diameter": 24.553, "ok": true },
+      { "index": 2, "x": 533.91, "y": 168.18, "z": 59.73, "diameter": 24.34, "ok": true }
+    ],
+    "matchedBalls": [
+      { "ballId": "BALL-01", "measuredX": 270.69, "measuredY": 286.39, "measuredZ": 54.16, "knownX": 481.48, "knownY": 694.51, "knownZ": 321.25, "residualMm": 0.08 },
+      { "ballId": "BALL-02", "measuredX": 533.91, "measuredY": 168.18, "measuredZ": 59.73, "knownX": 744.96, "knownY": 576.74, "knownZ": 321.25, "residualMm": 0.08 },
+      { "ballId": "BALL-03", "measuredX": 466.11, "measuredY": 368.39, "measuredZ": 61.15, "knownX": 676.83, "knownY": 776.7, "knownZ": 321.25, "residualMm": 0.08 }
+    ]
+  },
+  "errorCode": null,
+  "errorMessage": null
+}
+```
+
+Production 第一次 `data` 只有：`taskId`、`seq`、`status`、`traceId`。
+
+#### 第二次 request
+
+```json
+{
+  "scannerId": "SURF-CAM-01",
+  "final": true,
+  "taskId": "（第一次回傳的 taskId）",
+  "cameraExpectedPosition": { "x": 90, "y": 95, "z": 1100 },
+  "standardBalls": [
+    { "ballId": "BALL-01", "knownX": 481.48, "knownY": 694.51, "knownZ": 375.47 },
+    { "ballId": "BALL-02", "knownX": 744.96, "knownY": 576.74, "knownZ": 375.47 },
+    { "ballId": "BALL-03", "knownX": 676.83, "knownY": 776.70, "knownZ": 375.47 }
+  ]
+}
+```
+
+#### 第二次 response（TestMode + Debug）
+
+```json
+{
+  "success": true,
+  "data": {
+    "scannerId": "SURF-CAM-01",
+    "seq": 2,
+    "taskId": "（你傳入的 taskId）",
+    "rmseXY": 0.08,
+    "zDeviation": 0.277,
+    "scannerToFloorZ": 836.955,
+    "actualScannerPosition": { "x": 207.279, "y": 410.698, "z": 836.955 },
+    "compensation": { "offsetX": 117.279, "offsetY": 315.698, "offsetZ": -263.045 },
+    "status": null,
+    "balls": [
+      { "index": 0, "x": 273.72, "y": 290.28, "z": 108.2, "diameter": 25.051, "ok": true },
+      { "index": 1, "x": 535.48, "y": 168.78, "z": 114.11, "diameter": 24.864, "ok": true },
+      { "index": 2, "x": 470.13, "y": 369.73, "z": 114.55, "diameter": 24.265, "ok": true }
+    ],
+    "matchedBalls": [
+      { "ballId": "BALL-01", "measuredX": 273.72, "measuredY": 290.28, "measuredZ": 108.2, "knownX": 481.48, "knownY": 694.51, "knownZ": 375.47, "residualMm": 0.08 },
+      { "ballId": "BALL-02", "measuredX": 535.48, "measuredY": 168.78, "measuredZ": 114.11, "knownX": 744.96, "knownY": 576.74, "knownZ": 375.47, "residualMm": 0.08 },
+      { "ballId": "BALL-03", "measuredX": 470.13, "measuredY": 369.73, "measuredZ": 114.55, "knownX": 676.83, "knownY": 776.7, "knownZ": 375.47, "residualMm": 0.08 }
+    ]
+  }
+}
+```
+
+Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`zDeviation`、`calibratedAt`、`traceId`。
+
+### 2.2 POST `/api/calibration/roller`
+
+待補充。路由已掛，回 **501** `SYS_NYI`。
+
+### 2.3 POST `/api/scan/line`
+
+待補充。路由已掛，回 **501** `SYS_NYI`。
+
+### 2.4 POST `/api/scan/surface`
+
+待補充。路由已掛，回 **501** `SYS_NYI`。
+
+### 2.5 GET `/api/scan/surface/{taskId}/attachments`
+
+待補充。路由已掛，回 **501** `SYS_NYI`。
+
+### 2.6 POST `/api/scan/hole`
+
+待補充。路由已掛，回 **501** `SYS_NYI`。

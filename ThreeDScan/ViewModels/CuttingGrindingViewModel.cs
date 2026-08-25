@@ -10,6 +10,12 @@ public class CuttingGrindingViewModel : ViewModelBase
     public CuttingViewModel CuttingVM { get; } = new();
     public GrindingViewModel GrindingVM { get; } = new();
 
-    public bool IsCuttingTab { get => _isCuttingTab; set { if (SetProperty(ref _isCuttingTab, value)) OnPropertyChanged(nameof(IsGrindingTab)); } }
-    public bool IsGrindingTab { get => !_isCuttingTab; set { if (SetProperty(ref _isCuttingTab, !value)) OnPropertyChanged(nameof(IsCuttingTab)); } }
+    public bool IsCuttingTab { get
+    {
+        return _isCuttingTab;
+    } set { if (SetProperty(ref _isCuttingTab, value)) OnPropertyChanged(nameof(IsGrindingTab)); } }
+    public bool IsGrindingTab { get
+    {
+        return !_isCuttingTab;
+    } set { if (SetProperty(ref _isCuttingTab, !value)) OnPropertyChanged(nameof(IsCuttingTab)); } }
 }

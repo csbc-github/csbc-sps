@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ThreeDScan.Application.Scan;
-using ThreeDScan.Application.Scan.Dtos;
+using ThreeDScan.Application.Scan.Models;
 
 namespace ThreeDScan.Api.Controllers;
 
@@ -11,7 +11,10 @@ public sealed class ScanController : ControllerBase
 {
     private readonly IScanAppService _scan;
 
-    public ScanController(IScanAppService scan) => _scan = scan;
+    public ScanController(IScanAppService scan)
+    {
+        _scan = scan;
+    }
 
     /// <summary>預備進料區線掃描：滾輪傳動時持續辨識角鋼輪廓。</summary>
     [HttpPost("line")]

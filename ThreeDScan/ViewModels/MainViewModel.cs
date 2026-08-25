@@ -19,10 +19,28 @@ public class MainViewModel : ViewModelBase
     /// <summary>僅 <c>Calibration:ResponseMode=Debug</c> 時顯示校正監看 Tab。</summary>
     public bool ShowCalibrationMonitorTab
     {
-        get => _showCalibrationMonitorTab;
-        set => SetProperty(ref _showCalibrationMonitorTab, value);
+        get
+        {
+            return _showCalibrationMonitorTab;
+        }
+        set
+        {
+            SetProperty(ref _showCalibrationMonitorTab, value);
+        }
     }
 
-    public int SelectedTabIndex { get => _selectedTabIndex; set => SetProperty(ref _selectedTabIndex, value); }
-    public SystemStatus SystemStatus { get => _systemStatus; set => SetProperty(ref _systemStatus, value); }
+    public int SelectedTabIndex { get
+    {
+        return _selectedTabIndex;
+    } set
+    {
+        SetProperty(ref _selectedTabIndex, value);
+    } }
+    public SystemStatus SystemStatus { get
+    {
+        return _systemStatus;
+    } set
+    {
+        SetProperty(ref _systemStatus, value);
+    } }
 }

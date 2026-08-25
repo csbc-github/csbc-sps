@@ -1,4 +1,3 @@
-using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Application.Calibration;

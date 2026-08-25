@@ -47,6 +47,11 @@ public sealed class AuthenticationOptions
     public bool RequireHttpsMetadata { get; set; } = true;
 
     /// <summary>是否為 Client Credentials 全自動流程。</summary>
-    public bool IsClientCredentialsFlow =>
-        string.Equals(Flow, AuthenticationFlows.ClientCredentials, StringComparison.OrdinalIgnoreCase);
+    public bool IsClientCredentialsFlow
+    {
+        get
+        {
+            return string.Equals(Flow, AuthenticationFlows.ClientCredentials, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }

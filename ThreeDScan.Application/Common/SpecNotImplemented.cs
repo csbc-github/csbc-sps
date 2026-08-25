@@ -1,4 +1,4 @@
-using ThreeDScan.Application.Calibration.Dtos;
+using ThreeDScan.Application.Calibration.Models;
 
 namespace ThreeDScan.Application.Common;
 
@@ -9,6 +9,8 @@ public static class SpecNotImplemented
     public const string ErrorCode = "SYS_NYI";
 
     /// <summary>產生尚未實作的失敗包裝。</summary>
-    public static ApiResponse<T> Response<T>(string endpoint) =>
-        ApiResponse<T>.Fail(ErrorCode, $"{endpoint} 尚未實作。");
+    public static ApiResponse<T> Response<T>(string endpoint)
+    {
+        return ApiResponse<T>.Fail(ErrorCode, $"{endpoint} 尚未實作。");
+    }
 }

@@ -10,11 +10,15 @@ public sealed class SignalRCalibrationPreviewPublisher : ICalibrationPreviewPubl
 {
     private readonly IHubContext<CalibrationPreviewHub> _hub;
 
-    public SignalRCalibrationPreviewPublisher(IHubContext<CalibrationPreviewHub> hub) => _hub = hub;
+    public SignalRCalibrationPreviewPublisher(IHubContext<CalibrationPreviewHub> hub)
+    {
+        _hub = hub;
+    }
 
     /// <inheritdoc />
     public Task PublishAsync(CalibrationPreview preview, CancellationToken ct = default)
-        => _hub.Clients.All.SendAsync(CalibrationPreviewHub.EventName, new
+    {
+        return _hub.Clients.All.SendAsync(CalibrationPreviewHub.EventName, new
         {
             preview.ScannerId,
             preview.TraceId,
@@ -64,4 +68,5 @@ public sealed class SignalRCalibrationPreviewPublisher : ICalibrationPreviewPubl
                 m.ResidualMm,
             }),
         }, ct);
+    }
 }

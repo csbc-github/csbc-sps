@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ThreeDScan.Application.Calibration;
-using ThreeDScan.Application.Calibration.Dtos;
+using ThreeDScan.Application.Calibration.Models;
 
 namespace ThreeDScan.Api.Controllers;
 
@@ -10,7 +10,10 @@ public sealed class CalibrationController : ControllerBase
 {
     private readonly ICalibrationAppService _calibration;
 
-    public CalibrationController(ICalibrationAppService calibration) => _calibration = calibration;
+    public CalibrationController(ICalibrationAppService calibration)
+    {
+        _calibration = calibration;
+    }
 
     /// <summary>SD UC-01 — 儀器校正（LJScanWinform 量測按鈕）。推送 WPF 監看預覽。</summary>
     [HttpPost("instrument")]
@@ -22,7 +25,11 @@ public sealed class CalibrationController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
-    /// <summary>開發用 Ref 建立（LJScanWinform 校正按鈕）。寫入 ScannerConfig，不推送畫面。</summary>
+    /// <summary>
+    /// 開發用 Ref 建立。不推送 WPF。
+    /// 現場：測試掃描讀球心 → 寫入 ScannerConfig.Ref* → 呼叫本 API。
+    /// 拍攝一張，在 DB 指定 XY 擬合；成功後覆寫 Ref X/Y 與 ref_*.png。
+    /// </summary>
     [HttpPost("reference-setup")]
     public async Task<IActionResult> SetupReference(
         [FromBody] ReferenceSetupRequest request,

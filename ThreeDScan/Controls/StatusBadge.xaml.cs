@@ -19,8 +19,14 @@ public partial class StatusBadge : UserControl
 
     public string Text
     {
-        get => (string)GetValue(TextProperty);
-        set => SetValue(TextProperty, value);
+        get
+        {
+            return (string)GetValue(TextProperty);
+        }
+        set
+        {
+            SetValue(TextProperty, value);
+        }
     }
 
     public static readonly DependencyProperty BadgeTypeProperty = DependencyProperty.Register(
@@ -29,22 +35,44 @@ public partial class StatusBadge : UserControl
 
     public BadgeType BadgeType
     {
-        get => (BadgeType)GetValue(BadgeTypeProperty);
-        set => SetValue(BadgeTypeProperty, value);
+        get
+        {
+            return (BadgeType)GetValue(BadgeTypeProperty);
+        }
+        set
+        {
+            SetValue(BadgeTypeProperty, value);
+        }
     }
 
     private static void OnBadgeTypeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((StatusBadge)d).UpdateColor();
+    {
+        ((StatusBadge)d).UpdateColor();
+    }
 
     private void UpdateColor()
     {
-        var (bgKey, fgKey) = BadgeType switch
+        string bgKey;
+        string fgKey;
+        switch (BadgeType)
         {
-            BadgeType.Success => ("SuccessBgBrush", "SuccessTextBrush"),
-            BadgeType.Warning => ("WarningBgBrush", "WarningTextBrush"),
-            BadgeType.Error => ("ErrorBgBrush", "ErrorTextBrush"),
-            _ => ("InfoBgBrush", "InfoTextBrush")
-        };
+            case BadgeType.Success:
+                bgKey = "SuccessBgBrush";
+                fgKey = "SuccessTextBrush";
+                break;
+            case BadgeType.Warning:
+                bgKey = "WarningBgBrush";
+                fgKey = "WarningTextBrush";
+                break;
+            case BadgeType.Error:
+                bgKey = "ErrorBgBrush";
+                fgKey = "ErrorTextBrush";
+                break;
+            default:
+                bgKey = "InfoBgBrush";
+                fgKey = "InfoTextBrush";
+                break;
+        }
         if (Application.Current?.Resources[bgKey] is Brush bg) PART_Bd.Background = bg;
         if (Application.Current?.Resources[fgKey] is Brush fg) PART_Text.Foreground = fg;
     }

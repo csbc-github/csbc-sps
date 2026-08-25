@@ -8,10 +8,25 @@ public sealed class ScannerProgramGroup
     public required string DisplayName { get; set; }
 
     /// <summary>Navigator Scan 編號（1～16），API <c>navigatorScanNo</c> 使用此值。</summary>
-    public int NavigatorScanNo => ProgramNo + 1;
+    public int NavigatorScanNo
+    {
+        get
+        {
+            return ProgramNo + 1;
+        }
+    }
 
     /// <summary>下拉選單顯示：項次 + 名稱。</summary>
-    public string ListLabel => $"{NavigatorScanNo}. {DisplayName}";
+    public string ListLabel
+    {
+        get
+        {
+            return $"{NavigatorScanNo}. {DisplayName}";
+        }
+    }
 
-    public override string ToString() => ListLabel;
+    public override string ToString()
+    {
+        return ListLabel;
+    }
 }

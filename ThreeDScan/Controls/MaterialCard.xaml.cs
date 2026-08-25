@@ -13,7 +13,13 @@ public partial class MaterialCard : UserControl
 
     public MaterialItem? Item
     {
-        get => (MaterialItem?)GetValue(ItemProperty);
-        set => SetValue(ItemProperty, value);
+        get
+        {
+            return (MaterialItem?)GetValue(ItemProperty);
+        }
+        set
+        {
+            SetValue(ItemProperty, value);
+        }
     }
 }

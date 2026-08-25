@@ -1,3 +1,5 @@
+using ThreeDScan.Domain.Models;
+
 namespace ThreeDScan.Domain.Abstractions;
 
 /// <summary>Keyence LJS8 面掃描器單次擷取。</summary>

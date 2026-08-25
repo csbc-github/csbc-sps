@@ -13,8 +13,14 @@ public partial class CoordinatePanel : UserControl
 
     public CoordinateInfo? MachineCoord
     {
-        get => (CoordinateInfo?)GetValue(MachineCoordProperty);
-        set => SetValue(MachineCoordProperty, value);
+        get
+        {
+            return (CoordinateInfo?)GetValue(MachineCoordProperty);
+        }
+        set
+        {
+            SetValue(MachineCoordProperty, value);
+        }
     }
 
     public static readonly DependencyProperty WorkpieceCoordProperty = DependencyProperty.Register(
@@ -22,7 +28,13 @@ public partial class CoordinatePanel : UserControl
 
     public CoordinateInfo? WorkpieceCoord
     {
-        get => (CoordinateInfo?)GetValue(WorkpieceCoordProperty);
-        set => SetValue(WorkpieceCoordProperty, value);
+        get
+        {
+            return (CoordinateInfo?)GetValue(WorkpieceCoordProperty);
+        }
+        set
+        {
+            SetValue(WorkpieceCoordProperty, value);
+        }
     }
 }

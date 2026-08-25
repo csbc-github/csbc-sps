@@ -6,6 +6,7 @@ using Keyence.LjDevCommon;
 using Keyence.LjDev3dView;
 using Keyence.LjDevMeasure;
 using ThreeDScan.Infrastructure.Measure;
+using ThreeDScan.Infrastructure.Measure.Models;
 using WpfMessageBox = System.Windows.MessageBox;
 
 namespace ThreeDScan.Lj3DViewHost;

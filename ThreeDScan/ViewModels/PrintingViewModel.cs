@@ -40,40 +40,69 @@ public class PrintingViewModel : ViewModelBase
     private CancellationTokenSource? _scanCts;
     private Process? _runningProcess;
 
-    public bool Is2DMode
+    public bool Is2DMode { get
     {
-        get => _previewMode == PreviewMode.Height2D;
-        set { if (value) SetPreviewMode(PreviewMode.Height2D); }
-    }
-
-    public bool Is3DMode
+        return !_is3DMode;
+    } set { if (SetProperty(ref _is3DMode, !value)) OnPropertyChanged(nameof(Is3DMode)); } }
+    public bool Is3DMode { get
     {
-        get => _previewMode == PreviewMode.PointCloud;
-        set { if (value) SetPreviewMode(PreviewMode.PointCloud); }
-    }
+        return _is3DMode;
+    } set { if (SetProperty(ref _is3DMode, value)) OnPropertyChanged(nameof(Is2DMode)); } }
 
-    public bool IsGlbMode
+    public CoordinateInfo MachineCoordinate { get
     {
-        get => _previewMode == PreviewMode.Glb;
-        set { if (value) SetPreviewMode(PreviewMode.Glb); }
-    }
-
-    public CoordinateInfo MachineCoordinate { get => _machineCoordinate; set => SetProperty(ref _machineCoordinate, value); }
-    public CoordinateInfo WorkpieceCoordinate { get => _workpieceCoordinate; set => SetProperty(ref _workpieceCoordinate, value); }
+        return _machineCoordinate;
+    } set
+    {
+        SetProperty(ref _machineCoordinate, value);
+    } }
+    public CoordinateInfo WorkpieceCoordinate { get
+    {
+        return _workpieceCoordinate;
+    } set
+    {
+        SetProperty(ref _workpieceCoordinate, value);
+    } }
     public bool IsScanning
     {
-        get => _isScanning;
+        get
+        {
+            return _isScanning;
+        }
         set
         {
             if (SetProperty(ref _isScanning, value))
                 CommandManager.InvalidateRequerySuggested();
         }
     }
-    public string ScanStatusText { get => _scanStatusText; set => SetProperty(ref _scanStatusText, value); }
-    public SystemStatus OverallStatus { get => _overallStatus; set => SetProperty(ref _overallStatus, value); }
-    public string LastPlyPath { get => _lastPlyPath; set => SetProperty(ref _lastPlyPath, value); }
-    public string? GlbPath { get => _glbPath; set => SetProperty(ref _glbPath, value); }
-    public IReadOnlyList<PointCloudRenderVertex> PointCloudVertices { get => _pointCloudVertices; set => SetProperty(ref _pointCloudVertices, value); }
+    public string ScanStatusText { get
+    {
+        return _scanStatusText;
+    } set
+    {
+        SetProperty(ref _scanStatusText, value);
+    } }
+    public SystemStatus OverallStatus { get
+    {
+        return _overallStatus;
+    } set
+    {
+        SetProperty(ref _overallStatus, value);
+    } }
+    public string LastPlyPath { get
+    {
+        return _lastPlyPath;
+    } set
+    {
+        SetProperty(ref _lastPlyPath, value);
+    } }
+    public IReadOnlyList<PointCloudRenderVertex> PointCloudVertices { get
+    {
+        return _pointCloudVertices;
+    } set
+    {
+        SetProperty(ref _pointCloudVertices, value);
+    } }
 
     public ICommand StartScanCommand { get; }
     public ICommand StopScanCommand { get; }
@@ -272,10 +301,14 @@ public class PrintingViewModel : ViewModelBase
     }
 
     private static string BuildCliArguments(string outPlyPath)
-        => $"--ip {LidarIp} --port {LidarPort} --out-ply {QuoteArgument(outPlyPath)}";
+    {
+        return $"--ip {LidarIp} --port {LidarPort} --out-ply {QuoteArgument(outPlyPath)}";
+    }
 
     private static string QuoteArgument(string value)
-        => "\"" + value.Replace("\"", "\\\"") + "\"";
+    {
+        return "\"" + value.Replace("\"", "\\\"") + "\"";
+    }
 
     private static ScanCliResult? TryParseCliResult(string stdout)
     {

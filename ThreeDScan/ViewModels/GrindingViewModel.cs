@@ -12,13 +12,25 @@ public class GrindingViewModel : ViewModelBase
 
     public ObservableCollection<FeaturePathPoint> PathPoints { get; } = new();
 
-    public bool Is2DMode { get => !_is3DMode; set { if (SetProperty(ref _is3DMode, !value)) OnPropertyChanged(nameof(Is3DMode)); } }
-    public bool Is3DMode { get => _is3DMode; set { if (SetProperty(ref _is3DMode, value)) OnPropertyChanged(nameof(Is2DMode)); } }
+    public bool Is2DMode { get
+    {
+        return !_is3DMode;
+    } set { if (SetProperty(ref _is3DMode, !value)) OnPropertyChanged(nameof(Is3DMode)); } }
+    public bool Is3DMode { get
+    {
+        return _is3DMode;
+    } set { if (SetProperty(ref _is3DMode, value)) OnPropertyChanged(nameof(Is2DMode)); } }
 
     public FeaturePathPoint? SelectedPathPoint
     {
-        get => _selectedPathPoint;
-        set => SetProperty(ref _selectedPathPoint, value);
+        get
+        {
+            return _selectedPathPoint;
+        }
+        set
+        {
+            SetProperty(ref _selectedPathPoint, value);
+        }
     }
 
     public GrindingViewModel()

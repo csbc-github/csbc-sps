@@ -1,4 +1,4 @@
-using ThreeDScan.Application.Calibration.Dtos;
+using ThreeDScan.Application.Calibration.Models;
 
 namespace ThreeDScan.Application.Calibration;
 
@@ -13,7 +13,10 @@ public interface ICalibrationAppService
         InstrumentCalibrationRequest request,
         CancellationToken ct = default);
 
-    /// <summary>開發用 Ref 建立：掃描標準球、寫入 ScannerConfig，不推送 WPF 預覽。</summary>
+    /// <summary>
+    /// 開發用 Ref 建立：拍攝一張 → 在 DB 指定的 Ref XY 擬合 → 覆寫 ScannerConfig.Ref* 與 ref_*.png。
+    /// 不推送 WPF。不搜尋附近；寫回的是該點擬合球心。
+    /// </summary>
     Task<ApiResponse<ReferenceSetupData>> SetupReferenceAsync(
         ReferenceSetupRequest request,
         CancellationToken ct = default);

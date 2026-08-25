@@ -18,5 +18,7 @@ public sealed class WidthGreaterThanConverter : IValueConverter
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        => Binding.DoNothing;
+    {
+        return Binding.DoNothing;
+    }
 }
