@@ -52,6 +52,17 @@ public static class Pipeline
         return BuildExports(rawPts, outPts, baseName, opts);
     }
 
+    /// <summary>對已解析的原始點與處理後點做分群／匯出（ZIP／JSON／PLY／網格）。</summary>
+    public static PipelineResult Export(
+        PlyPoint[] rawPts,
+        PlyPoint[] processedPts,
+        string baseName,
+        PipelineOptions? opts = null)
+    {
+        opts ??= new();
+        return BuildExports(rawPts, processedPts, baseName, opts);
+    }
+
     /// <summary>
     /// Export from Python/backend-processed PLY. This mirrors the web general flow after
     /// /process has produced its output PLY.

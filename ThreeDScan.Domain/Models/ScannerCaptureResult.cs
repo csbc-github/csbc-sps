@@ -4,6 +4,9 @@ namespace ThreeDScan.Domain.Models;
 public sealed class ScannerCaptureResult
 {
     public required string CaptureId { get; init; }
+
+    /// <summary>拍攝此幀的掃描器編號。</summary>
+    public string ScannerId { get; init; } = "";
     public string? HeightImagePath { get; init; }
     public string? GrayImagePath { get; init; }
 
@@ -19,8 +22,11 @@ public sealed class ScannerCaptureResult
     /// <summary>自 ZIP 抽出的角鋼網格 GLB（供 WPF 顯示）。</summary>
     public string? GlbPath { get; init; }
 
-    /// <summary>合併座標 JSON。</summary>
+    /// <summary>合併座標 JSON（未套補償）。</summary>
     public string? JsonPath { get; init; }
+
+    /// <summary>套上最新儀器校正 offset 的座標 JSON；無補償歷程時為 null。</summary>
+    public string? CompensatedJsonPath { get; init; }
 
     /// <summary>兩翼板夾角（度）；無法估算時為 null。</summary>
     public double? AngleDegrees { get; init; }

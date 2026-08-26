@@ -1,34 +1,44 @@
 using System.IO.Compression;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using PlyProcessor.Core;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
+using ThreeDScan.Domain.Repositories;
 using ThreeDScan.Infrastructure.Configuration;
 using ThreeDScan.Infrastructure.Scanners;
 
 namespace ThreeDScan.Infrastructure.Export;
 
 /// <summary>
-/// 對齊 Hank Web API：raw PLY → <see cref="Pipeline.Run"/> → ZIP／JSON／PLY／GLB。
+/// raw PLY → <see cref="Pipeline.Run"/>／<see cref="Pipeline.Export"/> → ZIP／PLY／JSON／GLB。
+/// 有儀器校正時：原始 JSON 另存，PLY／ZIP／GLB／補償 JSON 為套 offset 後的結果。
 /// </summary>
 public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
 {
     private readonly PlyProcessorOptions _options;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public RawPlyScanPipeline(IOptions<PlyProcessorOptions> options)
+    public RawPlyScanPipeline(
+        IOptions<PlyProcessorOptions> options,
+        IServiceScopeFactory scopeFactory)
     {
         _options = options.Value;
+        _scopeFactory = scopeFactory;
     }
 
     /// <inheritdoc />
-    public Task<SurfaceScanPipelineResult> ProcessCaptureAsync(
+    public async Task<SurfaceScanPipelineResult> ProcessCaptureAsync(
         ScannerCaptureResult capture,
         CancellationToken ct = default)
     {
-        return Task.Run(() => ProcessCapture(capture), ct);
+        var offset = await TryGetLatestOffsetAsync(capture.ScannerId, ct).ConfigureAwait(false);
+        return await Task.Run(() => ProcessCapture(capture, offset), ct).ConfigureAwait(false);
     }
 
-    private SurfaceScanPipelineResult ProcessCapture(ScannerCaptureResult capture)
+    private SurfaceScanPipelineResult ProcessCapture(
+        ScannerCaptureResult capture,
+        CompensationOffset? offset)
     {
         if (string.IsNullOrWhiteSpace(capture.HeightImagePath))
         {
@@ -47,33 +57,35 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         HeightImagePlyExporter.SaveAsAsciiPly(heightImage, rawPlyPath);
 
         var opts = _options.ToPipelineOptions();
-        using var rawStream = File.OpenRead(rawPlyPath);
-        var pipeline = Pipeline.Run(rawStream, "angle_steel", opts);
+        PlyPoint[] rawPts;
+        using (var rawStream = File.OpenRead(rawPlyPath))
+        {
+            rawPts = PlyReader.Parse(rawStream).Points;
+        }
+
+        var processedPts = ScanProcessor.Process(rawPts, opts.ZThresh, opts.MinNoiseSize, opts.NoiseVoxel);
+        var uncompensated = Pipeline.Export(rawPts, processedPts, "angle_steel", opts);
 
         var zipPath = Path.Combine(captureDir, "angle_steel_export.zip");
         var jsonPath = Path.Combine(captureDir, "angle_steel_coords.json");
         var plyPath = Path.Combine(captureDir, "angle_steel.ply");
         var glbPath = Path.Combine(captureDir, "angle_steel.glb");
-        File.WriteAllBytes(zipPath, pipeline.ZipBytes);
-        File.WriteAllBytes(jsonPath, pipeline.CoordsJsonBytes);
+        File.WriteAllBytes(jsonPath, uncompensated.CoordsJsonBytes);
 
-        var plyBytes = TryExtractFirstByExtension(pipeline.ZipBytes, ".ply");
-        if (plyBytes is null || plyBytes.Length == 0)
+        var export = uncompensated;
+        string? compensatedJsonPath = null;
+        if (offset is not null)
         {
-            throw new InvalidOperationException("Pipeline 未產出點雲 PLY。");
+            var rawComp = Translate(rawPts, offset);
+            var processedComp = Translate(processedPts, offset);
+            export = Pipeline.Export(rawComp, processedComp, "angle_steel", opts);
+            compensatedJsonPath = Path.Combine(captureDir, "angle_steel_coords_compensated.json");
+            File.WriteAllBytes(compensatedJsonPath, export.CoordsJsonBytes);
         }
 
-        File.WriteAllBytes(plyPath, plyBytes);
+        File.WriteAllBytes(zipPath, export.ZipBytes);
+        WriteExtractedPlyAndGlb(export.ZipBytes, plyPath, glbPath, out var writtenGlb);
 
-        string? writtenGlb = null;
-        var glbBytes = TryExtractFirstByExtension(pipeline.ZipBytes, ".glb");
-        if (glbBytes is { Length: > 0 })
-        {
-            File.WriteAllBytes(glbPath, glbBytes);
-            writtenGlb = glbPath;
-        }
-
-        var processedPts = CollectProcessedPoints(pipeline);
         var angle = AngleSteelAngleEstimator.Estimate(
             processedPts, Math.Max(1.0f, opts.NoiseVoxel));
 
@@ -82,15 +94,66 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
             PointCloudPath = plyPath,
             ZipPath = zipPath,
             JsonPath = jsonPath,
+            CompensatedJsonPath = compensatedJsonPath,
             GlbPath = writtenGlb,
-            MeanZ = ComputeMeanZ(pipeline),
-            PointCount = processedPts.Length,
+            MeanZ = MeanZ(export),
+            PointCount = CountPoints(export),
             AngleDegrees = angle?.AngleDegrees,
             AngleDeviationFromSquareDegrees = angle?.DeviationFromSquareDegrees,
         };
     }
 
-    private static PlyPoint[] CollectProcessedPoints(PipelineResult pipeline)
+    private async Task<CompensationOffset?> TryGetLatestOffsetAsync(string scannerId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(scannerId))
+        {
+            return null;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<ICompensationRepository>();
+        return await repo.GetLatestAsync(scannerId, ct).ConfigureAwait(false);
+    }
+
+    private static PlyPoint[] Translate(PlyPoint[] points, CompensationOffset offset)
+    {
+        var ox = (float)offset.OffsetX;
+        var oy = (float)offset.OffsetY;
+        var oz = (float)offset.OffsetZ;
+        var copy = new PlyPoint[points.Length];
+        for (var i = 0; i < points.Length; i++)
+        {
+            var p = points[i];
+            copy[i] = new PlyPoint(p.X + ox, p.Y + oy, p.Z + oz, p.Intensity);
+        }
+
+        return copy;
+    }
+
+    private static void WriteExtractedPlyAndGlb(
+        byte[] zipBytes,
+        string plyPath,
+        string glbPath,
+        out string? writtenGlb)
+    {
+        var plyBytes = TryExtractFirstByExtension(zipBytes, ".ply");
+        if (plyBytes is null || plyBytes.Length == 0)
+        {
+            throw new InvalidOperationException("Pipeline 未產出點雲 PLY。");
+        }
+
+        File.WriteAllBytes(plyPath, plyBytes);
+
+        writtenGlb = null;
+        var glbBytes = TryExtractFirstByExtension(zipBytes, ".glb");
+        if (glbBytes is { Length: > 0 })
+        {
+            File.WriteAllBytes(glbPath, glbBytes);
+            writtenGlb = glbPath;
+        }
+    }
+
+    private static int CountPoints(PipelineResult pipeline)
     {
         var count = 0;
         foreach (var obj in pipeline.Objects)
@@ -98,18 +161,10 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
             count += obj.Points.Length;
         }
 
-        var points = new PlyPoint[count];
-        var index = 0;
-        foreach (var obj in pipeline.Objects)
-        {
-            Array.Copy(obj.Points, 0, points, index, obj.Points.Length);
-            index += obj.Points.Length;
-        }
-
-        return points;
+        return count;
     }
 
-    private static double ComputeMeanZ(PipelineResult pipeline)
+    private static double MeanZ(PipelineResult pipeline)
     {
         double sum = 0;
         var count = 0;

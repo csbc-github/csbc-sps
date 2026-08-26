@@ -78,6 +78,7 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
         var imageResult = new ScannerCaptureResult
         {
             CaptureId = captureId,
+            ScannerId = ScannerId,
             HeightImagePath = heightPath,
             GrayImagePath = grayPath,
             Geometry = geometry,
@@ -114,6 +115,14 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
 
         Log($"ZIP={export.ZipPath}");
         Log($"JSON={export.JsonPath}");
+        if (!string.IsNullOrWhiteSpace(export.CompensatedJsonPath))
+        {
+            Log($"JSON compensated={export.CompensatedJsonPath}");
+        }
+        else
+        {
+            Log("JSON compensated：無該掃描器補償歷程，未另寫檔");
+        }
         if (!string.IsNullOrWhiteSpace(export.GlbPath))
         {
             Log($"GLB={export.GlbPath}");
@@ -126,6 +135,7 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
         return new ScannerCaptureResult
         {
             CaptureId = captureId,
+            ScannerId = ScannerId,
             HeightImagePath = heightPath,
             GrayImagePath = grayPath,
             PlyPath = export.PointCloudPath,
@@ -133,6 +143,7 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
             ZipPath = export.ZipPath,
             GlbPath = export.GlbPath,
             JsonPath = export.JsonPath,
+            CompensatedJsonPath = export.CompensatedJsonPath,
             AngleDegrees = export.AngleDegrees,
             AngleDeviationFromSquareDegrees = export.AngleDeviationFromSquareDegrees,
             Geometry = geometry,

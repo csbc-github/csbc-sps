@@ -199,7 +199,7 @@ Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`
 | `taskId` | 任務識別碼 |
 | `seq` | 本任務第幾次掃描 |
 | `status` | `Continue` 或 `Final` |
-| `pointCloudUrl` | 本段點雲，例如 `/scan-files/SURF-CAM-01/.../angle_steel.ply` |
+| `pointCloudUrl` | 本段點雲（有補償歷程時為已套 offset 的 `angle_steel.ply`） |
 | `thickness` | 未量測時省略 |
 | `segmentZDelta` | 與前一段平均 Z 差（mm） |
 | `traceId` | 本次追溯 ID |
@@ -215,7 +215,7 @@ Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`
 
 ### 2.5 GET `/api/scan/surface/{taskId}/attachments`
 
-成功時 **直接下載 ZIP**（`Content-Type: application/zip`），內含 STEP／glTF／PNG／PLY／JSON，**不是** `{ success, data }` 包裝。  
+成功時 **直接下載 ZIP**（`Content-Type: application/zip`），內含 STEP／glTF／PNG／PLY／JSON；有補償歷程時 ZIP 內座標已套 offset。**不是** `{ success, data }` 包裝。  
 失敗時仍為共通 JSON（400，`SCAN_001`）。
 
 `taskId` 用 2.4 回傳的值。目前為該任務**最後一次**掃描的 ZIP（尚未把多段拼成一份）。
