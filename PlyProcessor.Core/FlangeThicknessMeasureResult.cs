@@ -1,8 +1,7 @@
 namespace PlyProcessor.Core;
 
 /// <summary>
-/// 兩翼厚度量測結果（mm）。
-/// 公式為「點雲上最近 XY 點的 Z − 夾具點 Z」，由噴印區 <c>measureThickness=true</c> 時計算。
+/// 兩翼厚度量測結果（mm）。厚度 = 點雲上最近 XY 點的 Z − 夾具點 Z。
 /// </summary>
 public sealed class FlangeThicknessMeasureResult
 {

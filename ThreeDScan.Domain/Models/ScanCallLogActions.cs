@@ -2,7 +2,6 @@ namespace ThreeDScan.Domain.Models;
 
 /// <summary>
 /// <see cref="ScanCallLogRecord.Action"/> 的固定值。
-/// 與 <c>JobThickness</c> 無關：本表只記 API 呼叫舉證，厚度作業資料在工單表。
 /// </summary>
 public static class ScanCallLogActions
 {

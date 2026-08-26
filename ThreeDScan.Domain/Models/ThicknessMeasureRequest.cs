@@ -1,8 +1,7 @@
 namespace ThreeDScan.Domain.Models;
 
 /// <summary>
-/// 噴印區厚度量測輸入：夾具點 A／B 的 XYZ。
-/// 座標必須與 API 公開點雲（有補償歷程時為已套 offset）同一座標系。
+/// 厚度量測輸入：夾具點 A／B 的 XYZ（與公開點雲同一座標系）。
 /// </summary>
 public sealed class ThicknessMeasureRequest
 {

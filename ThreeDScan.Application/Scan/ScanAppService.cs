@@ -36,9 +36,9 @@ public sealed class ScanAppService : IScanAppService
     /// <param name="pipeline">高度圖 → Pipeline 匯出。</param>
     /// <param name="taskService">面掃描任務（seq／附件路徑）暫存。</param>
     /// <param name="storage">匯出根目錄，用來把絕對路徑轉成 <c>/scan-files/</c> URL。</param>
-    /// <param name="jobThickness">工單厚度作業表：噴印寫入、割切讀出。</param>
-    /// <param name="scanCallLog">掃描 API 舉證表：每次呼叫追加一列。</param>
-    /// <param name="logger">寫舉證失敗時記錄警告，不讓掃描 API 失敗。</param>
+    /// <param name="jobThickness">工單厚度：寫入與依 jobId 讀出。</param>
+    /// <param name="scanCallLog">掃描 API 呼叫紀錄。</param>
+    /// <param name="logger">寫入呼叫紀錄失敗時記警告，掃描 API 仍回已組好的回應。</param>
     public ScanAppService(
         IScannerRegistry registry,
         IScannerCaptureFactory captureFactory,
@@ -85,9 +85,9 @@ public sealed class ScanAppService : IScanAppService
 
     /// <inheritdoc />
     /// <remarks>
-    /// 噴印 <c>measureThickness=true</c>：量兩翼厚度，寫入 <c>JobThickness</c>，回應帶 thicknessA／B。
-    /// 割切 <c>measureThickness=false</c>：依 jobId 讀 <c>JobThickness</c> 組模型。
-    /// 每次呼叫（含失敗）另追加 <c>ScanCallLog</c>，與厚度表分開。
+    /// <c>measureThickness=true</c>：量兩翼厚度，寫入 <c>JobThickness</c>，回應帶 thicknessA／B。
+    /// <c>measureThickness=false</c>：依 jobId 讀 <c>JobThickness</c> 組模型。
+    /// 每次呼叫（含失敗）追加一筆 <c>ScanCallLog</c>。
     /// </remarks>
     public async Task<ApiResponse<SurfaceScanData>> ScanSurfaceAsync(
         SurfaceScanRequest request,
@@ -277,7 +277,7 @@ public sealed class ScanAppService : IScanAppService
 
     /// <inheritdoc />
     /// <remarks>
-    /// 成功時 Controller 以實體 ZIP 回應。本方法仍寫 <c>ScanCallLog</c>（含 ZIP SHA256）。
+    /// 成功時 Controller 以實體 ZIP 回應。寫入 <c>ScanCallLog</c>（含 ZIP SHA256）。
     /// </remarks>
     public async Task<ApiResponse<SurfaceScanAttachmentFile>> GetSurfaceAttachmentsAsync(
         string taskId,
@@ -367,7 +367,7 @@ public sealed class ScanAppService : IScanAppService
     }
 
     /// <summary>
-    /// 組面掃描失敗回應並寫入舉證列（沒有點雲／ZIP 時雜湊為空）。
+    /// 組面掃描失敗回應並寫入呼叫紀錄（沒有點雲／ZIP 時雜湊為空）。
     /// </summary>
     /// <param name="request">原始面掃描請求。</param>
     /// <param name="traceId">本次 traceId。</param>
@@ -396,8 +396,7 @@ public sealed class ScanAppService : IScanAppService
     }
 
     /// <summary>
-    /// 組面掃描舉證列：request／response JSON，以及可選的 PLY／ZIP SHA256。
-    /// 不含厚度欄位；厚度以 <c>JobThickness</c> 與 response JSON 為準。
+    /// 組面掃描呼叫紀錄：request／response JSON，以及可選的 PLY／ZIP SHA256。
     /// </summary>
     /// <param name="request">面掃描請求。</param>
     /// <param name="traceId">本次 traceId。</param>
@@ -406,7 +405,7 @@ public sealed class ScanAppService : IScanAppService
     /// <param name="seq">成功時的呼叫次數。</param>
     /// <param name="pointCloudPath">點雲絕對路徑。</param>
     /// <param name="zipPath">ZIP 絕對路徑。</param>
-    /// <returns>待寫入的舉證紀錄。</returns>
+    /// <returns>待寫入的呼叫紀錄。</returns>
     private static ScanCallLogRecord BuildSurfaceLog(
         SurfaceScanRequest request,
         string traceId,
@@ -438,14 +437,14 @@ public sealed class ScanAppService : IScanAppService
     }
 
     /// <summary>
-    /// 組附件下載舉證列。成功時 <paramref name="zipPath"/> 會算 SHA256。
+    /// 組附件下載呼叫紀錄。成功時 <paramref name="zipPath"/> 會算 SHA256。
     /// </summary>
     /// <param name="traceId">本次 traceId。</param>
     /// <param name="taskId">任務識別碼。</param>
     /// <param name="requestJson">僅含 taskId 的 JSON。</param>
     /// <param name="response">即將回傳的結果（Controller 成功時改送檔案）。</param>
     /// <param name="zipPath">ZIP 絕對路徑。</param>
-    /// <returns>待寫入的舉證紀錄。</returns>
+    /// <returns>待寫入的呼叫紀錄。</returns>
     private static ScanCallLogRecord BuildAttachmentLog(
         string traceId,
         string? taskId,
@@ -475,7 +474,7 @@ public sealed class ScanAppService : IScanAppService
     /// <summary>
     /// 寫入 <c>ScanCallLog</c>。資料庫失敗只記警告，不改變已組好的 API 回應。
     /// </summary>
-    /// <param name="record">舉證列。</param>
+    /// <param name="record">呼叫紀錄。</param>
     /// <param name="ct">取消權杖。</param>
     private async Task TryAppendScanLogAsync(ScanCallLogRecord record, CancellationToken ct)
     {
@@ -490,7 +489,7 @@ public sealed class ScanAppService : IScanAppService
     }
 
     /// <summary>
-    /// 將物件序列化成 camelCase JSON，供舉證列保存。
+    /// 將物件序列化成 camelCase JSON，供呼叫紀錄保存。
     /// </summary>
     /// <param name="value">request、envelope 或附件摘要。</param>
     /// <returns>JSON 字串；序列化失敗則為 null。</returns>

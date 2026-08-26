@@ -9,7 +9,7 @@ public interface IScanAppService
     /// <summary>預備進料區線掃描：滾輪傳動時持續辨識角鋼輪廓。</summary>
     Task<ApiResponse<LineScanData>> ScanLineAsync(LineScanRequest request, CancellationToken ct = default);
 
-    /// <summary>噴印區／割切區面掃描；可分段呼叫，最後一次完成拼接。</summary>
+    /// <summary>面掃描。</summary>
     Task<ApiResponse<SurfaceScanData>> ScanSurfaceAsync(SurfaceScanRequest request, CancellationToken ct = default);
 
     /// <summary>下載面掃描附加檔（ZIP：STEP／glTF／PNG）。</summary>

@@ -24,7 +24,7 @@ public sealed class ScanController : ControllerBase
         return SpecApiActionResult.From(result);
     }
 
-    /// <summary>噴印區／割切區面掃描；可分段呼叫，最後一次完成拼接。</summary>
+    /// <summary>面掃描。</summary>
     [HttpPost("surface")]
     public async Task<IActionResult> ScanSurface([FromBody] SurfaceScanRequest request, CancellationToken ct)
     {

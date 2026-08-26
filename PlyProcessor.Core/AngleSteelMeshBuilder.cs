@@ -43,9 +43,9 @@ public static class AngleSteelMeshBuilder
     }
 
     /// <summary>
-    /// 噴印區現場量測後組網格：兩翼各用 <paramref name="thicknessA"/>／<paramref name="thicknessB"/>。
+    /// 兩翼各用 <paramref name="thicknessA"/>／<paramref name="thicknessB"/> 組網格。
     /// 以夾具 A 的 XY 在點雲找最近點，該點所在翼用 A 的厚度，另一翼用 B。
-    /// 分不出兩翼時，改用單一 heightfield，厚度為兩者平均。
+    /// 分不出兩翼時改用單一 heightfield，厚度為兩者平均。
     /// </summary>
     /// <param name="pts">角鋼點雲（mm），應與夾具座標同一補償框。</param>
     /// <param name="cellSize">heightfield 格子邊長（mm）。</param>
@@ -56,10 +56,7 @@ public static class AngleSteelMeshBuilder
     /// <param name="smoothIter">高度平滑次數。</param>
     /// <param name="erodeN">佔用格侵蝕次數。</param>
     /// <param name="bridgeFill">兩翼投影缺口要橋接的最大格數。</param>
-    /// <param name="thicknessAOnLowFlange">
-    /// 傳出：A 是否落在直方圖較低的那翼。噴印寫入資料庫後，割切用
-    /// <see cref="BuildDualThicknessMapped"/> 沿用此對應。
-    /// </param>
+    /// <param name="thicknessAOnLowFlange">傳出：A 是否落在直方圖較低的那翼。</param>
     /// <returns>兩翼合併網格，或分翼失敗時的單一 heightfield。</returns>
     public static MeshBuilder.Mesh BuildDualThickness(
         PlyPoint[] pts,
@@ -95,15 +92,14 @@ public static class AngleSteelMeshBuilder
     }
 
     /// <summary>
-    /// 割切區沿用噴印厚度組網格：不再有夾具 XY，改用已存的
-    /// <paramref name="thicknessAOnLowFlange"/> 把 A／B 對到直方圖低／高翼。
-    /// 分不出兩翼時同樣改用平均厚度的單一 heightfield。
+    /// 以 <paramref name="thicknessAOnLowFlange"/> 把 A／B 對到直方圖低／高翼組網格。
+    /// 分不出兩翼時改用平均厚度的單一 heightfield。
     /// </summary>
-    /// <param name="pts">本段割切點雲（mm）。</param>
+    /// <param name="pts">角鋼點雲（mm）。</param>
     /// <param name="cellSize">heightfield 格子邊長（mm）。</param>
-    /// <param name="thicknessA">資料庫中的翼 A 厚度（mm）。</param>
-    /// <param name="thicknessB">資料庫中的翼 B 厚度（mm）。</param>
-    /// <param name="thicknessAOnLowFlange">噴印當時計下的 A 是否在低翼。</param>
+    /// <param name="thicknessA">翼 A 厚度（mm）。</param>
+    /// <param name="thicknessB">翼 B 厚度（mm）。</param>
+    /// <param name="thicknessAOnLowFlange">A 是否在直方圖較低的那翼。</param>
     /// <param name="smoothIter">高度平滑次數。</param>
     /// <param name="erodeN">佔用格侵蝕次數。</param>
     /// <param name="bridgeFill">兩翼投影缺口要橋接的最大格數。</param>

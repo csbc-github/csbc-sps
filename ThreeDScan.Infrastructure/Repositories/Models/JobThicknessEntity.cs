@@ -1,11 +1,9 @@
 namespace ThreeDScan.Infrastructure.Repositories.Models;
 
-/// <summary>
-/// 對應資料表 <c>JobThickness</c>：一筆工單列存噴印量得的兩翼厚度，供割切沿用。
-/// </summary>
+/// <summary>對應資料表 <c>JobThickness</c>：一筆工單列存兩翼厚度。</summary>
 public sealed class JobThicknessEntity
 {
-    /// <summary>主鍵：台船工單號。</summary>
+    /// <summary>主鍵：工單號。</summary>
     public string JobId { get; set; } = "";
 
     /// <summary>翼 A 厚度（mm）。</summary>
@@ -14,7 +12,7 @@ public sealed class JobThicknessEntity
     /// <summary>翼 B 厚度（mm）。</summary>
     public double ThicknessB { get; set; }
 
-    /// <summary>噴印時 A 是否對到直方圖較低的那翼。</summary>
+    /// <summary>夾具 A 是否對到直方圖較低的那翼。</summary>
     public bool ThicknessAOnLowFlange { get; set; }
 
     /// <summary>寫入時的掃描器編號。</summary>

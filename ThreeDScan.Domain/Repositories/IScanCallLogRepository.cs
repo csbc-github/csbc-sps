@@ -3,7 +3,7 @@ using ThreeDScan.Domain.Models;
 namespace ThreeDScan.Domain.Repositories;
 
 /// <summary>
-/// 掃描 API 舉證紀錄。僅追加；工單厚度仍走 <see cref="IJobThicknessRepository"/>。
+/// 掃描 API 呼叫紀錄。僅追加。
 /// </summary>
 public interface IScanCallLogRepository
 {

@@ -4,7 +4,7 @@ using ThreeDScan.Infrastructure.Repositories.Models;
 
 namespace ThreeDScan.Infrastructure.Repositories;
 
-/// <summary>掃描 API 舉證資料庫存取（EF Core）。只 INSERT。</summary>
+/// <summary>掃描 API 呼叫紀錄資料庫存取（EF Core）。只 INSERT。</summary>
 public sealed class ScanCallLogRepository : IScanCallLogRepository
 {
     private readonly ThreeDScanDbContext _db;
@@ -19,7 +19,7 @@ public sealed class ScanCallLogRepository : IScanCallLogRepository
     }
 
     /// <inheritdoc />
-    /// <remarks>不更新既有列，以保留爭議時可對照的原始紀錄。</remarks>
+    /// <remarks>不更新既有列。</remarks>
     public async Task AppendAsync(ScanCallLogRecord record, CancellationToken ct = default)
     {
         _db.ScanCallLogs.Add(new ScanCallLogEntity

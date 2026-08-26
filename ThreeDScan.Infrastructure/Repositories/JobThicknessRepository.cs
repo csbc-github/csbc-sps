@@ -5,15 +5,13 @@ using ThreeDScan.Infrastructure.Repositories.Models;
 
 namespace ThreeDScan.Infrastructure.Repositories;
 
-/// <summary>
-/// 工單兩翼厚度的 EF Core 存取。對應表 <c>JobThickness</c>（schema-v1.8）。
-/// </summary>
+/// <summary>工單兩翼厚度資料庫存取（EF Core）。對應表 <c>JobThickness</c>。</summary>
 public sealed class JobThicknessRepository : IJobThicknessRepository
 {
     private readonly ThreeDScanDbContext _db;
 
     /// <summary>
-    /// 建立倉儲；由 DI 注入同一請求範圍的 <see cref="ThreeDScanDbContext"/>。
+    /// 建立倉儲。
     /// </summary>
     /// <param name="db">ThreeDScan 資料庫內容。</param>
     public JobThicknessRepository(ThreeDScanDbContext db)
@@ -22,10 +20,7 @@ public sealed class JobThicknessRepository : IJobThicknessRepository
     }
 
     /// <inheritdoc />
-    /// <remarks>
-    /// 以主鍵 <c>JobId</c> 精確比對（先 Trim）。找不到或傳入空白工單號時回 <c>null</c>，
-    /// 不拋例外，由面掃描服務轉成 <c>SCAN_THK_002</c>。
-    /// </remarks>
+    /// <remarks>以主鍵 <c>JobId</c> 比對（先 Trim）。找不到或空白工單號時回 <c>null</c>。</remarks>
     public async Task<JobThicknessRecord?> GetByJobIdAsync(string jobId, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(jobId))
@@ -46,10 +41,7 @@ public sealed class JobThicknessRepository : IJobThicknessRepository
     }
 
     /// <inheritdoc />
-    /// <remarks>
-    /// 無列則 INSERT；已有同一 <c>JobId</c> 則更新厚度、A／低翼對應、掃描器與追溯欄位。
-    /// 噴印區對同一工單重測時會覆寫，割切讀到的永遠是最新噴印結果。
-    /// </remarks>
+    /// <remarks>無列則 INSERT；已有同一 <c>JobId</c> 則更新厚度與相關欄位。</remarks>
     public async Task UpsertAsync(JobThicknessRecord record, CancellationToken ct = default)
     {
         var jobId = record.JobId.Trim();
@@ -83,7 +75,7 @@ public sealed class JobThicknessRepository : IJobThicknessRepository
     }
 
     /// <summary>
-    /// 將資料表列轉成網域紀錄，供應用層使用。
+    /// 將資料表列轉成網域紀錄。
     /// </summary>
     /// <param name="row">EF 實體列。</param>
     /// <returns>對應的 <see cref="JobThicknessRecord"/>。</returns>

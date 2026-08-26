@@ -1,6 +1,6 @@
 namespace ThreeDScan.Infrastructure.Repositories.Models;
 
-/// <summary>對應資料表 <c>ScanCallLog</c>：掃描 API 舉證，與 <c>JobThickness</c> 分開。</summary>
+/// <summary>對應資料表 <c>ScanCallLog</c>：掃描 API 呼叫紀錄。</summary>
 public sealed class ScanCallLogEntity
 {
     public long Id { get; set; }

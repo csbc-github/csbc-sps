@@ -43,7 +43,7 @@ public record PipelineResult(
 
 /// <summary>
 /// 角鋼點雲處理與匯出：濾地、分群、PLY／JSON／STEP／GLB／PNG 打包 ZIP。
-/// 厚度：噴印可現場量測兩翼；割切可帶入資料庫厚度組網格；否則用假定 MeshThickness。
+/// 可用夾具點量測兩翼厚度、或帶入已存厚度組網格；皆無則用 <c>MeshThickness</c>。
 /// </summary>
 public static class Pipeline
 {
@@ -52,7 +52,7 @@ public static class Pipeline
     /// </summary>
     /// <param name="rawScanStream">掃描器座標的 raw PLY。</param>
     /// <param name="baseName">匯出檔名前綴，面掃描固定用 angle_steel。</param>
-    /// <param name="opts">濾點與網格參數；null 則用預設（含假定 MeshThickness 6 mm）。</param>
+    /// <param name="opts">濾點與網格參數；null 則用預設（含 MeshThickness 6 mm）。</param>
     /// <returns>分群物件、ZIP 位元組、合併座標 JSON，以及可選的量測厚度。</returns>
     public static PipelineResult Run(
         Stream rawScanStream,
@@ -71,17 +71,16 @@ public static class Pipeline
 
     /// <summary>
     /// 對已解析的原始點與濾點後點做分群與匯出。
-    /// 面掃描主路徑：補償前後各呼叫一次時，第二次帶量測或資料庫厚度以組 STEP／GLB。
     /// </summary>
     /// <param name="rawPts">raw PLY 全部點（對應 JSON 的 raw 欄）。</param>
     /// <param name="processedPts">去地／去雜訊後的點。</param>
     /// <param name="baseName">匯出檔名前綴。</param>
     /// <param name="opts">
     /// 若 <c>MeasureFlangeThickness</c>：用夾具 XYZ 量兩翼並組雙厚度網格。
-    /// 若 <c>UseStoredFlangeThickness</c>：用資料庫厚度組網格，不再量測。
-    /// 兩者皆否：用 <c>MeshThickness</c>（預設 6 mm）單一 heightfield。
+    /// 若 <c>UseStoredFlangeThickness</c>：用已存厚度組網格。
+    /// 兩者皆否：用 <c>MeshThickness</c>（預設 6 mm）。
     /// </param>
-    /// <returns>ZIP、座標 JSON，以及噴印量測時的 thicknessA／B 與 A 是否在低翼。</returns>
+    /// <returns>ZIP、座標 JSON，以及量測時的 thicknessA／B 與 A 是否在低翼。</returns>
     public static PipelineResult Export(
         PlyPoint[] rawPts,
         PlyPoint[] processedPts,
@@ -111,7 +110,7 @@ public static class Pipeline
     }
 
     /// <summary>
-    /// 分群、合併相鄰物件後，寫 PLY／JSON／正交圖，並依選項組網格（量測／資料庫厚度／假定 6 mm）。
+    /// 分群、合併相鄰物件後，寫 PLY／JSON／正交圖，並依選項組網格。
     /// 網格失敗時略過 STEP／GLB，其餘檔仍進 ZIP。
     /// </summary>
     /// <param name="rawPts">原始掃描點，供 JSON raw 欄對照。</param>
@@ -277,7 +276,7 @@ public static class Pipeline
     }
 
     /// <summary>
-    /// 將包圍盒間距小於門檻的分群物件合併，避免 L 型兩翼被拆成兩個匯出物件。
+    /// 將包圍盒間距小於門檻的分群物件合併。
     /// </summary>
     /// <param name="objects">體素分群結果。</param>
     /// <param name="planeTol">平面容差（mm）；合併門檻為 max(3×此值, 30)。</param>

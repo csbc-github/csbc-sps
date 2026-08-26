@@ -1,8 +1,8 @@
 namespace ThreeDScan.Domain.Models;
 
 /// <summary>
-/// 掃描 API 一次呼叫的舉證列（只追加、不修改）。
-/// 用來還原當時 request／response 與回傳檔的 SHA256；不是工單厚度作業表。
+/// 掃描 API 一次呼叫紀錄（只追加、不修改）。
+/// 含當時 request／response 與回傳檔 SHA256。
 /// </summary>
 public sealed class ScanCallLogRecord
 {
@@ -27,7 +27,7 @@ public sealed class ScanCallLogRecord
     /// <summary>面掃描 seq；非面掃描為 null。</summary>
     public int? Seq { get; init; }
 
-    /// <summary>是否成功回給呼叫端（與 envelope <c>success</c> 一致）。</summary>
+    /// <summary>本次呼叫是否成功。</summary>
     public bool Success { get; init; }
 
     /// <summary>失敗時的錯誤碼，例如 <c>SCAN_THK_002</c>、<c>SYS_NYI</c>。</summary>

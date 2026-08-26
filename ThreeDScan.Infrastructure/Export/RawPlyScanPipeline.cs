@@ -21,9 +21,9 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
 
     /// <summary>
     /// 由設定與範圍工廠建立管線。補償歷程透過 <paramref name="scopeFactory"/> 解析
-    /// <see cref="ICompensationRepository"/>，避免 Singleton 管線直接抓住 Scoped DbContext。
+    /// <see cref="ICompensationRepository"/>。
     /// </summary>
-    /// <param name="options">PlyProcessor 設定（濾點、假定 MeshThickness 等）。</param>
+    /// <param name="options">PlyProcessor 設定（濾點、MeshThickness 等）。</param>
     /// <param name="scopeFactory">用來開短命 scope 讀最新補償。</param>
     public RawPlyScanPipeline(
         IOptions<PlyProcessorOptions> options,
@@ -36,8 +36,7 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
     /// <inheritdoc />
     /// <remarks>
     /// 先讀該掃描器最新補償，再於執行緒池跑 CPU 密集的 PLY／網格匯出。
-    /// <paramref name="thickness"/> 與 <paramref name="storedThickness"/> 至多一個有值：
-    /// 前者為噴印量測，後者為割切沿用。
+    /// <paramref name="thickness"/> 有值時量測兩翼；<paramref name="storedThickness"/> 有值時用存檔厚度組網格。
     /// </remarks>
     public async Task<SurfaceScanPipelineResult> ProcessCaptureAsync(
         ScannerCaptureResult capture,
@@ -55,8 +54,8 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
     /// </summary>
     /// <param name="capture">擷取結果，高度圖須仍在 <see cref="ScanCaptureCache"/>。</param>
     /// <param name="offset">該掃描器最新補償；null 表示公開檔與未補償座標相同。</param>
-    /// <param name="thickness">噴印夾具 A／B；null 表示不現場量測。</param>
-    /// <param name="storedThickness">割切沿用的資料庫厚度；null 表示不用存檔厚度。</param>
+    /// <param name="thickness">夾具 A／B；null 表示不現場量測。</param>
+    /// <param name="storedThickness">已存的兩翼厚度；null 表示不用存檔厚度。</param>
     /// <returns>檔案路徑與（若有量測）兩翼厚度。</returns>
     /// <exception cref="InvalidOperationException">缺高度圖、快取失效、或 ZIP 內沒有 PLY。</exception>
     private SurfaceScanPipelineResult ProcessCapture(

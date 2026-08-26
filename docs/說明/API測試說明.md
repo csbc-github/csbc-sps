@@ -233,9 +233,7 @@ WPF 噴印「開始掃描」不經此 API，模型仍用假定 `MeshThickness`�
 部署須執行：
 
 - `database/schema-v1.8-job-thickness.sql`（工單最新厚度 `JobThickness`，割切組模型用）
-- `database/schema-v1.9-scan-call-log.sql`（掃描 API 舉證 `ScanCallLog`，每次呼叫一列，含 request／response 與 PLY／ZIP SHA256）
-
-兩表用途不同：厚度作業 vs 爭議時證明當次回傳。
+- `database/schema-v1.9-scan-call-log.sql`（掃描 API 呼叫紀錄 `ScanCallLog`，每次呼叫一列，含 request／response 與 PLY／ZIP SHA256）
 
 | `errorCode` | 情況 |
 |---|---|
