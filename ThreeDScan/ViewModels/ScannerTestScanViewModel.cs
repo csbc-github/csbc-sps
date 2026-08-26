@@ -34,7 +34,7 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
 
     /// <summary>視窗頂部說明文字。</summary>
     public string HelpText { get; } =
-        "選擇掃描器與群組，以該程式已 Save 的設定觸發量測（掃描前會同步至 RUNNING），並以 Lj3DView 顯示 3D 結果。";
+        "純測試掃描：選擇掃描器與群組，以該程式已 Save 的設定擷取一幀高度／灰階，並以 Lj3DView 預覽。不做角鋼 PLY／ZIP／GLB。";
 
     /// <summary>appsettings「Scanners」區段中的 ScannerId 清單。</summary>
     public ObservableCollection<string> ScannerIds { get; } = [];
@@ -219,7 +219,7 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
             using var scope = WpfServiceProviderFactory.CreateScope(_config);
             var captureFactory = scope.ServiceProvider.GetRequiredService<IScannerCaptureFactory>();
             var capture = captureFactory.GetCapture(scannerId);
-            var result = await capture.CaptureWithAngleSteelAsync(programNo);
+            var result = await capture.CaptureAsync(programNo);
 
             if (string.IsNullOrWhiteSpace(result.HeightImagePath)
                 || string.IsNullOrWhiteSpace(result.GrayImagePath))
@@ -233,23 +233,13 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
                     $"係數 X={geo.CoefficientX:F6} Y={geo.CoefficientY:F6}";
             }
 
-            StatusText = string.IsNullOrWhiteSpace(result.PlyPath)
-                ? $"掃描完成 · {ScanTargetLabel}"
-                : result.AngleDegrees is { } ang
-                    ? $"掃描完成 · {ScanTargetLabel} · 角鋼 {result.PlyPointCount:N0} 點 · 夾角 {ang:F2}°\n{result.PlyPath}"
-                    : $"掃描完成 · {ScanTargetLabel} · 角鋼 PLY {result.PlyPointCount:N0} 點\n{result.PlyPath}";
-            if (!string.IsNullOrWhiteSpace(result.ZipPath))
-                StatusText += $"\nZIP：{result.ZipPath}";
-            if (!string.IsNullOrWhiteSpace(result.GlbPath))
-                StatusText += $"\nGLB：{result.GlbPath}";
+            StatusText = $"掃描完成 · {ScanTargetLabel}\n{result.HeightImagePath}";
 
             Application.Current.Dispatcher.Invoke(() =>
                 CapturePreviewReady?.Invoke(this, new ScannerCapturePreviewEventArgs
                 {
                     HeightImagePath = result.HeightImagePath,
                     GrayImagePath = result.GrayImagePath,
-                    PlyPath = result.PlyPath,
-                    PlyPointCount = result.PlyPointCount,
                 }));
         }
         catch (Exception ex)

@@ -1,13 +1,13 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Text;
-using System.Text.Json;
 using System.Windows.Input;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using ThreeDScan.Common;
+using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Models;
 
 namespace ThreeDScan.ViewModels;
@@ -15,11 +15,10 @@ namespace ThreeDScan.ViewModels;
 // 噴印區 VM：對應 SA UC-04 面掃描（噴印／割切區）／ SD §10.3
 public class PrintingViewModel : ViewModelBase
 {
-    private const string LidarIp = "192.168.0.1";
-    private const int LidarPort = 24691;
-    private const string CliExeName = "Ljs8SurfaceScanCli.exe";
     /// <summary>WPF 端效能上限；Python 預設 2e6，此處縮小但流程順序與著色與 viewer 一致。</summary>
     private const int MaxDisplayPoints = 60_000;
+
+    private readonly IConfiguration _config;
 
     private enum PreviewMode
     {
@@ -38,7 +37,6 @@ public class PrintingViewModel : ViewModelBase
     private string? _glbPath;
     private IReadOnlyList<PointCloudRenderVertex> _pointCloudVertices = Array.Empty<PointCloudRenderVertex>();
     private CancellationTokenSource? _scanCts;
-    private Process? _runningProcess;
 
     public bool Is2DMode
     {
@@ -152,7 +150,13 @@ public class PrintingViewModel : ViewModelBase
     public ICommand TestLoadPointCloudCommand { get; }
 
     public PrintingViewModel()
+        : this(AppConfiguration.Load())
     {
+    }
+
+    public PrintingViewModel(IConfiguration config)
+    {
+        _config = config;
         StartScanCommand = new RelayCommand(_ => _ = StartAsync(), _ => !IsScanning);
         StopScanCommand = new RelayCommand(_ => _ = StopAsync(), _ => IsScanning);
         TestLoadPointCloudCommand = new RelayCommand(_ => _ = TestLoad3DFileAsync(), _ => !IsScanning);
@@ -221,86 +225,53 @@ public class PrintingViewModel : ViewModelBase
     {
         if (IsScanning) return;
 
-        if (!TryResolveCliExecutable(out var cliExePath))
-        {
-            ScanStatusText = "找不到 Ljs8SurfaceScanCli.exe（請確認 dist/disT 位置）";
-            OverallStatus = SystemStatus.Error;
-            return;
-        }
-
-        var outputDir = Path.Combine(AppContext.BaseDirectory, "ScanOutput");
-        Directory.CreateDirectory(outputDir);
-        var outPlyPath = Path.Combine(outputDir, $"print_scan_{DateTime.Now:yyyyMMdd_HHmmss}.ply");
-
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = cliExePath,
-            WorkingDirectory = Path.GetDirectoryName(cliExePath) ?? AppContext.BaseDirectory,
-            Arguments = BuildCliArguments(outPlyPath),
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
-        };
-
         _scanCts = new CancellationTokenSource();
-        _runningProcess = new Process { StartInfo = startInfo };
+        var ct = _scanCts.Token;
 
-        ScanStatusText = "掃描中（呼叫 Python CLI）…";
+        ScanStatusText = "掃描中（面掃描／C# Pipeline）…";
         OverallStatus = SystemStatus.Warning;
+        IsScanning = true;
 
         try
         {
-            IsScanning = true;
-            if (!_runningProcess.Start())
-            {
-                ScanStatusText = "啟動掃描程式失敗";
-                OverallStatus = SystemStatus.Error;
-                return;
-            }
+            var scannerId = ResolvePrintingScannerId();
+            var programNo = ResolveDefaultProgramNo(scannerId);
 
-            var stdoutReadTask = _runningProcess.StandardOutput.ReadToEndAsync(_scanCts.Token);
-            var stderrReadTask = _runningProcess.StandardError.ReadToEndAsync(_scanCts.Token);
-            await _runningProcess.WaitForExitAsync(_scanCts.Token);
-            var stdout = await stdoutReadTask;
-            var stderr = await stderrReadTask;
+            using var scope = WpfServiceProviderFactory.CreateScope(_config);
+            var captureFactory = scope.ServiceProvider.GetRequiredService<IScannerCaptureFactory>();
+            var capture = captureFactory.GetCapture(scannerId);
+            var result = await capture.CaptureWithAngleSteelAsync(programNo, ct);
 
-            if (_scanCts.IsCancellationRequested)
+            if (ct.IsCancellationRequested)
             {
                 ScanStatusText = "已停止";
                 OverallStatus = SystemStatus.Normal;
                 return;
             }
 
-            if (_runningProcess.ExitCode == 0)
+            if (string.IsNullOrWhiteSpace(result.PlyPath) || !File.Exists(result.PlyPath))
             {
-                var result = TryParseCliResult(stdout);
-                if (result is { Ok: true })
-                {
-                    LastPlyPath = ResolvePlyPath(result.PlyPath, outPlyPath, startInfo.WorkingDirectory);
-                    ScanStatusText = "掃描完成，載入點雲中…";
-                    OverallStatus = SystemStatus.Normal;
-                    Is3DMode = true;
-                    PointCloudVertices = await LoadPointCloudAsync(LastPlyPath, _scanCts.Token);
-                    ScanStatusText = PointCloudVertices.Count > 0
-                        ? $"掃描完成：{Path.GetFileName(LastPlyPath)}（顯示 {PointCloudVertices.Count:N0} 點）"
-                        : $"掃描完成但無可顯示點雲：{Path.GetFileName(LastPlyPath)}";
-                    return;
-                }
+                ScanStatusText = "掃描完成但沒有角鋼 PLY";
+                OverallStatus = SystemStatus.Error;
+                return;
             }
 
-            var fail = TryParseCliResult(stdout);
-            var message = fail is null
-                ? $"掃描失敗（ExitCode={_runningProcess.ExitCode}）"
-                : BuildFailureMessage(fail);
-            if (!string.IsNullOrWhiteSpace(stderr))
+            LastPlyPath = result.PlyPath;
+            GlbPath = result.GlbPath;
+            ScanStatusText = "掃描完成，載入點雲中…";
+            OverallStatus = SystemStatus.Normal;
+            Is3DMode = true;
+            PointCloudVertices = await LoadPointCloudAsync(LastPlyPath, ct);
+
+            var summary = PointCloudVertices.Count > 0
+                ? $"掃描完成：{Path.GetFileName(LastPlyPath)}（顯示 {PointCloudVertices.Count:N0} 點）"
+                : $"掃描完成但無可顯示點雲：{Path.GetFileName(LastPlyPath)}";
+            if (result.AngleDegrees is { } ang)
             {
-                message = $"{message} / {stderr.Trim()}";
+                summary += $" · 夾角 {ang:F2}°";
             }
-            ScanStatusText = message;
-            OverallStatus = SystemStatus.Error;
+
+            ScanStatusText = summary;
         }
         catch (OperationCanceledException)
         {
@@ -309,26 +280,11 @@ public class PrintingViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            ScanStatusText = "掃描異常：" + ex.Message;
+            ScanStatusText = "掃描異常：" + ex.GetBaseException().Message;
             OverallStatus = SystemStatus.Error;
         }
         finally
         {
-            try
-            {
-                if (_runningProcess is { HasExited: false })
-                {
-                    _runningProcess.Kill(entireProcessTree: true);
-                    await _runningProcess.WaitForExitAsync();
-                }
-            }
-            catch
-            {
-                // Ignore cleanup errors.
-            }
-
-            _runningProcess?.Dispose();
-            _runningProcess = null;
             _scanCts?.Dispose();
             _scanCts = null;
             IsScanning = false;
@@ -343,67 +299,26 @@ public class PrintingViewModel : ViewModelBase
         await Task.CompletedTask;
     }
 
-    private static string BuildCliArguments(string outPlyPath)
+    private string ResolvePrintingScannerId()
     {
-        return $"--ip {LidarIp} --port {LidarPort} --out-ply {QuoteArgument(outPlyPath)}";
-    }
-
-    private static string QuoteArgument(string value)
-    {
-        return "\"" + value.Replace("\"", "\\\"") + "\"";
-    }
-
-    private static ScanCliResult? TryParseCliResult(string stdout)
-    {
-        if (string.IsNullOrWhiteSpace(stdout)) return null;
-        try
+        var section = _config.GetSection("Scanners");
+        foreach (var child in section.GetChildren())
         {
-            return JsonSerializer.Deserialize<ScanCliResult>(stdout.Trim(), new JsonSerializerOptions
+            if (string.IsNullOrWhiteSpace(child.Key)) continue;
+            var area = child["MachineArea"];
+            if (string.Equals(area, "printing", StringComparison.OrdinalIgnoreCase))
             {
-                PropertyNameCaseInsensitive = true
-            });
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static string BuildFailureMessage(ScanCliResult fail)
-    {
-        if (!string.IsNullOrWhiteSpace(fail.Error))
-            return "掃描失敗：" + fail.Error;
-        if (!string.IsNullOrWhiteSpace(fail.Step) && fail.Rc.HasValue)
-            return $"掃描失敗：{fail.Step} (rc={fail.Rc.Value})";
-        if (!string.IsNullOrWhiteSpace(fail.Step))
-            return $"掃描失敗：{fail.Step}";
-        return "掃描失敗";
-    }
-
-    private static bool TryResolveCliExecutable(out string exePath)
-    {
-        var candidates = new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, "dist", "Ljs8SurfaceScanCli", CliExeName),
-            Path.Combine(AppContext.BaseDirectory, "disT", "Ljs8SurfaceScanCli", CliExeName),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "dist", "Ljs8SurfaceScanCli", CliExeName),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "disT", "Ljs8SurfaceScanCli", CliExeName),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "dist", "Ljs8SurfaceScanCli", CliExeName),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "disT", "Ljs8SurfaceScanCli", CliExeName)
-        };
-
-        foreach (var candidate in candidates)
-        {
-            var fullPath = Path.GetFullPath(candidate);
-            if (File.Exists(fullPath))
-            {
-                exePath = fullPath;
-                return true;
+                return child.Key;
             }
         }
 
-        exePath = string.Empty;
-        return false;
+        throw new InvalidOperationException("appsettings 的 Scanners 沒有 MachineArea=printing 的掃描器。");
+    }
+
+    private byte ResolveDefaultProgramNo(string scannerId)
+    {
+        var navScan = _config.GetValue<int?>($"Scanners:{scannerId}:NavigatorScanNo") ?? 1;
+        return (byte)Math.Clamp(navScan - 1, 0, 15);
     }
 
     /// <summary>
@@ -682,50 +597,5 @@ public class PrintingViewModel : ViewModelBase
             case 4: r = t; g = p; b = v; break;
             default: r = v; g = p; b = q; break;
         }
-    }
-
-    private static string ResolvePlyPath(string? cliPlyPath, string fallbackPath, string cliWorkingDirectory)
-    {
-        if (!string.IsNullOrWhiteSpace(cliPlyPath))
-        {
-            var candidate = cliPlyPath.Trim().Trim('"');
-            var full = Path.IsPathRooted(candidate)
-                ? candidate
-                : Path.Combine(cliWorkingDirectory, candidate);
-            full = Path.GetFullPath(full);
-            if (File.Exists(full))
-            {
-                return full;
-            }
-        }
-
-        if (File.Exists(fallbackPath))
-        {
-            return fallbackPath;
-        }
-
-        var outputDir = Path.GetDirectoryName(fallbackPath);
-        if (!string.IsNullOrWhiteSpace(outputDir) && Directory.Exists(outputDir))
-        {
-            var latest = new DirectoryInfo(outputDir)
-                .GetFiles("*.ply", SearchOption.TopDirectoryOnly)
-                .OrderByDescending(f => f.LastWriteTimeUtc)
-                .FirstOrDefault();
-            if (latest is not null)
-            {
-                return latest.FullName;
-            }
-        }
-
-        return fallbackPath;
-    }
-
-    private sealed class ScanCliResult
-    {
-        public bool Ok { get; set; }
-        public string? PlyPath { get; set; }
-        public string? Step { get; set; }
-        public int? Rc { get; set; }
-        public string? Error { get; set; }
     }
 }

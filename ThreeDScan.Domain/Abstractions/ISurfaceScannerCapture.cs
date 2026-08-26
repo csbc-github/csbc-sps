@@ -8,9 +8,9 @@ public interface ISurfaceScannerCapture
     /// <summary>此擷取服務對應的 ScannerId。</summary>
     string ScannerId { get; }
 
-    /// <summary>切換至指定 programNo 並擷取一幀掃描影像（校正／量測，不跑角鋼後處理）。</summary>
+    /// <summary>切換至指定 programNo 並擷取一幀掃描影像（校正／右上角測試掃描，不跑角鋼後處理）。</summary>
     Task<ScannerCaptureResult> CaptureAsync(byte programNo, CancellationToken ct = default);
 
-    /// <summary>UC-04 面掃描：影像 + raw PLY → Python 角鋼抽出 → ZIP／GLB／角度。</summary>
+    /// <summary>UC-04 面掃描：影像 + raw PLY → C# Pipeline.Run → ZIP／GLB／角度（與 API 同一條）。</summary>
     Task<ScannerCaptureResult> CaptureWithAngleSteelAsync(byte programNo, CancellationToken ct = default);
 }

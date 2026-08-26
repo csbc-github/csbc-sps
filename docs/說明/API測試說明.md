@@ -44,8 +44,8 @@ JSON 為 camelCase；`Content-Type: application/json`。改設定後須重啟 Ap
 | POST | `/api/calibration/instrument` | 可測（TestMode） |
 | POST | `/api/calibration/roller` | 待補充 |
 | POST | `/api/scan/line` | 待補充 |
-| POST | `/api/scan/surface` | 待補充 |
-| GET | `/api/scan/surface/{taskId}/attachments` | 待補充 |
+| POST | `/api/scan/surface` | 可測（連掃描器） |
+| GET | `/api/scan/surface/{taskId}/attachments` | 可測 |
 | POST | `/api/scan/hole` | 待補充 |
 
 ### 2.1 POST `/api/calibration/instrument`
@@ -170,11 +170,55 @@ Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`
 
 ### 2.4 POST `/api/scan/surface`
 
-待補充。路由已掛，回 **501** `SYS_NYI`。
+噴印區／割切區面掃描。介面仍是規格欄位（`scannerId`、`taskId`、`final`…）；處理走 C# `Pipeline.Run`（高度圖 → raw PLY → 去地／去雜訊 → ZIP），**不經** Python exe、也**不**收 Hank 的 Base64 PLY。
+
+`scannerId` 須為 `SURF-CAM-01` 或 `SURF-CAM-02`。省略 `navigatorScanNo` 時用該掃描器 appsettings 預設。  
+分段拼接尚未做：每次呼叫獨立掃描與處理；`segmentZDelta` 為與前一段處理後點雲平均 Z 的差（第一段為 0）。`measureThickness=true` 回 400 `SCAN_THK_001`。
+
+| 次數 | `final` | `taskId` |
+|---|---|---|
+| 單次完成 | `true` | 省略 |
+| 第一次（還要再掃） | `false` | 省略 |
+| 後續 | `false` 或最後一次 `true` | 第一次回傳的 `data.taskId` |
+
+必填：`scannerId`。JSON 欄位名是 **`final`**。
+
+#### 單次 request
+
+```json
+{
+  "scannerId": "SURF-CAM-01",
+  "final": true
+}
+```
+
+#### 成功 `data`
+
+| 欄位 | 說明 |
+|---|---|
+| `taskId` | 任務識別碼 |
+| `seq` | 本任務第幾次掃描 |
+| `status` | `Continue` 或 `Final` |
+| `pointCloudUrl` | 本段點雲，例如 `/scan-files/SURF-CAM-01/.../angle_steel.ply` |
+| `thickness` | 未量測時省略 |
+| `segmentZDelta` | 與前一段平均 Z 差（mm） |
+| `traceId` | 本次追溯 ID |
+
+點雲靜態檔路徑前綴：`/scan-files/`（對應 `Storage:ExportRoot`）。
+
+| `errorCode` | 情況 |
+|---|---|
+| `SCAN_CFG_001` | 未知 `scannerId` |
+| `SCAN_001` | `taskId` 不存在、掃描器不符、或任務已 `Final` |
+| `SCAN_THK_001` | `measureThickness=true`（尚未實作） |
+| `SCAN_SDK_001` | 擷取或 Pipeline 失敗 |
 
 ### 2.5 GET `/api/scan/surface/{taskId}/attachments`
 
-待補充。路由已掛，回 **501** `SYS_NYI`。
+成功時 **直接下載 ZIP**（`Content-Type: application/zip`），內含 STEP／glTF／PNG／PLY／JSON，**不是** `{ success, data }` 包裝。  
+失敗時仍為共通 JSON（400，`SCAN_001`）。
+
+`taskId` 用 2.4 回傳的值。目前為該任務**最後一次**掃描的 ZIP（尚未把多段拼成一份）。
 
 ### 2.6 POST `/api/scan/hole`
 

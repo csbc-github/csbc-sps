@@ -10,27 +10,24 @@ using ThreeDScan.Infrastructure.Export;
 namespace ThreeDScan.Infrastructure.Scanners;
 
 /// <summary>
-/// LJS8 擷取：校正走影像-only；UC-04 另跑 Python 角鋼／ZIP／GLB。
+/// LJS8 擷取：校正走影像-only；UC-04 與 API 同走 C# Pipeline.Run。
 /// </summary>
 public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
 {
     private readonly ScannerEndpointOptions _endpoint;
     private readonly string _exportRoot;
-    private readonly HankPlyProcessorClient _plyProcessor;
-    private readonly AngleSteelPipelineExporter _pipelineExporter;
+    private readonly ISurfaceScanPipeline _pipeline;
 
     public Ljs8SurfaceScannerCapture(
         string scannerId,
         ScannerEndpointOptions endpoint,
         string exportRoot,
-        HankPlyProcessorClient plyProcessor,
-        AngleSteelPipelineExporter pipelineExporter)
+        ISurfaceScanPipeline pipeline)
     {
         ScannerId = scannerId;
         _endpoint = endpoint;
         _exportRoot = exportRoot;
-        _plyProcessor = plyProcessor;
-        _pipelineExporter = pipelineExporter;
+        _pipeline = pipeline;
     }
 
     /// <inheritdoc />
@@ -78,21 +75,18 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
             CoefficientY = heightImage.CoefficientY,
         };
 
+        var imageResult = new ScannerCaptureResult
+        {
+            CaptureId = captureId,
+            HeightImagePath = heightPath,
+            GrayImagePath = grayPath,
+            Geometry = geometry,
+        };
+
         if (!processAngleSteel)
         {
-            return new ScannerCaptureResult
-            {
-                CaptureId = captureId,
-                HeightImagePath = heightPath,
-                GrayImagePath = grayPath,
-                Geometry = geometry,
-            };
+            return imageResult;
         }
-
-        var rawPlyPath = Path.Combine(captureDir, "raw_scene.ply");
-        var plyPath = Path.Combine(captureDir, "angle_steel.ply");
-        await Task.Run(() => HeightImagePlyExporter.SaveAsAsciiPly(heightImage, rawPlyPath), ct)
-            .ConfigureAwait(false);
 
         var processLogPath = Path.Combine(captureDir, "ply_processor.log");
         void Log(string msg)
@@ -105,41 +99,42 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
             catch { }
         }
 
-        Log($"raw={rawPlyPath}");
-        Log($"scans={_plyProcessor.ScansDirectory}");
-        var processedPath = await _plyProcessor.ProcessAsync(rawPlyPath, Log, ct).ConfigureAwait(false);
-
-        File.Copy(processedPath, plyPath, overwrite: true);
-        File.SetLastWriteTimeUtc(plyPath, DateTime.UtcNow);
-        var plyPointCount = HankPlyProcessorClient.CountPlyVertices(plyPath);
-        Log($"copied from {Path.GetFileName(processedPath)} -> {plyPath} ({plyPointCount} points)");
-
-        Log("C# Pipeline.RunProcessed（ZIP / JSON / STEP / GLB / PNG / 角度）...");
-        var export = await Task.Run(() => _pipelineExporter.Export(plyPath, captureDir, "angle_steel"), ct)
-            .ConfigureAwait(false);
+        Log("C# Pipeline.Run（raw PLY → 去地／去雜訊／ZIP／JSON／GLB／角度）...");
+        var export = await _pipeline.ProcessCaptureAsync(imageResult, ct).ConfigureAwait(false);
+        Log($"raw={Path.Combine(captureDir, "raw_scene.ply")}");
+        Log($"PLY={export.PointCloudPath} ({export.PointCount} points)");
         if (export.AngleDegrees is { } deg)
-            Log($"角鋼夾角：{deg:F2}°（偏離 90° {export.DeviationFromSquareDegrees:F2}°）");
+        {
+            Log($"角鋼夾角：{deg:F2}°（偏離 90° {export.AngleDeviationFromSquareDegrees:F2}°）");
+        }
         else
+        {
             Log("角鋼夾角：無法辨識兩個有效平面");
+        }
+
         Log($"ZIP={export.ZipPath}");
         Log($"JSON={export.JsonPath}");
         if (!string.IsNullOrWhiteSpace(export.GlbPath))
+        {
             Log($"GLB={export.GlbPath}");
+        }
         else
+        {
             Log("GLB：網格未產出（稀疏物件時 Pipeline 可能略過）");
+        }
 
         return new ScannerCaptureResult
         {
             CaptureId = captureId,
             HeightImagePath = heightPath,
             GrayImagePath = grayPath,
-            PlyPath = plyPath,
-            PlyPointCount = plyPointCount,
+            PlyPath = export.PointCloudPath,
+            PlyPointCount = export.PointCount,
             ZipPath = export.ZipPath,
             GlbPath = export.GlbPath,
             JsonPath = export.JsonPath,
             AngleDegrees = export.AngleDegrees,
-            AngleDeviationFromSquareDegrees = export.DeviationFromSquareDegrees,
+            AngleDeviationFromSquareDegrees = export.AngleDeviationFromSquareDegrees,
             Geometry = geometry,
         };
     }

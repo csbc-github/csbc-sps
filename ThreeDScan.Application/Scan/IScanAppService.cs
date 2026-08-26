@@ -13,7 +13,9 @@ public interface IScanAppService
     Task<ApiResponse<SurfaceScanData>> ScanSurfaceAsync(SurfaceScanRequest request, CancellationToken ct = default);
 
     /// <summary>下載面掃描附加檔（ZIP：STEP／glTF／PNG）。</summary>
-    Task<ApiResponse<object>> GetSurfaceAttachmentsAsync(string taskId, CancellationToken ct = default);
+    Task<ApiResponse<SurfaceScanAttachmentFile>> GetSurfaceAttachmentsAsync(
+        string taskId,
+        CancellationToken ct = default);
 
     /// <summary>研磨區孔洞掃描，回傳孔洞邊界座標。</summary>
     Task<ApiResponse<HoleScanData>> ScanHoleAsync(HoleScanRequest request, CancellationToken ct = default);

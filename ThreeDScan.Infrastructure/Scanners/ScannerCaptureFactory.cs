@@ -13,15 +13,14 @@ public sealed class ScannerCaptureFactory : IScannerCaptureFactory
     public ScannerCaptureFactory(
         IOptions<ScannerRegistryOptions> options,
         IOptions<StorageOptions> storageOptions,
-        HankPlyProcessorClient plyProcessor,
-        AngleSteelPipelineExporter pipelineExporter)
+        ISurfaceScanPipeline pipeline)
     {
         var exportRoot = CaptureExportPath.ResolveRoot(storageOptions.Value.ExportRoot);
         Directory.CreateDirectory(exportRoot);
 
         _captures = options.Value.ToDictionary(
             kv => kv.Key,
-            kv => new Ljs8SurfaceScannerCapture(kv.Key, kv.Value, exportRoot, plyProcessor, pipelineExporter),
+            kv => new Ljs8SurfaceScannerCapture(kv.Key, kv.Value, exportRoot, pipeline),
             StringComparer.OrdinalIgnoreCase);
     }
 

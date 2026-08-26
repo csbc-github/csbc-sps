@@ -25,9 +25,8 @@ public static class DependencyInjection
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
         services.AddSingleton<IStorageSettings, StorageSettings>();
         services.Configure<PlyProcessorOptions>(configuration.GetSection(PlyProcessorOptions.SectionName));
-        services.AddSingleton(sp =>
-            new HankPlyProcessorClient(sp.GetRequiredService<IOptions<PlyProcessorOptions>>().Value));
-        services.AddSingleton<AngleSteelPipelineExporter>();
+        services.AddSingleton<ISurfaceScanPipeline, RawPlyScanPipeline>();
+        services.AddSingleton<ISurfaceScanTaskService, SurfaceScanTaskService>();
 
         var connectionString = configuration.GetConnectionString("ThreeDScan")
             ?? configuration.GetConnectionString("DefaultConnection")

@@ -4,6 +4,7 @@ using ThreeDScan.Api.Hubs;
 using ThreeDScan.Api.Services;
 using ThreeDScan.Application.Calibration;
 using ThreeDScan.Application.Scan;
+using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,6 +36,18 @@ if (!string.IsNullOrWhiteSpace(contentsRoot))
     {
         RequestPath = "/calibration-preview-files",
         FileProvider = new PhysicalFileProvider(contentsRoot),
+    });
+}
+
+var exportRoot = app.Services.GetRequiredService<IStorageSettings>().ExportRoot;
+if (!string.IsNullOrWhiteSpace(exportRoot))
+{
+    Directory.CreateDirectory(exportRoot);
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        RequestPath = "/scan-files",
+        FileProvider = new PhysicalFileProvider(exportRoot),
+        ServeUnknownFileTypes = true,
     });
 }
 

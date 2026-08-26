@@ -32,12 +32,17 @@ public sealed class ScanController : ControllerBase
         return SpecApiActionResult.From(result);
     }
 
-    /// <summary>下載面掃描附加檔（ZIP：STEP／glTF／PNG）。</summary>
+    /// <summary>下載面掃描附加檔（ZIP：STEP／glTF／PNG）。成功時直接回 ZIP 檔。</summary>
     [HttpGet("surface/{taskId}/attachments")]
     public async Task<IActionResult> GetSurfaceAttachments(string taskId, CancellationToken ct)
     {
         var result = await _scan.GetSurfaceAttachmentsAsync(taskId, ct);
-        return SpecApiActionResult.From(result);
+        if (!result.Success || result.Data is null)
+        {
+            return SpecApiActionResult.From(result);
+        }
+
+        return PhysicalFile(result.Data.ZipFullPath, "application/zip", result.Data.DownloadFileName);
     }
 
     /// <summary>研磨區孔洞掃描，回傳孔洞邊界座標。</summary>
