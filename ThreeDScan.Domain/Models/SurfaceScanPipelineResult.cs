@@ -29,4 +29,16 @@ public sealed class SurfaceScanPipelineResult
 
     /// <summary>偏離 90° 的角度（度）。</summary>
     public double? AngleDeviationFromSquareDegrees { get; init; }
+
+    /// <summary>翼 A 厚度（mm）；僅噴印現場量測時有值，割切沿用時為 null。</summary>
+    public double? ThicknessA { get; init; }
+
+    /// <summary>翼 B 厚度（mm）；僅噴印現場量測時有值。</summary>
+    public double? ThicknessB { get; init; }
+
+    /// <summary>
+    /// 噴印量測時，夾具 A 是否落在直方圖較低的那翼。
+    /// 寫入 JobThickness 後，割切組網格沿用此對應；未量測時為 null。
+    /// </summary>
+    public bool? ThicknessAOnLowFlange { get; init; }
 }

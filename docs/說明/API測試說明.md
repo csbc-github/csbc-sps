@@ -173,7 +173,14 @@ Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`
 噴印區／割切區面掃描。介面仍是規格欄位（`scannerId`、`taskId`、`final`…）；處理走 C# `Pipeline.Run`（高度圖 → raw PLY → 去地／去雜訊 → ZIP），**不經** Python exe、也**不**收 Hank 的 Base64 PLY。
 
 `scannerId` 須為 `SURF-CAM-01` 或 `SURF-CAM-02`。省略 `navigatorScanNo` 時用該掃描器 appsettings 預設。  
-分段拼接尚未做：每次呼叫獨立掃描與處理；`segmentZDelta` 為與前一段處理後點雲平均 Z 的差（第一段為 0）。`measureThickness=true` 回 400 `SCAN_THK_001`。
+分段拼接尚未做：每次呼叫獨立掃描與處理；`segmentZDelta` 為與前一段處理後點雲平均 Z 的差（第一段為 0）。
+
+`jobId` 必填（台船工單號）；同一根角鋼噴印／割切／研磨帶同一值。
+
+- **噴印** `measureThickness=true`：必填 `thicknessPointA`、`thicknessPointB`（與公開點雲同一補償座標）。厚度 = 點雲最近 XY 點的 Z − 夾具點 Z，回 `thicknessA`／`thicknessB`，並寫入資料表 `JobThickness`。STEP／GLB 兩翼分別用這兩個厚度擠出。
+- **割切** `measureThickness=false`：依 `jobId` 讀噴印厚度組模型，不回 `thicknessA`／`thicknessB`。找不到該工單厚度則 400 `SCAN_THK_002`，不出模型。
+
+WPF 噴印「開始掃描」不經此 API，模型仍用假定 `MeshThickness`（預設 6 mm）。
 
 | 次數 | `final` | `taskId` |
 |---|---|---|
@@ -181,16 +188,32 @@ Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`
 | 第一次（還要再掃） | `false` | 省略 |
 | 後續 | `false` 或最後一次 `true` | 第一次回傳的 `data.taskId` |
 
-必填：`scannerId`。JSON 欄位名是 **`final`**。
+必填：`scannerId`、`jobId`。JSON 欄位名是 **`final`**。
 
 #### 單次 request
 
 ```json
 {
   "scannerId": "SURF-CAM-01",
+  "jobId": "JOB-001",
   "final": true
 }
 ```
+
+#### 單次 request（含厚度）
+
+```json
+{
+  "scannerId": "SURF-CAM-01",
+  "jobId": "JOB-001",
+  "final": true,
+  "measureThickness": true,
+  "thicknessPointA": { "x": 100.0, "y": 200.0, "z": 50.0 },
+  "thicknessPointB": { "x": 300.0, "y": 200.0, "z": 50.0 }
+}
+```
+
+座標與 `pointCloudUrl` 同一補償框。
 
 #### 成功 `data`
 
@@ -200,17 +223,26 @@ Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`
 | `seq` | 本任務第幾次掃描 |
 | `status` | `Continue` 或 `Final` |
 | `pointCloudUrl` | 本段點雲（有補償歷程時為已套 offset 的 `angle_steel.ply`） |
-| `thickness` | 未量測時省略 |
+| `thicknessA` | 翼 A 厚度 mm；未量測時省略 |
+| `thicknessB` | 翼 B 厚度 mm；未量測時省略 |
 | `segmentZDelta` | 與前一段平均 Z 差（mm） |
 | `traceId` | 本次追溯 ID |
 
 點雲靜態檔路徑前綴：`/scan-files/`（對應 `Storage:ExportRoot`）。
 
+部署須執行：
+
+- `database/schema-v1.8-job-thickness.sql`（工單最新厚度 `JobThickness`，割切組模型用）
+- `database/schema-v1.9-scan-call-log.sql`（掃描 API 舉證 `ScanCallLog`，每次呼叫一列，含 request／response 與 PLY／ZIP SHA256）
+
+兩表用途不同：厚度作業 vs 爭議時證明當次回傳。
+
 | `errorCode` | 情況 |
 |---|---|
 | `SCAN_CFG_001` | 未知 `scannerId` |
 | `SCAN_001` | `taskId` 不存在、掃描器不符、或任務已 `Final` |
-| `SCAN_THK_001` | `measureThickness=true`（尚未實作） |
+| `SCAN_THK_001` | 厚度量測失敗（缺 A/B、或點雲沒有可用點） |
+| `SCAN_THK_002` | `measureThickness=false` 但資料庫沒有該 `jobId` 的噴印厚度 |
 | `SCAN_SDK_001` | 擷取或 Pipeline 失敗 |
 
 ### 2.5 GET `/api/scan/surface/{taskId}/attachments`

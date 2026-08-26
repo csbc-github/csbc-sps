@@ -19,6 +19,12 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
     private readonly PlyProcessorOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
 
+    /// <summary>
+    /// 由設定與範圍工廠建立管線。補償歷程透過 <paramref name="scopeFactory"/> 解析
+    /// <see cref="ICompensationRepository"/>，避免 Singleton 管線直接抓住 Scoped DbContext。
+    /// </summary>
+    /// <param name="options">PlyProcessor 設定（濾點、假定 MeshThickness 等）。</param>
+    /// <param name="scopeFactory">用來開短命 scope 讀最新補償。</param>
     public RawPlyScanPipeline(
         IOptions<PlyProcessorOptions> options,
         IServiceScopeFactory scopeFactory)
@@ -28,17 +34,36 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// 先讀該掃描器最新補償，再於執行緒池跑 CPU 密集的 PLY／網格匯出。
+    /// <paramref name="thickness"/> 與 <paramref name="storedThickness"/> 至多一個有值：
+    /// 前者為噴印量測，後者為割切沿用。
+    /// </remarks>
     public async Task<SurfaceScanPipelineResult> ProcessCaptureAsync(
         ScannerCaptureResult capture,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        ThicknessMeasureRequest? thickness = null,
+        JobThicknessRecord? storedThickness = null)
     {
         var offset = await TryGetLatestOffsetAsync(capture.ScannerId, ct).ConfigureAwait(false);
-        return await Task.Run(() => ProcessCapture(capture, offset), ct).ConfigureAwait(false);
+        return await Task.Run(() => ProcessCapture(capture, offset, thickness, storedThickness), ct)
+            .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 同步核心：高度圖 → raw PLY → 濾點 →（可選）補償平移 → 匯出 JSON／ZIP／PLY／GLB。
+    /// </summary>
+    /// <param name="capture">擷取結果，高度圖須仍在 <see cref="ScanCaptureCache"/>。</param>
+    /// <param name="offset">該掃描器最新補償；null 表示公開檔與未補償座標相同。</param>
+    /// <param name="thickness">噴印夾具 A／B；null 表示不現場量測。</param>
+    /// <param name="storedThickness">割切沿用的資料庫厚度；null 表示不用存檔厚度。</param>
+    /// <returns>檔案路徑與（若有量測）兩翼厚度。</returns>
+    /// <exception cref="InvalidOperationException">缺高度圖、快取失效、或 ZIP 內沒有 PLY。</exception>
     private SurfaceScanPipelineResult ProcessCapture(
         ScannerCaptureResult capture,
-        CompensationOffset? offset)
+        CompensationOffset? offset,
+        ThicknessMeasureRequest? thickness,
+        JobThicknessRecord? storedThickness)
     {
         if (string.IsNullOrWhiteSpace(capture.HeightImagePath))
         {
@@ -56,15 +81,41 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         var rawPlyPath = Path.Combine(captureDir, "raw_scene.ply");
         HeightImagePlyExporter.SaveAsAsciiPly(heightImage, rawPlyPath);
 
-        var opts = _options.ToPipelineOptions();
+        var baseOpts = _options.ToPipelineOptions();
+        var measureOpts = baseOpts;
+        if (thickness is not null)
+        {
+            measureOpts = baseOpts with
+            {
+                MeasureFlangeThickness = true,
+                ThicknessAx = (float)thickness.Ax,
+                ThicknessAy = (float)thickness.Ay,
+                ThicknessAz = (float)thickness.Az,
+                ThicknessBx = (float)thickness.Bx,
+                ThicknessBy = (float)thickness.By,
+                ThicknessBz = (float)thickness.Bz,
+            };
+        }
+        else if (storedThickness is not null)
+        {
+            measureOpts = baseOpts with
+            {
+                UseStoredFlangeThickness = true,
+                StoredThicknessA = (float)storedThickness.ThicknessA,
+                StoredThicknessB = (float)storedThickness.ThicknessB,
+                StoredThicknessAOnLowFlange = storedThickness.ThicknessAOnLowFlange,
+            };
+        }
+
         PlyPoint[] rawPts;
         using (var rawStream = File.OpenRead(rawPlyPath))
         {
             rawPts = PlyReader.Parse(rawStream).Points;
         }
 
-        var processedPts = ScanProcessor.Process(rawPts, opts.ZThresh, opts.MinNoiseSize, opts.NoiseVoxel);
-        var uncompensated = Pipeline.Export(rawPts, processedPts, "angle_steel", opts);
+        var processedPts = ScanProcessor.Process(rawPts, baseOpts.ZThresh, baseOpts.MinNoiseSize, baseOpts.NoiseVoxel);
+        var jsonOpts = offset is not null ? baseOpts : measureOpts;
+        var uncompensated = Pipeline.Export(rawPts, processedPts, "angle_steel", jsonOpts);
 
         var zipPath = Path.Combine(captureDir, "angle_steel_export.zip");
         var jsonPath = Path.Combine(captureDir, "angle_steel_coords.json");
@@ -78,7 +129,7 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         {
             var rawComp = Translate(rawPts, offset);
             var processedComp = Translate(processedPts, offset);
-            export = Pipeline.Export(rawComp, processedComp, "angle_steel", opts);
+            export = Pipeline.Export(rawComp, processedComp, "angle_steel", measureOpts);
             compensatedJsonPath = Path.Combine(captureDir, "angle_steel_coords_compensated.json");
             File.WriteAllBytes(compensatedJsonPath, export.CoordsJsonBytes);
         }
@@ -87,7 +138,7 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         WriteExtractedPlyAndGlb(export.ZipBytes, plyPath, glbPath, out var writtenGlb);
 
         var angle = AngleSteelAngleEstimator.Estimate(
-            processedPts, Math.Max(1.0f, opts.NoiseVoxel));
+            processedPts, Math.Max(1.0f, baseOpts.NoiseVoxel));
 
         return new SurfaceScanPipelineResult
         {
@@ -100,9 +151,19 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
             PointCount = CountPoints(export),
             AngleDegrees = angle?.AngleDegrees,
             AngleDeviationFromSquareDegrees = angle?.DeviationFromSquareDegrees,
+            ThicknessA = export.ThicknessA,
+            ThicknessB = export.ThicknessB,
+            ThicknessAOnLowFlange = export.ThicknessAOnLowFlange,
         };
     }
 
+    /// <summary>
+    /// 讀該掃描器最新一筆儀器補償（offset = 實際 − 預期）。
+    /// 無歷程或掃描器編號空白時回 null，後續匯出不平移。
+    /// </summary>
+    /// <param name="scannerId">掃描器編號。</param>
+    /// <param name="ct">取消權杖。</param>
+    /// <returns>最新補償；沒有則 null。</returns>
     private async Task<CompensationOffset?> TryGetLatestOffsetAsync(string scannerId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(scannerId))
@@ -115,6 +176,12 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         return await repo.GetLatestAsync(scannerId, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 將點雲每個點加上補償 offset（mm），得到公開座標框的點。
+    /// </summary>
+    /// <param name="points">未補償點。</param>
+    /// <param name="offset">儀器校正 offset。</param>
+    /// <returns>新陣列，不修改原點。</returns>
     private static PlyPoint[] Translate(PlyPoint[] points, CompensationOffset offset)
     {
         var ox = (float)offset.OffsetX;
@@ -130,6 +197,15 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         return copy;
     }
 
+    /// <summary>
+    /// 從 Pipeline ZIP 抽出第一個 .ply 寫到 <paramref name="plyPath"/>；
+    /// 若有 .glb 則一併寫到 <paramref name="glbPath"/>。
+    /// </summary>
+    /// <param name="zipBytes">Pipeline 產出的 ZIP。</param>
+    /// <param name="plyPath">點雲輸出絕對路徑。</param>
+    /// <param name="glbPath">GLB 輸出絕對路徑（網格失敗時可能不寫）。</param>
+    /// <param name="writtenGlb">實際寫出的 GLB 路徑；沒有 GLB 時為 null。</param>
+    /// <exception cref="InvalidOperationException">ZIP 內找不到 PLY。</exception>
     private static void WriteExtractedPlyAndGlb(
         byte[] zipBytes,
         string plyPath,
@@ -153,6 +229,11 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         }
     }
 
+    /// <summary>
+    /// 統計 Pipeline 所有分群物件的點數加總，供任務紀錄。
+    /// </summary>
+    /// <param name="pipeline">本次匯出結果。</param>
+    /// <returns>點數；無物件時為 0。</returns>
     private static int CountPoints(PipelineResult pipeline)
     {
         var count = 0;
@@ -164,6 +245,11 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         return count;
     }
 
+    /// <summary>
+    /// 計算處理後點雲 Z 平均值（mm），供分段 <c>segmentZDelta</c>。
+    /// </summary>
+    /// <param name="pipeline">本次匯出結果。</param>
+    /// <returns>平均 Z；沒有點時為 0。</returns>
     private static double MeanZ(PipelineResult pipeline)
     {
         double sum = 0;
@@ -185,6 +271,12 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         return sum / count;
     }
 
+    /// <summary>
+    /// 在 ZIP 中找第一個副檔名相符（不分大小寫）的項目並讀成 byte[]。
+    /// </summary>
+    /// <param name="zipBytes">ZIP 內容。</param>
+    /// <param name="extension">副檔名，例如 <c>.ply</c>、<c>.glb</c>。</param>
+    /// <returns>檔案位元組；沒有該副檔名時為 null。</returns>
     private static byte[]? TryExtractFirstByExtension(byte[] zipBytes, string extension)
     {
         using var ms = new MemoryStream(zipBytes);

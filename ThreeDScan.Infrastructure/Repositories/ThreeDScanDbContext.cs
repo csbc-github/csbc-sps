@@ -57,6 +57,22 @@ public sealed class ThreeDScanDbContext : DbContext
         }
     }
 
+    public DbSet<JobThicknessEntity> JobThickness
+    {
+        get
+        {
+            return Set<JobThicknessEntity>();
+        }
+    }
+
+    public DbSet<ScanCallLogEntity> ScanCallLogs
+    {
+        get
+        {
+            return Set<ScanCallLogEntity>();
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<CompensationHistoryEntity>(e =>
@@ -136,6 +152,37 @@ public sealed class ThreeDScanDbContext : DbContext
             e.Property(x => x.TraceIdSeq1).HasMaxLength(64);
             e.HasIndex(x => new { x.ScannerId, x.Status });
             e.HasIndex(x => x.ExpiresAt);
+        });
+
+        modelBuilder.Entity<JobThicknessEntity>(e =>
+        {
+            e.ToTable("JobThickness");
+            e.HasKey(x => x.JobId);
+            e.Property(x => x.JobId).HasMaxLength(64);
+            e.Property(x => x.ScannerId).HasMaxLength(50);
+            e.Property(x => x.TraceId).HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<ScanCallLogEntity>(e =>
+        {
+            e.ToTable("ScanCallLog");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.TraceId).HasMaxLength(64);
+            e.Property(x => x.Action).HasMaxLength(50);
+            e.Property(x => x.ScannerId).HasMaxLength(50);
+            e.Property(x => x.JobId).HasMaxLength(64);
+            e.Property(x => x.TaskId).HasMaxLength(64);
+            e.Property(x => x.ErrorCode).HasMaxLength(30);
+            e.Property(x => x.ErrorMessage).HasMaxLength(500);
+            e.Property(x => x.PointCloudPath).HasMaxLength(1000);
+            e.Property(x => x.PointCloudSha256).HasMaxLength(64);
+            e.Property(x => x.ZipPath).HasMaxLength(1000);
+            e.Property(x => x.ZipSha256).HasMaxLength(64);
+            e.HasIndex(x => x.Timestamp);
+            e.HasIndex(x => x.TraceId);
+            e.HasIndex(x => new { x.JobId, x.Timestamp });
+            e.HasIndex(x => new { x.Action, x.Timestamp });
+            e.HasIndex(x => x.TaskId);
         });
     }
 }

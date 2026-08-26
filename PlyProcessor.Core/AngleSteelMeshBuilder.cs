@@ -15,6 +15,16 @@ namespace PlyProcessor.Core;
 /// </summary>
 public static class AngleSteelMeshBuilder
 {
+    /// <summary>
+    /// 以單一擠出厚度組 L 型近似網格：先嘗試分成兩翼，各用自己的平面擠出後合併。
+    /// 分不出兩翼時退回 <see cref="MeshBuilder.Build"/>（整片同一厚度）。
+    /// </summary>
+    /// <param name="pts">角鋼點雲（mm）。</param>
+    /// <param name="cellSize">投影網格邊長（mm）。</param>
+    /// <param name="thickness">兩翼共用的擠出厚度（mm）。</param>
+    /// <param name="smoothIter">網格平滑次數。</param>
+    /// <param name="erodeN">佔用格侵蝕次數。</param>
+    /// <returns>合併後的三角網格。</returns>
     public static MeshBuilder.Mesh Build(
         PlyPoint[] pts,
         float cellSize   = 2f,
@@ -22,54 +32,209 @@ public static class AngleSteelMeshBuilder
         int   smoothIter = 4,
         int   erodeN     = 1)
     {
-        if (pts.Length < 100)
+        if (!TrySplitFlanges(pts, out var flangeA, out var flangeB, out _))
+        {
             return MeshBuilder.Build(pts, cellSize, thickness, smoothIter, erodeN);
+        }
 
-        // ── 1. PCA to get eMin (surface normal of dominant face) ──────────────
+        var meshA = MeshBuilder.Build(flangeA, cellSize, thickness, smoothIter, erodeN);
+        var meshB = MeshBuilder.Build(flangeB, cellSize, thickness, smoothIter, erodeN);
+        return Combine(meshA, meshB);
+    }
+
+    /// <summary>
+    /// 噴印區現場量測後組網格：兩翼各用 <paramref name="thicknessA"/>／<paramref name="thicknessB"/>。
+    /// 以夾具 A 的 XY 在點雲找最近點，該點所在翼用 A 的厚度，另一翼用 B。
+    /// 分不出兩翼時，改用單一 heightfield，厚度為兩者平均。
+    /// </summary>
+    /// <param name="pts">角鋼點雲（mm），應與夾具座標同一補償框。</param>
+    /// <param name="cellSize">heightfield 格子邊長（mm）。</param>
+    /// <param name="thicknessA">翼 A 擠出厚度（mm）。</param>
+    /// <param name="thicknessB">翼 B 擠出厚度（mm）。</param>
+    /// <param name="probeAx">夾具 A 的 X，用來決定哪一翼吃 thicknessA。</param>
+    /// <param name="probeAy">夾具 A 的 Y。</param>
+    /// <param name="smoothIter">高度平滑次數。</param>
+    /// <param name="erodeN">佔用格侵蝕次數。</param>
+    /// <param name="bridgeFill">兩翼投影缺口要橋接的最大格數。</param>
+    /// <param name="thicknessAOnLowFlange">
+    /// 傳出：A 是否落在直方圖較低的那翼。噴印寫入資料庫後，割切用
+    /// <see cref="BuildDualThicknessMapped"/> 沿用此對應。
+    /// </param>
+    /// <returns>兩翼合併網格，或分翼失敗時的單一 heightfield。</returns>
+    public static MeshBuilder.Mesh BuildDualThickness(
+        PlyPoint[] pts,
+        float cellSize,
+        float thicknessA,
+        float thicknessB,
+        float probeAx,
+        float probeAy,
+        int smoothIter,
+        int erodeN,
+        int bridgeFill,
+        out bool thicknessAOnLowFlange)
+    {
+        thicknessAOnLowFlange = true;
+        if (!TrySplitFlanges(pts, out _, out _, out var isLow))
+        {
+            float average = (thicknessA + thicknessB) * 0.5f;
+            return HeightfieldMeshBuilder.Build(
+                pts, cellSize, average, smoothIter, erodeN, bridgeFill);
+        }
+
+        int iA = FlangeThicknessMeasurer.FindNearestXyIndex(pts, probeAx, probeAy);
+        thicknessAOnLowFlange = isLow[iA];
+        return BuildDualThicknessMapped(
+            pts,
+            cellSize,
+            thicknessA,
+            thicknessB,
+            thicknessAOnLowFlange,
+            smoothIter,
+            erodeN,
+            bridgeFill);
+    }
+
+    /// <summary>
+    /// 割切區沿用噴印厚度組網格：不再有夾具 XY，改用已存的
+    /// <paramref name="thicknessAOnLowFlange"/> 把 A／B 對到直方圖低／高翼。
+    /// 分不出兩翼時同樣改用平均厚度的單一 heightfield。
+    /// </summary>
+    /// <param name="pts">本段割切點雲（mm）。</param>
+    /// <param name="cellSize">heightfield 格子邊長（mm）。</param>
+    /// <param name="thicknessA">資料庫中的翼 A 厚度（mm）。</param>
+    /// <param name="thicknessB">資料庫中的翼 B 厚度（mm）。</param>
+    /// <param name="thicknessAOnLowFlange">噴印當時計下的 A 是否在低翼。</param>
+    /// <param name="smoothIter">高度平滑次數。</param>
+    /// <param name="erodeN">佔用格侵蝕次數。</param>
+    /// <param name="bridgeFill">兩翼投影缺口要橋接的最大格數。</param>
+    /// <returns>兩翼合併網格，或分翼失敗時的單一 heightfield。</returns>
+    public static MeshBuilder.Mesh BuildDualThicknessMapped(
+        PlyPoint[] pts,
+        float cellSize,
+        float thicknessA,
+        float thicknessB,
+        bool thicknessAOnLowFlange,
+        int smoothIter,
+        int erodeN,
+        int bridgeFill)
+    {
+        if (!TrySplitFlanges(pts, out var flangeLow, out var flangeHigh, out _))
+        {
+            float average = (thicknessA + thicknessB) * 0.5f;
+            return HeightfieldMeshBuilder.Build(
+                pts, cellSize, average, smoothIter, erodeN, bridgeFill);
+        }
+
+        float thickLow = thicknessB;
+        float thickHigh = thicknessA;
+        if (thicknessAOnLowFlange)
+        {
+            thickLow = thicknessA;
+            thickHigh = thicknessB;
+        }
+
+        var meshLow = HeightfieldMeshBuilder.Build(
+            flangeLow, cellSize, thickLow, smoothIter, erodeN, bridgeFill);
+        var meshHigh = HeightfieldMeshBuilder.Build(
+            flangeHigh, cellSize, thickHigh, smoothIter, erodeN, bridgeFill);
+        return Combine(meshLow, meshHigh);
+    }
+
+    /// <summary>
+    /// 以主平面高度直方圖的谷底把點雲分成兩翼（低翼／高翼）。
+    /// 點太少、或某一翼佔比低於 5%／高於 95% 時視為無法分割。
+    /// </summary>
+    /// <param name="pts">待分割點雲。</param>
+    /// <param name="flangeLow">成功時：直方圖較低一側的點。</param>
+    /// <param name="flangeHigh">成功時：直方圖較高一側的點。</param>
+    /// <param name="isLow">成功時：與 <paramref name="pts"/> 等長，true 表示該點屬低翼。</param>
+    /// <returns>成功分成兩翼為 true；失敗時三個 out 皆為空陣列。</returns>
+    public static bool TrySplitFlanges(
+        PlyPoint[] pts,
+        out PlyPoint[] flangeLow,
+        out PlyPoint[] flangeHigh,
+        out bool[] isLow)
+    {
+        flangeLow = Array.Empty<PlyPoint>();
+        flangeHigh = Array.Empty<PlyPoint>();
+        isLow = Array.Empty<bool>();
+
+        if (pts.Length < 100)
+        {
+            return false;
+        }
+
         var plane = PcaFitter.Fit(pts);
-
-        // Heights above the dominant PCA plane
-        float[] heights = new float[pts.Length];
+        var heights = new float[pts.Length];
         for (int i = 0; i < pts.Length; i++)
         {
             float dx = pts[i].X - plane.Cx;
             float dy = pts[i].Y - plane.Cy;
             float dz = pts[i].Z - plane.Cz;
-            heights[i] = dx*plane.E3[0] + dy*plane.E3[1] + dz*plane.E3[2];
+            heights[i] = dx * plane.E3[0] + dy * plane.E3[1] + dz * plane.E3[2];
         }
 
-        // Ensure heights are measured from the correct side (positive toward objects)
         if (heights.Average() < 0)
-            for (int i = 0; i < heights.Length; i++) heights[i] = -heights[i];
+        {
+            for (int i = 0; i < heights.Length; i++)
+            {
+                heights[i] = -heights[i];
+            }
+        }
 
-        // ── 2. Find the split point using a height histogram valley ────────────
-        float hMin = heights.Min(), hMax = heights.Max();
+        float hMin = heights.Min();
+        float hMax = heights.Max();
         float hRange = hMax - hMin;
-
         float splitH = FindHistogramValley(heights, hMin, hRange);
 
-        var flangeA = pts.Where((_, i) => heights[i] <= splitH).ToArray();
-        var flangeB = pts.Where((_, i) => heights[i] >  splitH).ToArray();
-
-        // Both flanges must have at least 5% of total points to be valid
-        float ratioA = (float)flangeA.Length / pts.Length;
-        if (flangeA.Length < 50 || flangeB.Length < 50 ||
-            ratioA < 0.05f || ratioA > 0.95f)
+        isLow = new bool[pts.Length];
+        int nLow = 0;
+        for (int i = 0; i < pts.Length; i++)
         {
-            // No clear two-flange structure found – fall back to flat-plate
-            return MeshBuilder.Build(pts, cellSize, thickness, smoothIter, erodeN);
+            if (heights[i] <= splitH)
+            {
+                isLow[i] = true;
+                nLow++;
+            }
         }
 
-        // ── 3. Build each flange using its own best-fit plane ─────────────────
-        var meshA = MeshBuilder.Build(flangeA, cellSize, thickness, smoothIter, erodeN);
-        var meshB = MeshBuilder.Build(flangeB, cellSize, thickness, smoothIter, erodeN);
+        int nHigh = pts.Length - nLow;
+        float ratioLow = (float)nLow / pts.Length;
+        if (nLow < 50 || nHigh < 50 || ratioLow < 0.05f || ratioLow > 0.95f)
+        {
+            isLow = Array.Empty<bool>();
+            return false;
+        }
 
-        // ── 4. Combine (vertex indices of B are offset by A's vertex count) ───
-        return Combine(meshA, meshB);
+        flangeLow = new PlyPoint[nLow];
+        flangeHigh = new PlyPoint[nHigh];
+        int iLow = 0;
+        int iHigh = 0;
+        for (int i = 0; i < pts.Length; i++)
+        {
+            if (isLow[i])
+            {
+                flangeLow[iLow] = pts[i];
+                iLow++;
+            }
+            else
+            {
+                flangeHigh[iHigh] = pts[i];
+                iHigh++;
+            }
+        }
+
+        return true;
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
+    /// <summary>
+    /// 在高度直方圖上找兩峰之間的谷底，作為兩翼分界高度。
+    /// 前半／後半各取一個峰，再在兩峰之間取平滑後計數最低的 bin。
+    /// </summary>
+    /// <param name="heights">各點相對主平面的高度（已翻成多數為正）。</param>
+    /// <param name="hMin">高度最小值。</param>
+    /// <param name="hRange">高度全距；近乎零時回傳區間中點。</param>
+    /// <returns>分割高度，落在谷底 bin 的中心。</returns>
     static float FindHistogramValley(float[] heights, float hMin, float hRange)
     {
         const int nBins = 50;
@@ -108,6 +273,13 @@ public static class AngleSteelMeshBuilder
         return hMin + (valley + 0.5f) * binW;
     }
 
+    /// <summary>
+    /// 把兩片網格頂點與三角形合併成一個 <see cref="MeshBuilder.Mesh"/>；
+    /// 第二片的三角形索引會加上第一片的頂點數。
+    /// </summary>
+    /// <param name="a">第一片（低翼或翼 A）。</param>
+    /// <param name="b">第二片（高翼或翼 B）。</param>
+    /// <returns>共用一套頂點／三角形清單的合併網格。</returns>
     static MeshBuilder.Mesh Combine(MeshBuilder.Mesh a, MeshBuilder.Mesh b)
     {
         int offset = a.Vertices.Count;

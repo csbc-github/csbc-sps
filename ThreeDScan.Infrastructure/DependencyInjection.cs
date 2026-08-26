@@ -45,6 +45,8 @@ public static class DependencyInjection
         services.AddScoped<IScannerProgramSettingsService, ScannerProgramSettingsService>();
         services.AddScoped<IOperationLogRepository, OperationLogRepository>();
         services.AddScoped<IInstrumentCalibrationTaskRepository, InstrumentCalibrationTaskRepository>();
+        services.AddScoped<IJobThicknessRepository, JobThicknessRepository>();
+        services.AddScoped<IScanCallLogRepository, ScanCallLogRepository>();
 
         return services;
     }

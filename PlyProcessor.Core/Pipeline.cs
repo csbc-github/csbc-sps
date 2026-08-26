@@ -19,24 +19,41 @@ public record PipelineOptions(
     int   ErodeN        = 1,
     // ── Single piece mode ─────────────────────────────────────────────────
     bool  SinglePieceMode = false, // false follows the web general flow: split processed PLY, export largest object
-    int   MeshBridgeFill  = 30);   // max grid gap to bridge between scan regions / flanges
+    int   MeshBridgeFill  = 30,    // max grid gap to bridge between scan regions / flanges
+    bool  MeasureFlangeThickness = false,
+    float ThicknessAx = 0f,
+    float ThicknessAy = 0f,
+    float ThicknessAz = 0f,
+    float ThicknessBx = 0f,
+    float ThicknessBy = 0f,
+    float ThicknessBz = 0f,
+    bool  UseStoredFlangeThickness = false,
+    float StoredThicknessA = 0f,
+    float StoredThicknessB = 0f,
+    bool  StoredThicknessAOnLowFlange = true);
 
 public record PipelineResult(
     List<ClusterObject> Objects,
     byte[] ZipBytes,
-    byte[] CoordsJsonBytes   // merged JSON of all objects (raw-scanner coords)
+    byte[] CoordsJsonBytes,  // merged JSON of all objects (raw-scanner coords)
+    double? ThicknessA = null,
+    double? ThicknessB = null,
+    bool? ThicknessAOnLowFlange = null
 );
 
+/// <summary>
+/// 角鋼點雲處理與匯出：濾地、分群、PLY／JSON／STEP／GLB／PNG 打包 ZIP。
+/// 厚度：噴印可現場量測兩翼；割切可帶入資料庫厚度組網格；否則用假定 MeshThickness。
+/// </summary>
 public static class Pipeline
 {
     /// <summary>
-    /// Full one-click pipeline — takes the RAW scanner PLY and does everything:
-    ///   1. ScanProcessor: PCA ground-plane detection → z_thresh filter → denoise
-    ///      (equivalent to what the bundled Python backend does server-side)
-    ///   2. One-click angle-steel mode: keep the filtered scan as one target piece
-    ///   3. Export PLY + JSON (with raw scanner coords) + STEP + glTF + 3× PNG
-    ///   4. Package everything into a ZIP
+    /// 從原始掃描 PLY 串流跑完整管線：濾地／去雜訊、分群合併、匯出 ZIP（PLY／JSON／STEP／GLB／PNG）。
     /// </summary>
+    /// <param name="rawScanStream">掃描器座標的 raw PLY。</param>
+    /// <param name="baseName">匯出檔名前綴，面掃描固定用 angle_steel。</param>
+    /// <param name="opts">濾點與網格參數；null 則用預設（含假定 MeshThickness 6 mm）。</param>
+    /// <returns>分群物件、ZIP 位元組、合併座標 JSON，以及可選的量測厚度。</returns>
     public static PipelineResult Run(
         Stream rawScanStream,
         string baseName,
@@ -52,7 +69,19 @@ public static class Pipeline
         return BuildExports(rawPts, outPts, baseName, opts);
     }
 
-    /// <summary>對已解析的原始點與處理後點做分群／匯出（ZIP／JSON／PLY／網格）。</summary>
+    /// <summary>
+    /// 對已解析的原始點與濾點後點做分群與匯出。
+    /// 面掃描主路徑：補償前後各呼叫一次時，第二次帶量測或資料庫厚度以組 STEP／GLB。
+    /// </summary>
+    /// <param name="rawPts">raw PLY 全部點（對應 JSON 的 raw 欄）。</param>
+    /// <param name="processedPts">去地／去雜訊後的點。</param>
+    /// <param name="baseName">匯出檔名前綴。</param>
+    /// <param name="opts">
+    /// 若 <c>MeasureFlangeThickness</c>：用夾具 XYZ 量兩翼並組雙厚度網格。
+    /// 若 <c>UseStoredFlangeThickness</c>：用資料庫厚度組網格，不再量測。
+    /// 兩者皆否：用 <c>MeshThickness</c>（預設 6 mm）單一 heightfield。
+    /// </param>
+    /// <returns>ZIP、座標 JSON，以及噴印量測時的 thicknessA／B 與 A 是否在低翼。</returns>
     public static PipelineResult Export(
         PlyPoint[] rawPts,
         PlyPoint[] processedPts,
@@ -64,9 +93,13 @@ public static class Pipeline
     }
 
     /// <summary>
-    /// Export from Python/backend-processed PLY. This mirrors the web general flow after
-    /// /process has produced its output PLY.
+    /// 從「已經濾點」的 PLY 匯出（對齊舊網頁 /process 之後的流程）。
+    /// raw 與 processed 使用同一批點。
     /// </summary>
+    /// <param name="processedPlyStream">濾點後 PLY。</param>
+    /// <param name="baseName">匯出檔名前綴。</param>
+    /// <param name="opts">網格與分群參數。</param>
+    /// <returns>與 <see cref="Run"/> 相同結構的匯出結果。</returns>
     public static PipelineResult RunProcessed(
         Stream processedPlyStream,
         string baseName,
@@ -77,6 +110,16 @@ public static class Pipeline
         return BuildExports(outPts, outPts, baseName, opts);
     }
 
+    /// <summary>
+    /// 分群、合併相鄰物件後，寫 PLY／JSON／正交圖，並依選項組網格（量測／資料庫厚度／假定 6 mm）。
+    /// 網格失敗時略過 STEP／GLB，其餘檔仍進 ZIP。
+    /// </summary>
+    /// <param name="rawPts">原始掃描點，供 JSON raw 欄對照。</param>
+    /// <param name="outPts">濾點後的點。</param>
+    /// <param name="baseName">單一目標物件名稱。</param>
+    /// <param name="opts">濾點已完成；此處用分群、網格與厚度旗標。</param>
+    /// <returns>合併為一個物件的結果、ZIP 與座標 JSON。</returns>
+    /// <exception cref="InvalidOperationException">分群後沒有任何物件。</exception>
     static PipelineResult BuildExports(PlyPoint[] rawPts, PlyPoint[] outPts, string baseName, PipelineOptions opts)
     {
         // Match the web general flow's effective target: the processed angle-steel PLY
@@ -122,6 +165,9 @@ public static class Pipeline
         var zipEntries = new List<(string Name, byte[] Data)>();
         var allCoordsJson = new System.Text.StringBuilder();
         allCoordsJson.AppendLine("[");
+        double? thicknessA = null;
+        double? thicknessB = null;
+        bool? thicknessAOnLowFlange = null;
 
         for (int objIdx = 0; objIdx < objects.Count; objIdx++)
         {
@@ -155,16 +201,60 @@ public static class Pipeline
             zipEntries.Add(($"{obj.Name}_2d_front.png", OrthoViewRenderer.Render(obj.Points, OrthoViewRenderer.View.Front)));
             zipEntries.Add(($"{obj.Name}_2d_side.png",  OrthoViewRenderer.Render(obj.Points, OrthoViewRenderer.View.Side)));
 
+            if (opts.MeasureFlangeThickness && thicknessA is null)
+            {
+                var measured = FlangeThicknessMeasurer.Measure(
+                    obj.Points,
+                    opts.ThicknessAx,
+                    opts.ThicknessAy,
+                    opts.ThicknessAz,
+                    opts.ThicknessBx,
+                    opts.ThicknessBy,
+                    opts.ThicknessBz);
+                thicknessA = measured.ThicknessA;
+                thicknessB = measured.ThicknessB;
+            }
+
             // Mesh → STEP + GLB
             try {
                 MeshBuilder.Mesh mesh;
-                mesh = HeightfieldMeshBuilder.Build(
-                    obj.Points,
-                    opts.MeshCellSize,
-                    opts.MeshThickness,
-                    opts.SmoothIter,
-                    opts.ErodeN,
-                    opts.MeshBridgeFill);
+                if (opts.MeasureFlangeThickness && thicknessA is not null && thicknessB is not null)
+                {
+                    mesh = AngleSteelMeshBuilder.BuildDualThickness(
+                        obj.Points,
+                        opts.MeshCellSize,
+                        (float)thicknessA.Value,
+                        (float)thicknessB.Value,
+                        opts.ThicknessAx,
+                        opts.ThicknessAy,
+                        opts.SmoothIter,
+                        opts.ErodeN,
+                        opts.MeshBridgeFill,
+                        out var aOnLow);
+                    thicknessAOnLowFlange = aOnLow;
+                }
+                else if (opts.UseStoredFlangeThickness)
+                {
+                    mesh = AngleSteelMeshBuilder.BuildDualThicknessMapped(
+                        obj.Points,
+                        opts.MeshCellSize,
+                        opts.StoredThicknessA,
+                        opts.StoredThicknessB,
+                        opts.StoredThicknessAOnLowFlange,
+                        opts.SmoothIter,
+                        opts.ErodeN,
+                        opts.MeshBridgeFill);
+                }
+                else
+                {
+                    mesh = HeightfieldMeshBuilder.Build(
+                        obj.Points,
+                        opts.MeshCellSize,
+                        opts.MeshThickness,
+                        opts.SmoothIter,
+                        opts.ErodeN,
+                        opts.MeshBridgeFill);
+                }
                 zipEntries.Add(($"{obj.Name}.stp", StepExporter.Export(mesh, obj.Name)));
                 zipEntries.Add(($"{obj.Name}.glb", GltfExporter.Export(mesh)));
             } catch { /* mesh build can fail on very sparse/small objects; skip */ }
@@ -183,9 +273,15 @@ public static class Pipeline
                 es.Write(data);
             }
 
-        return new PipelineResult(objects, ms.ToArray(), coordsJson);
+        return new PipelineResult(objects, ms.ToArray(), coordsJson, thicknessA, thicknessB, thicknessAOnLowFlange);
     }
 
+    /// <summary>
+    /// 將包圍盒間距小於門檻的分群物件合併，避免 L 型兩翼被拆成兩個匯出物件。
+    /// </summary>
+    /// <param name="objects">體素分群結果。</param>
+    /// <param name="planeTol">平面容差（mm）；合併門檻為 max(3×此值, 30)。</param>
+    /// <returns>合併後由大到小排序的物件清單。</returns>
     static List<ClusterObject> MergeAdjacentObjects(List<ClusterObject> objects, float planeTol)
     {
         if (objects.Count < 2) return objects;
@@ -242,6 +338,11 @@ public static class Pipeline
         return merged;
     }
 
+    /// <summary>
+    /// 計算點雲軸對齊包圍盒，供相鄰分群合併判斷。
+    /// </summary>
+    /// <param name="pts">該分群的點。</param>
+    /// <returns>XYZ 最小／最大值。</returns>
     static (float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ) BBox(PlyPoint[] pts)
     {
         float minX = float.MaxValue, minY = float.MaxValue, minZ = float.MaxValue;
@@ -255,6 +356,12 @@ public static class Pipeline
         return (minX, maxX, minY, maxY, minZ, maxZ);
     }
 
+    /// <summary>
+    /// 兩個軸對齊包圍盒在 3D 的間隙長度（已重疊的軸貢獻 0）。
+    /// </summary>
+    /// <param name="a">第一個包圍盒。</param>
+    /// <param name="b">第二個包圍盒。</param>
+    /// <returns>間隙歐氏長度（mm）；完全重疊或接觸時為 0。</returns>
     static float BBoxGap((float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ) a,
         (float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ) b)
     {

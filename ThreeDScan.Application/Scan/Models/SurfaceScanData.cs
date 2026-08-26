@@ -23,9 +23,13 @@ public sealed class SurfaceScanData
     /// <summary>本段已補償之完整點雲下載位置；每次呼叫皆回傳。</summary>
     public string PointCloudUrl { get; init; } = "";
 
-    /// <summary>厚度量測結果；<c>measureThickness=false</c> 時為 null。</summary>
+    /// <summary>翼 A 厚度（mm）；<c>measureThickness=false</c> 時省略。</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public double? Thickness { get; init; }
+    public double? ThicknessA { get; init; }
+
+    /// <summary>翼 B 厚度（mm）；<c>measureThickness=false</c> 時省略。</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ThicknessB { get; init; }
 
     /// <summary>與前一段的 Z 高度差（斜率）；僅數值，不含告警。</summary>
     public double SegmentZDelta { get; init; }
