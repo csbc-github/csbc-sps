@@ -2,18 +2,21 @@ using Keyence.LjDevCommunication;
 
 namespace ThreeDScan.Infrastructure.Scanners;
 
+/// <summary>單次與 LJ 控制器的連線與設定讀寫。</summary>
 internal sealed class Ljs8DeviceSession : IDisposable
 {
     private readonly byte[] _ip;
     private readonly int _port;
     private bool _open;
 
+    /// <summary>建立尚未開啟的控制器連線。</summary>
     public Ljs8DeviceSession(byte[] ipAddress, int port)
     {
         _ip = ipAddress;
         _port = port;
     }
 
+    /// <summary>開啟與控制器的連線。</summary>
     public void Open()
     {
         if (_open) return;
@@ -33,6 +36,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
         }
     }
 
+    /// <summary>切換至指定程式編號。</summary>
     public void EnsureProgram(byte programNo)
     {
         byte active = 0;
@@ -52,6 +56,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
             throw new InvalidOperationException($"無法切換至程式 {programNo}，目前為 {active}");
     }
 
+    /// <summary>讀取設定；失敗擲例外。</summary>
     public byte[] GetSetting(byte depth, Ljs8IfTargetSetting target, int dataLength)
     {
         var data = new byte[dataLength];
@@ -61,6 +66,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
         return data;
     }
 
+    /// <summary>讀取設定；失敗回傳 false。</summary>
     public bool TryGetSetting(byte depth, Ljs8IfTargetSetting target, int dataLength, out byte[] data)
     {
         data = new byte[dataLength];
@@ -78,6 +84,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
         return $"GetSetting 錯誤碼 {rc} (Cat {target._category:X2} Item {target._item:X2}){hint}";
     }
 
+    /// <summary>批次讀取程式設定。</summary>
     public byte[] GetBatch(byte depth, byte programNo)
     {
         var data = new byte[Ljs8ProgramConstants.ProgramSettingsBatchSize];
@@ -87,6 +94,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
         return data;
     }
 
+    /// <summary>寫入 WRITE 緩衝；失敗擲例外。</summary>
     public void SetWrite(Ljs8IfTargetSetting target, byte[] data)
     {
         // #region agent log
@@ -152,12 +160,14 @@ internal sealed class Ljs8DeviceSession : IDisposable
         return rc == 0 && error == 0;
     }
 
+    /// <summary>批次寫入 WRITE 緩衝；失敗擲例外。</summary>
     public void SetBatchWrite(byte programNo, byte[] blob)
     {
         if (!TrySetBatchWrite(programNo, blob, out var rc, out var error))
             throw new InvalidOperationException($"SetSetting(Write) 批次錯誤碼 {rc}");
     }
 
+    /// <summary>批次寫入 WRITE 緩衝；失敗回傳 false。</summary>
     public bool TrySetBatchWrite(byte programNo, byte[] blob, out int rc, out uint error)
     {
         error = 0;
@@ -170,6 +180,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
         return rc == 0 && error == 0;
     }
 
+    /// <summary>批次寫入 SAVE 區。</summary>
     public void SetBatchSave(byte programNo, byte[] blob)
     {
         uint error = 0;
@@ -185,6 +196,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
             throw new InvalidOperationException($"SetSetting(Save) 詳細錯誤 0x{error:X8}");
     }
 
+    /// <summary>以指定深度重建 WRITE 緩衝。</summary>
     public void RewriteWriteBufferFrom(byte depth)
     {
         var rc = Ljs8If.RewriteTemporarySetting(0, depth);
@@ -192,6 +204,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
             throw new InvalidOperationException($"RewriteTemporarySetting 錯誤碼 {rc}（無法以深度 {depth} 初始化 WRITE 緩衝）");
     }
 
+    /// <summary>反映設定至 SAVE 區。</summary>
     public void ReflectSave()
     {
         uint error = 0;
@@ -202,6 +215,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
             throw new InvalidOperationException($"ReflectSetting 詳細錯誤 0x{error:X8}");
     }
 
+    /// <summary>反映設定至 RUNNING 區。</summary>
     public void ReflectRunning()
     {
         uint error = 0;
@@ -227,6 +241,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
         ReflectRunning();
     }
 
+    /// <summary>等到控制器記憶體可存取。</summary>
     public void EnsureMemoryReady()
     {
         for (var i = 0; i < 200; i++)
@@ -241,6 +256,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
             "控制器記憶體忙碌（可能 Navigator 正在連線）。請關閉 Navigator 後再試。");
     }
 
+    /// <summary>等到儲存完成。</summary>
     public void WaitForSaveComplete()
     {
         for (var i = 0; i < 200; i++)
@@ -254,6 +270,7 @@ internal sealed class Ljs8DeviceSession : IDisposable
         throw new InvalidOperationException("等待控制器儲存完成逾時");
     }
 
+    /// <summary>關閉連線並釋放裝置鎖。</summary>
     public void Dispose()
     {
         if (!_open) return;

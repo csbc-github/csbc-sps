@@ -3,6 +3,7 @@ using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Infrastructure.Scanners;
 
+/// <summary>LJ-S8000 拍攝參數與控制器設定互轉。</summary>
 internal static class Ljs8CaptureSettingsCodec
 {
     /// <summary>半透明體在程式批次 blob 中的位元組偏移（依 program 快取，避免每次重探）。</summary>
@@ -20,6 +21,7 @@ internal static class Ljs8CaptureSettingsCodec
         return (settings, false);
     }
 
+    /// <summary>自指定深度讀取拍攝參數。</summary>
     public static ScannerCaptureSettings ReadCapture(byte programNo, Ljs8DeviceSession session, byte depth)
     {
         byte Read1(byte cat, byte item)
@@ -76,6 +78,7 @@ internal static class Ljs8CaptureSettingsCodec
         return ui == 0 ? (byte)1 : ui;
     }
 
+    /// <summary>把 UI 拍攝參數套到目標（不寫 YDataIntervalMm）。</summary>
     public static void ApplyCaptureParameters(ScannerCaptureSettings target, ScannerCaptureSettings ui)
     {
         target.DynamicRange = ui.DynamicRange;
@@ -93,6 +96,7 @@ internal static class Ljs8CaptureSettingsCodec
         // YDataIntervalMm 僅顯示，不寫入控制器
     }
 
+    /// <summary>比較兩組拍攝參數是否相同。</summary>
     public static bool CaptureParametersEqual(ScannerCaptureSettings a, ScannerCaptureSettings b)
     {
         return a.DynamicRange == b.DynamicRange
@@ -112,11 +116,13 @@ internal static class Ljs8CaptureSettingsCodec
     /// <summary>LJ-S 無對應觸發節距欄位，保留簽章供服務層呼叫，永遠視為相同。</summary>
     public static void ApplyTriggerParameters(ScannerCaptureSettings target, ScannerCaptureSettings ui) { }
 
+    /// <summary>LJ-S 無觸發節距，永遠視為相同。</summary>
     public static bool TriggerParametersEqual(ScannerCaptureSettings a, ScannerCaptureSettings b)
     {
         return true;
     }
 
+    /// <summary>複製拍攝參數。</summary>
     public static ScannerCaptureSettings Clone(ScannerCaptureSettings source)
     {
         return new()
@@ -138,6 +144,7 @@ internal static class Ljs8CaptureSettingsCodec
         };
     }
 
+    /// <summary>把相對基準的變更寫入控制器工作緩衝。</summary>
     public static void WriteChangesToSession(
         byte programNo,
         ScannerCaptureSettings baseline,

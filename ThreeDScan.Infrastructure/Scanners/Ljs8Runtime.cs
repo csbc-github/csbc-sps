@@ -19,6 +19,7 @@ internal static class Ljs8Runtime
     /// </summary>
     private static readonly SemaphoreSlim DeviceGate = new(1, 1);
 
+    /// <summary>行程內只初始化 LJ DLL 一次。</summary>
     public static void EnsureInitialized()
     {
         if (_initialized) return;
@@ -30,11 +31,13 @@ internal static class Ljs8Runtime
         }
     }
 
+    /// <summary>取得全域裝置鎖。</summary>
     public static void AcquireDevice()
     {
         DeviceGate.Wait();
     }
 
+    /// <summary>釋放全域裝置鎖。</summary>
     public static void ReleaseDevice()
     {
         DeviceGate.Release();

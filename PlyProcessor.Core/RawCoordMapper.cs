@@ -1,5 +1,9 @@
 namespace PlyProcessor.Core;
 
+// 目前沒有任何呼叫。舊 Python raw↔processed 對應用（含 zThresh 濾點）。
+// 現在座標 JSON 由 Pipeline.Export 直接寫 raw／processed 點，不經此對應。
+#if false
+
 /// <summary>
 /// Derives the raw→processed affine transform by intensity-run matching,
 /// then builds a complete output-row → raw-row index mapping.
@@ -96,3 +100,4 @@ public static class RawCoordMapper
         return [ATA[0,4], ATA[1,4], ATA[2,4], ATA[3,4]];
     }
 }
+#endif

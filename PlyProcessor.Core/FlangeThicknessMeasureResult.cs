@@ -1,24 +1,24 @@
 namespace PlyProcessor.Core;
 
 /// <summary>
-/// 兩翼厚度量測結果（mm）。厚度 = 點雲上最近 XY 點的 Z − 夾具點 Z。
+/// 兩斜面厚度量測結果（mm）。厚度為外表面局部平面到內表面測距點的投影距離。
 /// </summary>
 public sealed class FlangeThicknessMeasureResult
 {
     /// <summary>
     /// 建立量測結果。
     /// </summary>
-    /// <param name="thicknessA">翼 A 厚度（mm），對應夾具點 A。</param>
-    /// <param name="thicknessB">翼 B 厚度（mm），對應夾具點 B。</param>
-    public FlangeThicknessMeasureResult(double thicknessA, double thicknessB)
+    /// <param name="thicknessLeft">左側厚度（mm）；未量測或無法計算時為 null。</param>
+    /// <param name="thicknessRight">右側厚度（mm）；未量測或無法計算時為 null。</param>
+    public FlangeThicknessMeasureResult(double? thicknessLeft, double? thicknessRight)
     {
-        ThicknessA = thicknessA;
-        ThicknessB = thicknessB;
+        ThicknessLeft = thicknessLeft;
+        ThicknessRight = thicknessRight;
     }
 
-    /// <summary>翼 A 厚度（mm）：掃描點 Z 減夾具 A 的 Z。</summary>
-    public double ThicknessA { get; }
+    /// <summary>左側厚度（mm）。</summary>
+    public double? ThicknessLeft { get; }
 
-    /// <summary>翼 B 厚度（mm）：掃描點 Z 減夾具 B 的 Z。</summary>
-    public double ThicknessB { get; }
+    /// <summary>右側厚度（mm）。</summary>
+    public double? ThicknessRight { get; }
 }

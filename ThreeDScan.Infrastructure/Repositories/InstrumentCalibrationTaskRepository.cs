@@ -10,6 +10,7 @@ public sealed class InstrumentCalibrationTaskRepository : IInstrumentCalibration
 {
     private readonly ThreeDScanDbContext _db;
 
+    /// <summary>建立儀器校正任務資料庫存取。</summary>
     public InstrumentCalibrationTaskRepository(ThreeDScanDbContext db)
     {
         _db = db;
@@ -50,6 +51,17 @@ public sealed class InstrumentCalibrationTaskRepository : IInstrumentCalibration
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<InstrumentCalibrationTaskRecord>> ListPendingAsync(
+        CancellationToken ct = default)
+    {
+        var rows = await _db.InstrumentCalibrationTasks
+            .AsNoTracking()
+            .Where(x => x.Status == InstrumentCalibrationTaskRecord.StatusPending)
+            .ToListAsync(ct);
+        return rows.Select(Map).ToList();
+    }
+
+    /// <inheritdoc />
     public async Task CompleteAsync(string taskId, CancellationToken ct = default)
     {
         var row = await _db.InstrumentCalibrationTasks.FirstOrDefaultAsync(x => x.TaskId == taskId, ct);
@@ -57,6 +69,20 @@ public sealed class InstrumentCalibrationTaskRepository : IInstrumentCalibration
             return;
 
         row.Status = InstrumentCalibrationTaskRecord.StatusCompleted;
+        row.UpdatedAt = DateTimeOffset.Now;
+        await _db.SaveChangesAsync(ct);
+    }
+
+    /// <inheritdoc />
+    public async Task ExpireAsync(string taskId, CancellationToken ct = default)
+    {
+        var row = await _db.InstrumentCalibrationTasks.FirstOrDefaultAsync(x => x.TaskId == taskId, ct);
+        if (row is null)
+        {
+            return;
+        }
+
+        row.Status = InstrumentCalibrationTaskRecord.StatusExpired;
         row.UpdatedAt = DateTimeOffset.Now;
         await _db.SaveChangesAsync(ct);
     }

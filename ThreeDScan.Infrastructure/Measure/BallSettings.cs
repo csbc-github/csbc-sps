@@ -5,11 +5,13 @@ internal static class BallSettings
 {
     private static readonly AsyncLocal<LjMeasureSettings?> Current = new();
 
+    /// <summary>設定目前執行緒的量測參數範圍。</summary>
     public static void SetScope(LjMeasureSettings settings)
     {
         Current.Value = settings;
     }
 
+    /// <summary>清除目前執行緒的量測參數範圍。</summary>
     public static void ClearScope()
     {
         Current.Value = null;
@@ -178,10 +180,12 @@ internal static class BallSettings
         }
     }
 
+    /// <summary>量得球徑是否在預期容差內。</summary>
     public static bool IsExpectedDiameter(double d)
     {
         return S.IsExpectedDiameter(d);
     }
+    /// <summary>量得球徑是否在可接受誤差內。</summary>
     public static bool IsAcceptableSphereDiameter(double d)
     {
         return S.IsAcceptableSphereDiameter(d);

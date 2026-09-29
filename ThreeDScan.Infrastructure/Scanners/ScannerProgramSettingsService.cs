@@ -11,6 +11,7 @@ public sealed class ScannerProgramSettingsService : IScannerProgramSettingsServi
     private readonly IScannerRegistry _registry;
     private readonly IScannerProgramSettingsRepository _repository;
 
+    /// <summary>建立拍攝參數讀寫服務。</summary>
     public ScannerProgramSettingsService(
         IScannerRegistry registry,
         IScannerProgramSettingsRepository repository)

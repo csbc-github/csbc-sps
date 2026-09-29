@@ -10,6 +10,7 @@ public sealed class SignalRCalibrationPreviewPublisher : ICalibrationPreviewPubl
 {
     private readonly IHubContext<CalibrationPreviewHub> _hub;
 
+    /// <summary>建立 SignalR 預覽推播。</summary>
     public SignalRCalibrationPreviewPublisher(IHubContext<CalibrationPreviewHub> hub)
     {
         _hub = hub;

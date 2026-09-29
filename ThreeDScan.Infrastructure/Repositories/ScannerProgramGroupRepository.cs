@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using ThreeDScan.Domain;
 using ThreeDScan.Domain.Repositories;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Infrastructure.Repositories.Models;
@@ -11,6 +10,7 @@ public sealed class ScannerProgramGroupRepository : IScannerProgramGroupReposito
 {
     private readonly ThreeDScanDbContext _db;
 
+    /// <summary>建立拍攝群組名稱資料庫存取。</summary>
     public ScannerProgramGroupRepository(ThreeDScanDbContext db)
     {
         _db = db;

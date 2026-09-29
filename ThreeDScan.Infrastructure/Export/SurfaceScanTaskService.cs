@@ -20,6 +20,7 @@ public sealed class SurfaceScanTaskService : ISurfaceScanTaskService
     private readonly string _root;
     private readonly object _fileLock = new();
 
+    /// <summary>以 ExportRoot/surface-tasks 建立任務檔服務。</summary>
     public SurfaceScanTaskService(IStorageSettings storage)
     {
         _root = Path.Combine(storage.ExportRoot, "surface-tasks");
@@ -35,6 +36,7 @@ public sealed class SurfaceScanTaskService : ISurfaceScanTaskService
             ScannerId = scannerId,
             Seq = 0,
             IsCompleted = false,
+            StartedAt = DateTimeOffset.Now,
             UpdatedAt = DateTimeOffset.Now,
         };
     }
@@ -72,6 +74,11 @@ public sealed class SurfaceScanTaskService : ISurfaceScanTaskService
                 return false;
             }
 
+            if (loaded.SegmentPlyPaths is null)
+            {
+                loaded.SegmentPlyPaths = new List<string>();
+            }
+
             _cache[loaded.TaskId] = loaded;
             record = loaded;
             return true;
@@ -90,6 +97,42 @@ public sealed class SurfaceScanTaskService : ISurfaceScanTaskService
         {
             File.WriteAllText(path, json);
         }
+    }
+
+    /// <inheritdoc />
+    public string EnsureDirectory(string taskId)
+    {
+        var dir = Path.Combine(_root, taskId);
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<SurfaceScanTaskRecord> ListIncomplete()
+    {
+        var result = new List<SurfaceScanTaskRecord>();
+        if (!Directory.Exists(_root))
+        {
+            return result;
+        }
+
+        foreach (var dir in Directory.GetDirectories(_root))
+        {
+            var id = Path.GetFileName(dir);
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                continue;
+            }
+
+            if (!TryGet(id, out var record) || record is null || record.IsCompleted)
+            {
+                continue;
+            }
+
+            result.Add(record);
+        }
+
+        return result;
     }
 
     private string TaskFilePath(string taskId)

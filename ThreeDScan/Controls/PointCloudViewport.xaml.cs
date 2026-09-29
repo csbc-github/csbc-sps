@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -30,6 +31,10 @@ public partial class PointCloudViewport : UserControl
 
     private double _splatHalfSize = 0.1;
     private bool _billboardRebuildPending;
+    private Point3D _cloudMin;
+    private Point3D _cloudMax;
+    private Vector3D _orbitUp = new Vector3D(0, 1, 0);
+    private bool _autoLookHeadPending;
 
     public static readonly DependencyProperty VerticesProperty = DependencyProperty.Register(
         nameof(Vertices),
@@ -46,6 +51,24 @@ public partial class PointCloudViewport : UserControl
         set
         {
             SetValue(VerticesProperty, value);
+        }
+    }
+
+    public static readonly DependencyProperty HeadFeaturesProperty = DependencyProperty.Register(
+        nameof(HeadFeatures),
+        typeof(HeadFeatureDisplayInfo),
+        typeof(PointCloudViewport),
+        new PropertyMetadata(null, OnHeadFeaturesChanged));
+
+    public HeadFeatureDisplayInfo? HeadFeatures
+    {
+        get
+        {
+            return (HeadFeatureDisplayInfo?)GetValue(HeadFeaturesProperty);
+        }
+        set
+        {
+            SetValue(HeadFeaturesProperty, value);
         }
     }
 
@@ -66,13 +89,40 @@ public partial class PointCloudViewport : UserControl
             self.RenderVertices();
     }
 
+    private static void OnHeadFeaturesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not PointCloudViewport self)
+        {
+            return;
+        }
+
+        if (e.OldValue is HeadFeatureDisplayInfo oldInfo)
+        {
+            oldInfo.PropertyChanged -= self.OnHeadFeaturesPropertyChanged;
+        }
+
+        if (e.NewValue is HeadFeatureDisplayInfo newInfo)
+        {
+            newInfo.PropertyChanged += self.OnHeadFeaturesPropertyChanged;
+        }
+
+        self.ApplyHeadFeatures();
+        self.TryApplyDefaultHeadView();
+    }
+
+    private void OnHeadFeaturesPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        ApplyHeadFeatures();
+        TryApplyDefaultHeadView();
+    }
+
     private void RenderVertices()
     {
         Viewport.Children.Clear();
         _pointLayers.Clear();
         _allPoints.Clear();
         _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
-        _annotations.Clear();
+        _annotations.ClearAll();
         var vertices = Vertices;
         if (vertices is null || vertices.Count == 0)
         {
@@ -82,6 +132,8 @@ public partial class PointCloudViewport : UserControl
             MouseLayer.ReleaseMouseCapture();
             MouseLayer.Cursor = Cursors.Arrow;
             EmptyHint.Visibility = Visibility.Visible;
+            LookHeadButton.Visibility = Visibility.Collapsed;
+            _autoLookHeadPending = false;
             return;
         }
 
@@ -101,33 +153,16 @@ public partial class PointCloudViewport : UserControl
             if (p.Z > maxZ) maxZ = p.Z;
         }
 
-        var cx = (minX + maxX) * 0.5;
-        var cy = (minY + maxY) * 0.5;
-        var cz = (minZ + maxZ) * 0.5;
-        var center = new Point3D(cx, cy, cz);
-        var extent = new Vector3D(maxX - minX, maxY - minY, maxZ - minZ);
-        var diagonal = extent.Length;
-        if (diagonal < 1e-6) diagonal = 100;
-
-        const double fovDeg = 60.0;
-        var fovRad = fovDeg * Math.PI / 180.0;
-        var dist = (diagonal * 0.5) / Math.Tan(fovRad / 2.0) * 1.12;
-        if (dist < 1e-3 || double.IsNaN(dist)) dist = diagonal * 1.5;
-
-        var eyeDir = new Vector3D(1, 1, 1);
-        eyeDir.Normalize();
-        var camPos = center + eyeDir * dist;
-
-        Viewport.Camera = new PerspectiveCamera
+        _cloudMin = new Point3D(minX, minY, minZ);
+        _cloudMax = new Point3D(maxX, maxY, maxZ);
+        var cloudExtent = _cloudMax - _cloudMin;
+        var diagonal = cloudExtent.Length;
+        if (diagonal < 1e-6)
         {
-            Position = camPos,
-            LookDirection = center - camPos,
-            UpDirection = new Vector3D(0, 1, 0),
-            FieldOfView = fovDeg
-        };
+            diagonal = 100;
+        }
 
-        _orbitDiagonal = diagonal;
-        InitOrbitFromCamera(center, camPos);
+        SetupOrbitFromCloudBounds();
         _hasOrbitScene = true;
 
         Viewport.Children.Add(new ModelVisual3D { Content = new AmbientLight(Color.FromRgb(18, 20, 24)) });
@@ -149,7 +184,7 @@ public partial class PointCloudViewport : UserControl
         var halfIdeal = spacingEst * 0.52;
         var halfFloor = Math.Max(diagonal * 0.00008, 0.035);
         var halfCeiling = Math.Max(Math.Min(spacingEst * 0.62, diagonal * 0.0022), halfFloor);
-        _splatHalfSize = Math.Clamp(halfIdeal, halfFloor, halfCeiling);
+        _splatHalfSize = Math.Clamp(halfIdeal, halfFloor, halfCeiling) * 0.28;
 
         var byColor = new Dictionary<int, List<Point3D>>();
         foreach (var v in vertices)
@@ -181,18 +216,174 @@ public partial class PointCloudViewport : UserControl
         }
 
         RebuildBillboardMeshes();
+        _autoLookHeadPending = true;
+        ApplyHeadFeatures();
+        TryApplyDefaultHeadView();
+    }
 
-        var axisLen = Math.Max(diagonal * 0.08, 1e-3);
-        var axisThickness = Math.Max(diagonal * 0.004, 0.15);
-        Viewport.Children.Add(CreateAxisModel(new Point3D(0, 0, 0), new Point3D(axisLen, 0, 0), Colors.IndianRed, axisThickness));
-        Viewport.Children.Add(CreateAxisModel(new Point3D(0, 0, 0), new Point3D(0, axisLen, 0), Colors.MediumSeaGreen, axisThickness));
-        Viewport.Children.Add(CreateAxisModel(new Point3D(0, 0, 0), new Point3D(0, 0, axisLen), Colors.CornflowerBlue, axisThickness));
+    private void SetupOrbitFromCloudBounds()
+    {
+        _orbitUp = new Vector3D(0, 1, 0);
+        var center = CloudCenter();
+        var extent = _cloudMax - _cloudMin;
+        var diagonal = extent.Length;
+        if (diagonal < 1e-6)
+        {
+            diagonal = 100;
+        }
+
+        var dist = OrbitDistanceForDiagonal(diagonal);
+        var eyeDir = new Vector3D(1, 1, 1);
+        eyeDir.Normalize();
+        var camPos = center + eyeDir * dist;
+
+        Viewport.Camera = new PerspectiveCamera
+        {
+            Position = camPos,
+            LookDirection = center - camPos,
+            UpDirection = new Vector3D(0, 1, 0),
+            FieldOfView = 60.0
+        };
+
+        _orbitDiagonal = diagonal;
+        InitOrbitFromCamera(center, camPos);
+    }
+
+    private Point3D CloudCenter()
+    {
+        return new Point3D(
+            (_cloudMin.X + _cloudMax.X) * 0.5,
+            (_cloudMin.Y + _cloudMax.Y) * 0.5,
+            (_cloudMin.Z + _cloudMax.Z) * 0.5);
+    }
+
+    private static double OrbitDistanceForDiagonal(double diagonal)
+    {
+        const double fovDeg = 60.0;
+        var fovRad = fovDeg * Math.PI / 180.0;
+        var dist = (diagonal * 0.5) / Math.Tan(fovRad / 2.0) * 1.12;
+        if (dist < 1e-3 || double.IsNaN(dist))
+        {
+            return diagonal * 1.5;
+        }
+
+        return dist;
+    }
+
+    private void OnLookHeadClick(object sender, RoutedEventArgs e)
+    {
+        if (!_hasOrbitScene)
+        {
+            return;
+        }
+
+        if (!TryGetHeadPoints(out var left, out var apex, out var right))
+        {
+            return;
+        }
+
+        LookAtHead(left, apex, right);
+    }
+
+    private void TryApplyDefaultHeadView()
+    {
+        if (!_autoLookHeadPending || !_hasOrbitScene)
+        {
+            return;
+        }
+
+        if (!TryGetHeadPoints(out var left, out var apex, out var right))
+        {
+            return;
+        }
+
+        _autoLookHeadPending = false;
+        LookAtHead(left, apex, right);
+    }
+
+    private bool TryGetHeadPoints(out Point3D left, out Point3D apex, out Point3D right)
+    {
+        return HeadViewCamera.TryReadPoints(HeadFeatures, out left, out apex, out right);
+    }
+
+    /// <summary>整支入鏡；相機在側前方，前緣三點在頭側、包角朝上。</summary>
+    private void LookAtHead(Point3D left, Point3D apex, Point3D right)
+    {
+        if (!HeadViewCamera.TryCompute(CloudCenter(), _orbitDiagonal, left, apex, right, out var pose)
+            || pose is null)
+        {
+            return;
+        }
+
+        _orbitUp = pose.OrbitUp;
+        if (Viewport.Camera is not PerspectiveCamera)
+        {
+            Viewport.Camera = new PerspectiveCamera
+            {
+                FieldOfView = 60.0
+            };
+        }
+
+        InitOrbitFromCamera(pose.Target, pose.CameraPosition);
+        ApplyOrbitCamera();
+    }
+
+    private void ApplyHeadFeatures()
+    {
+        if (_annotations is null)
+        {
+            return;
+        }
+
+        var canLook = _hasOrbitScene && TryGetHeadPoints(out var left, out var apex, out var right);
+        LookHeadButton.Visibility = canLook ? Visibility.Visible : Visibility.Collapsed;
+        if (!canLook)
+        {
+            _annotations.ClearHeadFeatures();
+            return;
+        }
+
+        _annotations.SetHeadFeatures(left, apex, right, _orbitDiagonal);
+    }
+
+    private void GetOrbitBasis(out Vector3D xAxis, out Vector3D yAxis, out Vector3D zAxis)
+    {
+        yAxis = _orbitUp;
+        if (yAxis.LengthSquared < 1e-18)
+        {
+            yAxis = new Vector3D(0, 1, 0);
+        }
+
+        yAxis.Normalize();
+        var hint = new Vector3D(0, 0, 1);
+        if (Math.Abs(Vector3D.DotProduct(yAxis, hint)) > 0.9)
+        {
+            hint = new Vector3D(1, 0, 0);
+        }
+
+        xAxis = Vector3D.CrossProduct(yAxis, hint);
+        if (xAxis.LengthSquared < 1e-12)
+        {
+            xAxis = new Vector3D(1, 0, 0);
+        }
+
+        xAxis.Normalize();
+        zAxis = Vector3D.CrossProduct(xAxis, yAxis);
+        zAxis.Normalize();
     }
 
     private void RequestBillboardRebuild()
     {
-        if (!_hasOrbitScene || _pointLayers.Count == 0) return;
-        if (_billboardRebuildPending) return;
+        if (!_hasOrbitScene || _pointLayers.Count == 0)
+        {
+            return;
+        }
+
+        if (_billboardRebuildPending)
+        {
+            return;
+        }
+
         _billboardRebuildPending = true;
         Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
         {
@@ -203,15 +394,18 @@ public partial class PointCloudViewport : UserControl
 
     private void RebuildBillboardMeshes()
     {
-        if (Viewport.Camera is not PerspectiveCamera cam) return;
+        if (Viewport.Camera is not PerspectiveCamera cam)
+        {
+            return;
+        }
+
         foreach (var layer in _pointLayers)
         {
-            var mesh = BuildBillboardMesh(layer.Points, _splatHalfSize, cam);
-            layer.Model.Geometry = mesh;
+            layer.Model.Geometry = BuildBillboardMesh(layer.Points, _splatHalfSize, cam);
         }
     }
 
-    /// <summary>每點兩個三角形，平面朝向相機，避免立方體深度打架造成的糊邊與閃爍。</summary>
+    /// <summary>每點兩個小三角形朝向相機（小點）。</summary>
     private static MeshGeometry3D BuildBillboardMesh(IReadOnlyList<Point3D> points, double halfSize, PerspectiveCamera cam)
     {
         var mesh = new MeshGeometry3D();
@@ -254,30 +448,48 @@ public partial class PointCloudViewport : UserControl
         _orbitTarget = target;
         var off = cameraPosition - target;
         _orbitDistance = off.Length;
-        if (_orbitDistance < 1e-6) _orbitDistance = 1;
-        off.Normalize();
-        _pitch = Math.Clamp(Math.Asin(off.Y), -1.48, 1.48);
-        _yaw = Math.Atan2(off.X, off.Z);
+        if (_orbitDistance < 1e-6)
+        {
+            _orbitDistance = 1;
+        }
+
+        GetOrbitBasis(out var xAxis, out var yAxis, out var zAxis);
+        var nx = Vector3D.DotProduct(off, xAxis) / _orbitDistance;
+        var ny = Vector3D.DotProduct(off, yAxis) / _orbitDistance;
+        var nz = Vector3D.DotProduct(off, zAxis) / _orbitDistance;
+        _pitch = Math.Clamp(Math.Asin(Math.Clamp(ny, -1.0, 1.0)), -1.48, 1.48);
+        _yaw = Math.Atan2(nx, nz);
     }
 
     private void ApplyOrbitCamera()
     {
-        if (Viewport.Camera is not PerspectiveCamera pc) return;
+        if (Viewport.Camera is not PerspectiveCamera pc)
+        {
+            return;
+        }
+
+        GetOrbitBasis(out var xAxis, out var yAxis, out var zAxis);
         var cp = Math.Cos(_pitch);
-        var x = _orbitDistance * cp * Math.Sin(_yaw);
-        var y = _orbitDistance * Math.Sin(_pitch);
-        var z = _orbitDistance * cp * Math.Cos(_yaw);
-        var pos = _orbitTarget + new Vector3D(x, y, z);
+        var pos = _orbitTarget
+            + xAxis * (_orbitDistance * cp * Math.Sin(_yaw))
+            + yAxis * (_orbitDistance * Math.Sin(_pitch))
+            + zAxis * (_orbitDistance * cp * Math.Cos(_yaw));
         var look = _orbitTarget - pos;
         if (look.LengthSquared < 1e-18)
+        {
             look = new Vector3D(0, 0, -1);
+        }
         else
+        {
             look.Normalize();
+        }
 
-        var worldUp = Math.Abs(look.Y) > 0.95 ? new Vector3D(0, 0, 1) : new Vector3D(0, 1, 0);
-        var right = Vector3D.CrossProduct(look, worldUp);
+        var right = Vector3D.CrossProduct(look, yAxis);
         if (right.LengthSquared < 1e-12)
+        {
             right = new Vector3D(1, 0, 0);
+        }
+
         right.Normalize();
         var up = Vector3D.CrossProduct(right, look);
         up.Normalize();
@@ -376,19 +588,6 @@ public partial class PointCloudViewport : UserControl
         return Color.FromRgb((byte)(packed >> 16), (byte)((packed >> 8) & 255), (byte)(packed & 255));
     }
 
-    private static ModelVisual3D CreateAxisModel(Point3D a, Point3D b, Color color, double thickness)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        var mat = new EmissiveMaterial(brush);
-        mat.Freeze();
-        var mesh = BuildLineBox(a, b, thickness);
-        return new ModelVisual3D
-        {
-            Content = new GeometryModel3D { Geometry = mesh, Material = mat, BackMaterial = mat }
-        };
-    }
-
     private static void AddQuad(MeshGeometry3D mesh, int a, int b, int c, int d)
     {
         mesh.TriangleIndices.Add(a);
@@ -397,43 +596,5 @@ public partial class PointCloudViewport : UserControl
         mesh.TriangleIndices.Add(a);
         mesh.TriangleIndices.Add(c);
         mesh.TriangleIndices.Add(d);
-    }
-
-    private static MeshGeometry3D BuildLineBox(Point3D p0, Point3D p1, double thickness)
-    {
-        var dir = p1 - p0;
-        if (dir.Length < 1e-9) return new MeshGeometry3D();
-        dir.Normalize();
-        var up = Math.Abs(Vector3D.DotProduct(dir, new Vector3D(0, 1, 0))) > 0.95
-            ? new Vector3D(1, 0, 0)
-            : new Vector3D(0, 1, 0);
-        var right = Vector3D.CrossProduct(dir, up);
-        right.Normalize();
-        up = Vector3D.CrossProduct(right, dir);
-        up.Normalize();
-
-        right *= thickness * 0.5;
-        up *= thickness * 0.5;
-
-        var a = p0 - right - up;
-        var b = p0 + right - up;
-        var c = p0 + right + up;
-        var d = p0 - right + up;
-        var e = p1 - right - up;
-        var f = p1 + right - up;
-        var g = p1 + right + up;
-        var h = p1 - right + up;
-
-        var mesh = new MeshGeometry3D();
-        mesh.Positions.Add(a); mesh.Positions.Add(b); mesh.Positions.Add(c); mesh.Positions.Add(d);
-        mesh.Positions.Add(e); mesh.Positions.Add(f); mesh.Positions.Add(g); mesh.Positions.Add(h);
-        AddQuad(mesh, 0, 1, 2, 3);
-        AddQuad(mesh, 4, 5, 6, 7);
-        AddQuad(mesh, 0, 1, 5, 4);
-        AddQuad(mesh, 1, 2, 6, 5);
-        AddQuad(mesh, 2, 3, 7, 6);
-        AddQuad(mesh, 3, 0, 4, 7);
-        mesh.Freeze();
-        return mesh;
     }
 }

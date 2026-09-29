@@ -13,8 +13,10 @@ using ThreeDScan.Infrastructure.Scanners;
 
 namespace ThreeDScan.Infrastructure;
 
+/// <summary>註冊資料庫、掃描器、量測與匯出服務。</summary>
 public static class DependencyInjection
 {
+    /// <summary>加入 Infrastructure 相依性。</summary>
     public static IServiceCollection AddThreeDScanInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration)

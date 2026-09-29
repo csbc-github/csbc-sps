@@ -1,15 +1,18 @@
 using Microsoft.AspNetCore.Mvc;
+using ThreeDScan.Api.Common;
 using ThreeDScan.Application.Calibration;
 using ThreeDScan.Application.Calibration.Models;
 
 namespace ThreeDScan.Api.Controllers;
 
+/// <summary>儀器／基準／滾輪校正。</summary>
 [ApiController]
 [Route("api/calibration")]
 public sealed class CalibrationController : ControllerBase
 {
     private readonly ICalibrationAppService _calibration;
 
+    /// <summary>建立校正 API。</summary>
     public CalibrationController(ICalibrationAppService calibration)
     {
         _calibration = calibration;
@@ -23,6 +26,26 @@ public sealed class CalibrationController : ControllerBase
     {
         var result = await _calibration.CalibrateInstrumentAsync(request, ct);
         return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>儀器校正第一次拍攝（指南 v1.1）。</summary>
+    [HttpPost("instrument/start")]
+    public async Task<IActionResult> StartInstrumentCalibration(
+        [FromBody] InstrumentCalibrationStartRequest request,
+        CancellationToken ct)
+    {
+        var result = await _calibration.StartInstrumentCalibrationAsync(request, ct);
+        return DasApiActionResult.From(result);
+    }
+
+    /// <summary>儀器校正第二次拍攝（指南 v1.1）。接受後以 callback／GET 查詢結果。</summary>
+    [HttpPost("instrument/complete")]
+    public async Task<IActionResult> CompleteInstrumentCalibration(
+        [FromBody] InstrumentCalibrationCompleteRequest request,
+        CancellationToken ct)
+    {
+        var result = await _calibration.CompleteInstrumentCalibrationAsync(request, ct);
+        return DasApiActionResult.Accepted(result);
     }
 
     /// <summary>

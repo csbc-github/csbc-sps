@@ -13,4 +13,10 @@ public interface ISurfaceScanTaskService
 
     /// <summary>寫入記憶體快取與 ExportRoot 檔案。</summary>
     void Save(SurfaceScanTaskRecord record);
+
+    /// <summary>任務目錄（ExportRoot/surface-tasks/{taskId}），不存在則建立。</summary>
+    string EnsureDirectory(string taskId);
+
+    /// <summary>尚未結束的面掃描任務（含磁碟上的 task.json）。</summary>
+    IReadOnlyList<SurfaceScanTaskRecord> ListIncomplete();
 }

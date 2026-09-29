@@ -1,9 +1,11 @@
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
+using ThreeDScan.Models;
 
 namespace ThreeDScan.Controls;
 
@@ -23,6 +25,11 @@ public partial class GlbMeshViewport : UserControl
     private bool _hasOrbitScene;
     private ViewportBoundsAnnotations? _annotations;
     private GeometryModel3D? _meshModel;
+    private bool _loading;
+    private Vector3D _orbitUp = new Vector3D(0, 1, 0);
+    private bool _autoLookHeadPending;
+    private Point3D _cloudMin;
+    private Point3D _cloudMax;
 
     public static readonly DependencyProperty GlbPathProperty = DependencyProperty.Register(
         nameof(GlbPath),
@@ -36,6 +43,24 @@ public partial class GlbMeshViewport : UserControl
         set => SetValue(GlbPathProperty, value);
     }
 
+    public static readonly DependencyProperty HeadFeaturesProperty = DependencyProperty.Register(
+        nameof(HeadFeatures),
+        typeof(HeadFeatureDisplayInfo),
+        typeof(GlbMeshViewport),
+        new PropertyMetadata(null, OnHeadFeaturesChanged));
+
+    public HeadFeatureDisplayInfo? HeadFeatures
+    {
+        get
+        {
+            return (HeadFeatureDisplayInfo?)GetValue(HeadFeaturesProperty);
+        }
+        set
+        {
+            SetValue(HeadFeaturesProperty, value);
+        }
+    }
+
     public GlbMeshViewport()
     {
         InitializeComponent();
@@ -44,7 +69,19 @@ public partial class GlbMeshViewport : UserControl
             _orbitDragging = false;
             _didDrag = false;
         };
-        Loaded += (_, _) => _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
+        Loaded += (_, _) =>
+        {
+            _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
+            RefreshPresentation();
+        };
+        SizeChanged += (_, _) => RefreshPresentation();
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible)
+            {
+                RefreshPresentation();
+            }
+        };
     }
 
     private static void OnGlbPathChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -53,26 +90,80 @@ public partial class GlbMeshViewport : UserControl
             self.LoadPath(e.NewValue as string);
     }
 
-    public void LoadPath(string? path)
+    private static void OnHeadFeaturesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        Viewport.Children.Clear();
-        _meshModel = null;
-        _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
-        _annotations.Clear();
-        _hasOrbitScene = false;
-        _orbitDragging = false;
-        _didDrag = false;
-        MouseLayer.ReleaseMouseCapture();
-
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        if (d is not GlbMeshViewport self)
         {
-            EmptyHint.Visibility = Visibility.Visible;
-            MouseLayer.Cursor = Cursors.Arrow;
             return;
         }
 
+        if (e.OldValue is HeadFeatureDisplayInfo oldInfo)
+        {
+            oldInfo.PropertyChanged -= self.OnHeadFeaturesPropertyChanged;
+        }
+
+        if (e.NewValue is HeadFeatureDisplayInfo newInfo)
+        {
+            newInfo.PropertyChanged += self.OnHeadFeaturesPropertyChanged;
+        }
+
+        self.UpdateLookHeadButton();
+        self.TryApplyDefaultHeadView();
+    }
+
+    private void OnHeadFeaturesPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        UpdateLookHeadButton();
+        TryApplyDefaultHeadView();
+    }
+
+    private void RefreshPresentation()
+    {
+        if (_loading || !IsVisible || ActualWidth < 2 || ActualHeight < 2)
+        {
+            return;
+        }
+
+        if (_hasOrbitScene)
+        {
+            ApplyOrbitCamera();
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(GlbPath) && File.Exists(GlbPath))
+        {
+            LoadPath(GlbPath);
+        }
+    }
+
+    public void LoadPath(string? path)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _loading = true;
         try
         {
+            Viewport.Children.Clear();
+            _meshModel = null;
+            _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
+            _annotations.ClearAll();
+            _hasOrbitScene = false;
+            _orbitDragging = false;
+            _didDrag = false;
+            MouseLayer.ReleaseMouseCapture();
+
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                EmptyHint.Visibility = Visibility.Visible;
+                MouseLayer.Cursor = Cursors.Arrow;
+                LookHeadButton.Visibility = Visibility.Collapsed;
+                _autoLookHeadPending = false;
+                return;
+            }
+
             var mesh = GlbMeshLoader.LoadFromFile(path);
             ShowMesh(mesh);
         }
@@ -82,6 +173,16 @@ public partial class GlbMeshViewport : UserControl
             MouseLayer.Cursor = Cursors.Arrow;
             MessageBox.Show(ex.Message, "GLB 載入失敗", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+        finally
+        {
+            _loading = false;
+            if (_hasOrbitScene)
+            {
+                Dispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.Loaded,
+                    ApplyOrbitCamera);
+            }
+        }
     }
 
     private void ShowMesh(GlbMeshLoader.MeshData data)
@@ -90,6 +191,8 @@ public partial class GlbMeshViewport : UserControl
         MouseLayer.Cursor = Cursors.Hand;
 
         var bounds = data.Bounds;
+        _cloudMin = new Point3D(bounds.X, bounds.Y, bounds.Z);
+        _cloudMax = new Point3D(bounds.X + bounds.SizeX, bounds.Y + bounds.SizeY, bounds.Z + bounds.SizeZ);
         var center = new Point3D(
             bounds.X + bounds.SizeX * 0.5,
             bounds.Y + bounds.SizeY * 0.5,
@@ -98,10 +201,10 @@ public partial class GlbMeshViewport : UserControl
         if (diagonal < 1e-6) diagonal = 100;
 
         const double fovDeg = 60.0;
-        var fovRad = fovDeg * Math.PI / 180.0;
-        var dist = (diagonal * 0.5) / Math.Tan(fovRad / 2.0) * 1.35;
+        var dist = HeadViewCamera.DistanceForDiagonal(diagonal);
         if (dist < 1e-3 || double.IsNaN(dist)) dist = diagonal * 1.5;
 
+        _orbitUp = new Vector3D(0, 1, 0);
         var eyeDir = new Vector3D(1, 1, 1);
         eyeDir.Normalize();
         var camPos = center + eyeDir * dist;
@@ -112,6 +215,8 @@ public partial class GlbMeshViewport : UserControl
             LookDirection = center - camPos,
             UpDirection = new Vector3D(0, 1, 0),
             FieldOfView = fovDeg,
+            NearPlaneDistance = Math.Max(dist * 0.01, 0.5),
+            FarPlaneDistance = Math.Max(dist * 20, 1000),
         };
 
         _orbitDiagonal = diagonal;
@@ -152,6 +257,10 @@ public partial class GlbMeshViewport : UserControl
         Viewport.Children.Add(new ModelVisual3D { Content = _meshModel });
 
         _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
+        _annotations.SetSceneDiagonal(_orbitDiagonal);
+        _autoLookHeadPending = true;
+        UpdateLookHeadButton();
+        TryApplyDefaultHeadView();
     }
 
     private void InitOrbitFromCamera(Point3D target, Point3D cameraPosition)
@@ -159,30 +268,74 @@ public partial class GlbMeshViewport : UserControl
         _orbitTarget = target;
         var off = cameraPosition - target;
         _orbitDistance = off.Length;
-        if (_orbitDistance < 1e-6) _orbitDistance = 1;
-        off.Normalize();
-        _pitch = Math.Clamp(Math.Asin(off.Y), -1.48, 1.48);
-        _yaw = Math.Atan2(off.X, off.Z);
+        if (_orbitDistance < 1e-6)
+        {
+            _orbitDistance = 1;
+        }
+
+        GetOrbitBasis(out var xAxis, out var yAxis, out var zAxis);
+        var nx = Vector3D.DotProduct(off, xAxis) / _orbitDistance;
+        var ny = Vector3D.DotProduct(off, yAxis) / _orbitDistance;
+        var nz = Vector3D.DotProduct(off, zAxis) / _orbitDistance;
+        _pitch = Math.Clamp(Math.Asin(Math.Clamp(ny, -1.0, 1.0)), -1.48, 1.48);
+        _yaw = Math.Atan2(nx, nz);
+    }
+
+    private void GetOrbitBasis(out Vector3D xAxis, out Vector3D yAxis, out Vector3D zAxis)
+    {
+        yAxis = _orbitUp;
+        if (yAxis.LengthSquared < 1e-18)
+        {
+            yAxis = new Vector3D(0, 1, 0);
+        }
+
+        yAxis.Normalize();
+        var hint = new Vector3D(0, 0, 1);
+        if (Math.Abs(Vector3D.DotProduct(yAxis, hint)) > 0.9)
+        {
+            hint = new Vector3D(1, 0, 0);
+        }
+
+        xAxis = Vector3D.CrossProduct(yAxis, hint);
+        if (xAxis.LengthSquared < 1e-12)
+        {
+            xAxis = new Vector3D(1, 0, 0);
+        }
+
+        xAxis.Normalize();
+        zAxis = Vector3D.CrossProduct(xAxis, yAxis);
+        zAxis.Normalize();
     }
 
     private void ApplyOrbitCamera()
     {
-        if (Viewport.Camera is not PerspectiveCamera pc) return;
+        if (Viewport.Camera is not PerspectiveCamera pc)
+        {
+            return;
+        }
+
+        GetOrbitBasis(out var xAxis, out var yAxis, out var zAxis);
         var cp = Math.Cos(_pitch);
-        var x = _orbitDistance * cp * Math.Sin(_yaw);
-        var y = _orbitDistance * Math.Sin(_pitch);
-        var z = _orbitDistance * cp * Math.Cos(_yaw);
-        var pos = _orbitTarget + new Vector3D(x, y, z);
+        var pos = _orbitTarget
+            + xAxis * (_orbitDistance * cp * Math.Sin(_yaw))
+            + yAxis * (_orbitDistance * Math.Sin(_pitch))
+            + zAxis * (_orbitDistance * cp * Math.Cos(_yaw));
         var look = _orbitTarget - pos;
         if (look.LengthSquared < 1e-18)
+        {
             look = new Vector3D(0, 0, -1);
+        }
         else
+        {
             look.Normalize();
+        }
 
-        var worldUp = Math.Abs(look.Y) > 0.95 ? new Vector3D(0, 0, 1) : new Vector3D(0, 1, 0);
-        var right = Vector3D.CrossProduct(look, worldUp);
+        var right = Vector3D.CrossProduct(look, yAxis);
         if (right.LengthSquared < 1e-12)
+        {
             right = new Vector3D(1, 0, 0);
+        }
+
         right.Normalize();
         var up = Vector3D.CrossProduct(right, look);
         up.Normalize();
@@ -191,6 +344,68 @@ public partial class GlbMeshViewport : UserControl
         pc.LookDirection = look;
         pc.UpDirection = up;
         _annotations?.UpdateOverlay();
+    }
+
+    private void OnLookHeadClick(object sender, RoutedEventArgs e)
+    {
+        if (!_hasOrbitScene)
+        {
+            return;
+        }
+
+        if (!HeadViewCamera.TryReadPoints(HeadFeatures, out var left, out var apex, out var right))
+        {
+            return;
+        }
+
+        LookAtHead(left, apex, right);
+    }
+
+    private void TryApplyDefaultHeadView()
+    {
+        if (!_autoLookHeadPending || !_hasOrbitScene)
+        {
+            return;
+        }
+
+        if (!HeadViewCamera.TryReadPoints(HeadFeatures, out var left, out var apex, out var right))
+        {
+            return;
+        }
+
+        _autoLookHeadPending = false;
+        LookAtHead(left, apex, right);
+    }
+
+    private void LookAtHead(Point3D left, Point3D apex, Point3D right)
+    {
+        var center = new Point3D(
+            (_cloudMin.X + _cloudMax.X) * 0.5,
+            (_cloudMin.Y + _cloudMax.Y) * 0.5,
+            (_cloudMin.Z + _cloudMax.Z) * 0.5);
+        if (!HeadViewCamera.TryCompute(center, _orbitDiagonal, left, apex, right, out var pose)
+            || pose is null)
+        {
+            return;
+        }
+
+        _orbitUp = pose.OrbitUp;
+        if (Viewport.Camera is not PerspectiveCamera)
+        {
+            Viewport.Camera = new PerspectiveCamera
+            {
+                FieldOfView = 60.0
+            };
+        }
+
+        InitOrbitFromCamera(pose.Target, pose.CameraPosition);
+        ApplyOrbitCamera();
+    }
+
+    private void UpdateLookHeadButton()
+    {
+        var canLook = _hasOrbitScene && HeadViewCamera.TryReadPoints(HeadFeatures, out _, out _, out _);
+        LookHeadButton.Visibility = canLook ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

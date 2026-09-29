@@ -10,6 +10,7 @@ public sealed class ScannerProgramSettingsRepository : IScannerProgramSettingsRe
 {
     private readonly ThreeDScanDbContext _db;
 
+    /// <summary>建立拍攝參數資料庫存取。</summary>
     public ScannerProgramSettingsRepository(ThreeDScanDbContext db)
     {
         _db = db;

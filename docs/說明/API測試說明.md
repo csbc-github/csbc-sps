@@ -170,15 +170,17 @@ Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`
 
 ### 2.4 POST `/api/scan/surface`
 
-噴印區／割切區面掃描。介面仍是規格欄位（`scannerId`、`taskId`、`final`…）；處理走 C# `Pipeline.Run`（高度圖 → raw PLY → 去地／去雜訊 → ZIP），**不經** Python exe、也**不**收 Hank 的 Base64 PLY。
+公開點雲／GLB／ZIP／`headFeatures` = **相對座標 + `cameraPosition` + UC-01 補償 offset**（三軸都加）。`innerLeft`／`innerRight` 與公開點雲同一絕對框（測距儀機台座標）。沒有補償歷程時 offset 當 0，公開檔仍加 `cameraPosition`，回應 `compensationApplied: false`。
 
 `scannerId` 須為 `SURF-CAM-01` 或 `SURF-CAM-02`。省略 `navigatorScanNo` 時用該掃描器 appsettings 預設。  
-分段拼接尚未做：每次呼叫獨立掃描與處理；`segmentZDelta` 為與前一段處理後點雲平均 Z 的差（第一段為 0）。
+同一 `taskId` 多次呼叫：每次先獨立掃描並存該段點雲；`final=true` 且已有兩段以上時，依 Hank 方式拼接（各段 PCA 最長軸對齊 X、兩端裁 3%、Y／Z 中位對齊、Z 歸零、沿 X 首尾相接）後回傳合併點雲／ZIP。單次 `final=true`（只有一段）不拼接。`segmentZDelta` 為本段沿長度包角線最大 Z 差（相對座標，不加 camera）。
+
+拼接後座標不再維持機台絕對框（現有拼接會沿長度重排）。`PlyProcessor` 可調 `StitchGap`、`StitchTrimPercent`、`StitchAlignYZ`、`StitchZFloor`（預設對齊 Hank 網頁）。
 
 `jobId` 必填（台船工單號）；同一根角鋼噴印／割切／研磨帶同一值。
 
-- **噴印** `measureThickness=true`：必填 `thicknessPointA`、`thicknessPointB`（與公開點雲同一補償座標）。厚度 = 點雲最近 XY 點的 Z − 夾具點 Z，回 `thicknessA`／`thicknessB`，並寫入資料表 `JobThickness`。STEP／GLB 兩翼分別用這兩個厚度擠出。
-- **割切** `measureThickness=false`：依 `jobId` 讀噴印厚度組模型，不回 `thicknessA`／`thicknessB`。找不到該工單厚度則 400 `SCAN_THK_002`，不出模型。
+- 有帶 `innerLeft`／`innerRight`：在公開絕對點雲上量 `thicknessLeft`／`thicknessRight`，寫入 `JobThickness`。
+- 沒帶：依 `jobId` 讀噴印厚度組模型。找不到該工單厚度則 400 `SCAN_THK_002`。
 
 WPF 噴印「開始掃描」不經此 API，模型仍用假定 `MeshThickness`（預設 6 mm）。
 
@@ -188,7 +190,7 @@ WPF 噴印「開始掃描」不經此 API，模型仍用假定 `MeshThickness`�
 | 第一次（還要再掃） | `false` | 省略 |
 | 後續 | `false` 或最後一次 `true` | 第一次回傳的 `data.taskId` |
 
-必填：`scannerId`、`jobId`。JSON 欄位名是 **`final`**。
+必填：`scannerId`、`jobId`、`cameraPosition`。JSON 欄位名是 **`final`**。
 
 #### 單次 request
 
@@ -196,7 +198,8 @@ WPF 噴印「開始掃描」不經此 API，模型仍用假定 `MeshThickness`�
 {
   "scannerId": "SURF-CAM-01",
   "jobId": "JOB-001",
-  "final": true
+  "final": true,
+  "cameraPosition": { "x": 90, "y": 95, "z": 1100 }
 }
 ```
 
@@ -207,13 +210,13 @@ WPF 噴印「開始掃描」不經此 API，模型仍用假定 `MeshThickness`�
   "scannerId": "SURF-CAM-01",
   "jobId": "JOB-001",
   "final": true,
-  "measureThickness": true,
-  "thicknessPointA": { "x": 100.0, "y": 200.0, "z": 50.0 },
-  "thicknessPointB": { "x": 300.0, "y": 200.0, "z": 50.0 }
+  "cameraPosition": { "x": 90, "y": 95, "z": 1100 },
+  "innerLeft": { "x": 617.04, "y": 791.67, "z": 1256.26 },
+  "innerRight": { "x": 653.27, "y": 776.46, "z": 1258.75 }
 }
 ```
 
-座標與 `pointCloudUrl` 同一補償框。
+`innerLeft`／`innerRight` 與公開點雲同一絕對座標：舊相對測試點 + `cameraPosition` + 補償 offset。上例是相對 (527.04, 696.67, 156.26)／(563.27, 681.46, 158.75) 加上 `cameraPosition` (90, 95, 1100)、補償為 0。若 `compensationApplied` 為 true，三軸再加 offset。
 
 #### 成功 `data`
 
@@ -222,13 +225,15 @@ WPF 噴印「開始掃描」不經此 API，模型仍用假定 `MeshThickness`�
 | `taskId` | 任務識別碼 |
 | `seq` | 本任務第幾次掃描 |
 | `status` | `Continue` 或 `Final` |
-| `pointCloudUrl` | 本段點雲（有補償歷程時為已套 offset 的 `angle_steel.ply`） |
-| `thicknessA` | 翼 A 厚度 mm；未量測時省略 |
-| `thicknessB` | 翼 B 厚度 mm；未量測時省略 |
-| `segmentZDelta` | 與前一段平均 Z 差（mm） |
+| `pointCloudUrl` | 本段公開點雲（相對 + cameraPosition + 補償）；`final=true` 且多段時為拼接後的 `angle_steel.ply` |
+| `compensationApplied` | 是否套用 UC-01 補償。`false`＝沒有補償歷程，公開檔只加了 `cameraPosition` |
+| `thicknessLeft` | 左側厚度 mm；未帶 innerLeft 時省略 |
+| `thicknessRight` | 右側厚度 mm；未帶 innerRight 時省略 |
+| `segmentZDelta` | 本段包角線最大 Z 差（mm，相對座標） |
+| `headFeatures` | 前緣左下／頂點／右下（公開絕對座標） |
 | `traceId` | 本次追溯 ID |
 
-點雲靜態檔路徑前綴：`/scan-files/`（對應 `Storage:ExportRoot`）。
+點雲靜態檔路徑前綴：`/scan-files/`（對應 `Storage:ExportRoot`）。`POST /api/scan/surface-from-file` 同樣必填 `cameraPosition`。
 
 部署須執行：
 
@@ -240,15 +245,15 @@ WPF 噴印「開始掃描」不經此 API，模型仍用假定 `MeshThickness`�
 | `SCAN_CFG_001` | 未知 `scannerId` |
 | `SCAN_001` | `taskId` 不存在、掃描器不符、或任務已 `Final` |
 | `SCAN_THK_001` | 厚度量測失敗（缺 A/B、或點雲沒有可用點） |
-| `SCAN_THK_002` | `measureThickness=false` 但資料庫沒有該 `jobId` 的噴印厚度 |
+| `SCAN_THK_002` | 未帶 innerLeft／innerRight，且資料庫沒有該 `jobId` 的噴印厚度 |
 | `SCAN_SDK_001` | 擷取或 Pipeline 失敗 |
 
 ### 2.5 GET `/api/scan/surface/{taskId}/attachments`
 
-成功時 **直接下載 ZIP**（`Content-Type: application/zip`），內含 STEP／glTF／PNG／PLY／JSON；有補償歷程時 ZIP 內座標已套 offset。**不是** `{ success, data }` 包裝。  
+成功時 **直接下載 ZIP**（`Content-Type: application/zip`），內含 STEP／glTF／PNG／PLY／JSON；ZIP 內座標為公開絕對座標（相對 + cameraPosition + 補償）。**不是** `{ success, data }` 包裝。  
 失敗時仍為共通 JSON（400，`SCAN_001`）。
 
-`taskId` 用 2.4 回傳的值。目前為該任務**最後一次**掃描的 ZIP（尚未把多段拼成一份）。
+`taskId` 用 2.4 回傳的值。單段為該次 ZIP；`final=true` 且多段時為拼接後的 ZIP。
 
 ### 2.6 POST `/api/scan/hole`
 

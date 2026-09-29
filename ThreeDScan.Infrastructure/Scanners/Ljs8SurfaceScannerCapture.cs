@@ -18,6 +18,7 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
     private readonly string _exportRoot;
     private readonly ISurfaceScanPipeline _pipeline;
 
+    /// <summary>建立 LJS8 擷取服務。</summary>
     public Ljs8SurfaceScannerCapture(
         string scannerId,
         ScannerEndpointOptions endpoint,
@@ -63,6 +64,14 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
         if (hErr != LFileIOErrorCode.Success || gErr != LFileIOErrorCode.Success)
             throw new InvalidOperationException($"掃描影像寫檔失敗: height={hErr}, gray={gErr}");
 
+        // #region agent log
+        WriteAgentLog(
+            "Ljs8SurfaceScannerCapture.CaptureCoreAsync",
+            "wrote capture pngs",
+            "D",
+            new { captureDir, heightPath, grayPath, heightOk = File.Exists(heightPath), grayOk = File.Exists(grayPath) });
+        // #endregion
+
         ScanCaptureCache.Store(captureId, heightImage, grayImage);
 
         var geometry = new CaptureImageGeometry
@@ -102,6 +111,21 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
 
         Log("C# Pipeline.Run（raw PLY → 去地／去雜訊／ZIP／JSON／GLB／角度）...");
         var export = await _pipeline.ProcessCaptureAsync(imageResult, ct).ConfigureAwait(false);
+        // #region agent log
+        WriteAgentLog(
+            "Ljs8SurfaceScannerCapture.CaptureCoreAsync",
+            "pipeline after capture",
+            "C",
+            new
+            {
+                ply = export.PointCloudPath,
+                zip = export.ZipPath,
+                glb = export.GlbPath,
+                json = export.JsonPath,
+                compensatedJson = export.CompensatedJsonPath,
+                pointCount = export.PointCount,
+            });
+        // #endregion
         Log($"raw={Path.Combine(captureDir, "raw_scene.ply")}");
         Log($"PLY={export.PointCloudPath} ({export.PointCount} points)");
         if (export.AngleDegrees is { } deg)
@@ -152,6 +176,26 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
 
     private (LHeightImage Height, LGrayImage Gray) CaptureFromScanner(byte programNo, CancellationToken ct)
     {
+        if (!string.IsNullOrWhiteSpace(_endpoint.OfflineCaptureDirectory))
+        {
+            // #region agent log
+            WriteAgentLog(
+                "Ljs8SurfaceScannerCapture.CaptureFromScanner",
+                "using offline capture directory",
+                "A",
+                new { scannerId = ScannerId, dir = _endpoint.OfflineCaptureDirectory });
+            // #endregion
+            return LoadOfflineCaptureImages(_endpoint.OfflineCaptureDirectory);
+        }
+
+        // #region agent log
+        WriteAgentLog(
+            "Ljs8SurfaceScannerCapture.CaptureFromScanner",
+            "using live scanner",
+            "A",
+            new { scannerId = ScannerId, ip = _endpoint.Ip });
+        // #endregion
+
         var ipParts = _endpoint.Ip.Split('.');
         if (ipParts.Length != 4)
             throw new InvalidOperationException($"Scanner {ScannerId} IP 格式錯誤: {_endpoint.Ip}");
@@ -209,6 +253,60 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
         }
 
         return (heightImage, grayImage);
+    }
+
+    private (LHeightImage Height, LGrayImage Gray) LoadOfflineCaptureImages(string directory)
+    {
+        var dir = Path.GetFullPath(directory.Trim());
+        var heightPath = Path.Combine(dir, "capture_height.png");
+        var grayPath = Path.Combine(dir, "capture_gray.png");
+        if (!File.Exists(heightPath) || !File.Exists(grayPath))
+        {
+            throw new InvalidOperationException(
+                $"離線擷取找不到 capture_height.png 或 capture_gray.png：{dir}");
+        }
+
+        var heightImage = new LHeightImage();
+        var grayImage = new LGrayImage();
+        var hErr = heightImage.Read(heightPath);
+        var gErr = grayImage.Read(grayPath);
+        if (hErr != LFileIOErrorCode.Success || gErr != LFileIOErrorCode.Success)
+        {
+            throw new InvalidOperationException($"離線讀取掃描影像失敗: height={hErr}, gray={gErr}");
+        }
+
+        // #region agent log
+        WriteAgentLog(
+            "Ljs8SurfaceScannerCapture.LoadOfflineCaptureImages",
+            "loaded offline height/gray",
+            "B",
+            new { dir, x = heightImage.XSize, y = heightImage.YSize });
+        // #endregion
+
+        return (heightImage, grayImage);
+    }
+
+    private static void WriteAgentLog(string location, string message, string hypothesisId, object data)
+    {
+        try
+        {
+            var payload = new
+            {
+                sessionId = "cd59e4",
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                location = location,
+                message = message,
+                hypothesisId = hypothesisId,
+                data = data,
+            };
+            var line = System.Text.Json.JsonSerializer.Serialize(payload);
+            File.AppendAllText(
+                @"D:\Project\CSBS\角鋼\Program\ThreeDScan\debug-cd59e4.log",
+                line + Environment.NewLine);
+        }
+        catch
+        {
+        }
     }
 
     private static void DebugLog(string msg)

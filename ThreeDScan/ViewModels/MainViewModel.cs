@@ -1,13 +1,11 @@
 using ThreeDScan.Common;
-using ThreeDScan.Models;
 
 namespace ThreeDScan.ViewModels;
 
-// 主視窗 VM：Tab 切換與系統狀態（SA NFR-U-01 紅/黃/綠；SD §10.6 UI-02~UI-04）
+// 主視窗 VM：Tab 切換（SD §10.6 UI-02~UI-04）
 public class MainViewModel : ViewModelBase
 {
     private int _selectedTabIndex;
-    private SystemStatus _systemStatus = SystemStatus.Normal;
 
     public FeedingViewModel FeedingVM { get; } = new();
     public PrintingViewModel PrintingVM { get; } = new();
@@ -35,12 +33,5 @@ public class MainViewModel : ViewModelBase
     } set
     {
         SetProperty(ref _selectedTabIndex, value);
-    } }
-    public SystemStatus SystemStatus { get
-    {
-        return _systemStatus;
-    } set
-    {
-        SetProperty(ref _systemStatus, value);
     } }
 }

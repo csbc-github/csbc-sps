@@ -10,6 +10,7 @@ public sealed class ScannerCaptureFactory : IScannerCaptureFactory
 {
     private readonly Dictionary<string, Ljs8SurfaceScannerCapture> _captures;
 
+    /// <summary>依註冊表建立各掃描器擷取實例。</summary>
     public ScannerCaptureFactory(
         IOptions<ScannerRegistryOptions> options,
         IOptions<StorageOptions> storageOptions,

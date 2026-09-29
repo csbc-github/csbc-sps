@@ -1,10 +1,14 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using ThreeDScan.Application.Calibration.Models;
 using ThreeDScan.Application.Common;
+using ThreeDScan.Application.Common.Models;
+using ThreeDScan.Application.Scan.Models;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Domain.Repositories;
+using ThreeDScan.Application.Scan;
 
 namespace ThreeDScan.Application.Calibration;
 
@@ -23,6 +27,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
     private readonly CalibrationSettings _calibrationSettings;
     private readonly IStorageSettings _storage;
     private readonly InstrumentCalibrationService _instrumentCalibration;
+    private readonly IDasTaskResultCache _taskResults;
+    private readonly IAcceptedWorkQueue _workQueue;
+    private readonly ICallbackNotifier _callback;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     /// <summary>建立校正應用服務（依賴注入）。</summary>
     public CalibrationAppService(
@@ -37,6 +45,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
         IOptions<LjCalibrationParameters> calibrationParams,
         IOptions<CalibrationSettings> calibrationSettings,
         IStorageSettings storage,
+        IDasTaskResultCache taskResults,
+        IAcceptedWorkQueue workQueue,
+        ICallbackNotifier callback,
+        IServiceScopeFactory scopeFactory,
         InstrumentCalibrationService? instrumentCalibration = null)
     {
         _registry = registry;
@@ -50,6 +62,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
         _calibrationParams = calibrationParams.Value;
         _calibrationSettings = calibrationSettings.Value;
         _storage = storage;
+        _taskResults = taskResults;
+        _workQueue = workQueue;
+        _callback = callback;
+        _scopeFactory = scopeFactory;
         _instrumentCalibration = instrumentCalibration ?? new InstrumentCalibrationService();
     }
 
@@ -489,15 +505,34 @@ public sealed class CalibrationAppService : ICalibrationAppService
     /// <summary>單次拍攝的中間結果：影像路徑、SDK 球、配對計算、或本幀錯誤。</summary>
     private sealed class FrameComputeResult
     {
+        /// <summary>本幀擷取結果。</summary>
         public ScannerCaptureResult? Capture { get; init; }
+
+        /// <summary>灰階預覽相對路徑。</summary>
         public string? PreviewGrayPath { get; init; }
+
+        /// <summary>高度圖預覽相對路徑。</summary>
         public string? PreviewHeightPath { get; init; }
+
+        /// <summary>SDK 量到的球。</summary>
         public IReadOnlyList<MeasuredBall> Balls { get; init; } = Array.Empty<MeasuredBall>();
+
+        /// <summary>本幀量測參數。</summary>
         public LjCalibrationParameters? MeasureParams { get; init; }
+
+        /// <summary>偵測到的球數。</summary>
         public int? DetectCount { get; init; }
+
+        /// <summary>標準球配對計算結果。</summary>
         public InstrumentCalibrationComputeResult? Computed { get; init; }
+
+        /// <summary>基準平面量測。</summary>
         public DatumPlaneMeasureResult? DatumPlane { get; init; }
+
+        /// <summary>本幀錯誤碼與訊息。</summary>
         public (string Code, string Message)? Error { get; init; }
+
+        /// <summary>失敗時附帶的診斷資料。</summary>
         public InstrumentCalibrationData? DiagnosticData { get; init; }
     }
 
@@ -893,6 +928,215 @@ public sealed class CalibrationAppService : ICalibrationAppService
                 Ok = b.IsWithinTolerance,
             }).ToList(),
         };
+    }
+
+    /// <inheritdoc />
+    public async Task<DasOperationResult<InstrumentCalibrationStartData>> StartInstrumentCalibrationAsync(
+        InstrumentCalibrationStartRequest request,
+        CancellationToken ct = default)
+    {
+        var mapped = new InstrumentCalibrationRequest
+        {
+            ScannerId = request.ScannerId,
+            CameraExpectedPosition = request.CameraExpectedPosition,
+            StandardBalls = request.StandardBalls,
+            NavigatorScanNo = request.NavigatorScanNo,
+            Operator = request.Operator,
+            TaskId = null,
+            Final = false,
+        };
+        var api = await CalibrateInstrumentAsync(mapped, ct).ConfigureAwait(false);
+        if (!api.Success || api.Data is null)
+        {
+            return DasOperationResult<InstrumentCalibrationStartData>.Fail(
+                api.ErrorCode ?? "CAL_001",
+                api.ErrorMessage ?? "儀器校正失敗。");
+        }
+
+        var data = api.Data;
+        var start = new InstrumentCalibrationStartData
+        {
+            TaskId = data.TaskId ?? "",
+            Seq = data.Seq == 0 ? 1 : data.Seq,
+            Status = string.IsNullOrWhiteSpace(data.Status)
+                ? InstrumentCalibrationStartData.StatusAwaitingNextShot
+                : data.Status,
+            TraceId = data.TraceId ?? "",
+        };
+        _taskResults.Set(new TaskResultData
+        {
+            TaskId = start.TaskId,
+            Status = TaskResultData.StatusProcessing,
+            Result = null,
+            Error = null,
+            TraceId = start.TraceId,
+        });
+        return DasOperationResult<InstrumentCalibrationStartData>.Ok(start);
+    }
+
+    /// <inheritdoc />
+    public async Task<DasOperationResult<AsyncAcceptedData>> CompleteInstrumentCalibrationAsync(
+        InstrumentCalibrationCompleteRequest request,
+        CancellationToken ct = default)
+    {
+        var pending = await _taskRepository.GetAsync(request.TaskId, ct).ConfigureAwait(false);
+        if (pending is null && !_calibrationSettings.TestMode)
+        {
+            return DasOperationResult<AsyncAcceptedData>.Fail("CAL_001", "找不到對應的校正任務。");
+        }
+
+        if (pending is not null
+            && !string.Equals(pending.Status, InstrumentCalibrationTaskRecord.StatusPending, StringComparison.Ordinal))
+        {
+            return DasOperationResult<AsyncAcceptedData>.Fail(
+                "CAL_001",
+                $"校正任務已結束（Status={pending.Status}），請重新開始第一次拍攝。");
+        }
+
+        if (pending is not null && pending.ExpiresAt <= DateTimeOffset.Now)
+        {
+            return DasOperationResult<AsyncAcceptedData>.Fail("CAL_001", "校正任務已逾時，請重新開始第一次拍攝。");
+        }
+
+        RememberInstrumentProcessing(request.TaskId.Trim(), Guid.NewGuid().ToString("N"));
+        var snapshot = new InstrumentCalibrationCompleteRequest
+        {
+            TaskId = request.TaskId,
+            CameraExpectedPosition = request.CameraExpectedPosition,
+            StandardBalls = request.StandardBalls,
+            NavigatorScanNo = request.NavigatorScanNo,
+            CallbackUrl = request.CallbackUrl,
+        };
+        var scopeFactory = _scopeFactory;
+        _workQueue.Enqueue(async (_, workCt) =>
+        {
+            using var scope = scopeFactory.CreateScope();
+            var calibration = scope.ServiceProvider.GetRequiredService<ICalibrationAppService>();
+            await calibration.RunInstrumentCompleteJobAsync(snapshot, workCt).ConfigureAwait(false);
+        });
+
+        return DasOperationResult<AsyncAcceptedData>.Ok(new AsyncAcceptedData
+        {
+            TaskId = request.TaskId.Trim(),
+            Status = AsyncAcceptedData.StatusProcessing,
+        });
+    }
+
+    /// <inheritdoc />
+    public async Task RunInstrumentCompleteJobAsync(
+        InstrumentCalibrationCompleteRequest request,
+        CancellationToken ct = default)
+    {
+        var mapped = new InstrumentCalibrationRequest
+        {
+            ScannerId = "",
+            CameraExpectedPosition = request.CameraExpectedPosition,
+            StandardBalls = request.StandardBalls,
+            NavigatorScanNo = request.NavigatorScanNo,
+            TaskId = request.TaskId,
+            Final = true,
+        };
+
+        var pending = await _taskRepository.GetAsync(request.TaskId, ct).ConfigureAwait(false);
+        if (pending is not null)
+        {
+            mapped.ScannerId = pending.ScannerId;
+        }
+        else if (_calibrationSettings.TestMode)
+        {
+            mapped.ScannerId = "TEST";
+        }
+
+        var api = await CalibrateInstrumentAsync(mapped, ct).ConfigureAwait(false);
+        var traceId = api.Data?.TraceId;
+        if (string.IsNullOrWhiteSpace(traceId))
+        {
+            traceId = Guid.NewGuid().ToString("N");
+        }
+
+        TaskResultData payload;
+        if (string.Equals(api.ErrorCode, "CAL_002", StringComparison.Ordinal))
+        {
+            payload = new TaskResultData
+            {
+                TaskId = request.TaskId.Trim(),
+                Status = TaskResultData.StatusFailed,
+                Result = null,
+                Error = new TaskErrorDto
+                {
+                    Code = "CAL_002",
+                    Message = api.ErrorMessage ?? "校正品質未通過。",
+                },
+                TraceId = traceId,
+            };
+        }
+        else if (!api.Success || api.Data is null)
+        {
+            payload = new TaskResultData
+            {
+                TaskId = request.TaskId.Trim(),
+                Status = TaskResultData.StatusFailed,
+                Result = null,
+                Error = new TaskErrorDto
+                {
+                    Code = api.ErrorCode ?? "CAL_001",
+                    Message = api.ErrorMessage ?? "儀器校正失敗。",
+                },
+                TraceId = traceId,
+            };
+        }
+        else
+        {
+            var data = api.Data;
+            payload = new TaskResultData
+            {
+                TaskId = request.TaskId.Trim(),
+                Status = TaskResultData.StatusCompleted,
+                Result = new InstrumentCalibrationCompleteResult
+                {
+                    ScannerId = data.ScannerId ?? mapped.ScannerId,
+                    Compensation = data.Compensation ?? new CompensationDto(),
+                    RmseXY = data.RmseXY,
+                    ZDeviation = data.ZDeviation ?? 0,
+                    CalibratedAt = data.CalibratedAt ?? "",
+                },
+                Error = null,
+                TraceId = traceId,
+            };
+        }
+
+        _taskResults.Set(payload);
+        await _callback.NotifyAsync(request.CallbackUrl, payload, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task ExpireInstrumentTaskAsync(string taskId, CancellationToken ct = default)
+    {
+        await _taskRepository.ExpireAsync(taskId, ct).ConfigureAwait(false);
+        _taskResults.Set(new TaskResultData
+        {
+            TaskId = taskId.Trim(),
+            Status = TaskResultData.StatusAborted,
+            Result = null,
+            Error = new TaskErrorDto
+            {
+                Code = "CAL_001",
+                Message = "校正任務已逾時，請重新開始第一次拍攝。",
+            },
+            TraceId = Guid.NewGuid().ToString("N"),
+        });
+    }
+
+    private void RememberInstrumentProcessing(string taskId, string traceId)
+    {
+        _taskResults.Set(new TaskResultData
+        {
+            TaskId = taskId,
+            Status = TaskResultData.StatusProcessing,
+            Result = null,
+            Error = null,
+            TraceId = traceId,
+        });
     }
 
     /// <inheritdoc />

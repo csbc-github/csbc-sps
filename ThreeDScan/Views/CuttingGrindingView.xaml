@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:views="clr-namespace:ThreeDScan.Views"
+             xmlns:controls="clr-namespace:ThreeDScan.Controls"
              xmlns:conv="clr-namespace:ThreeDScan.Converters"
              xmlns:vm="clr-namespace:ThreeDScan.ViewModels"
              mc:Ignorable="d"
@@ -11,30 +12,116 @@
              d:DesignWidth="1200" d:DesignHeight="720">
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisInvert" Invert="True"/>
+        <conv:SystemStatusToLampBrushConverter x:Key="LampBrushConv"/>
     </UserControl.Resources>
 
-    <DockPanel Background="{StaticResource BackgroundBrush}">
-        <!-- 子 Tab：割切 / 研磨 -->
-        <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
-                Padding="12,8">
-            <StackPanel Orientation="Horizontal">
-                <RadioButton Content="割切 (Cutting)" GroupName="CuttingGrindingSubTab"
-                             IsChecked="{Binding IsCuttingTab}"
-                             Style="{StaticResource PillToggleButtonStyle}"/>
-                <RadioButton Content="研磨 (Grinding)" GroupName="CuttingGrindingSubTab"
-                             IsChecked="{Binding IsGrindingTab}"
-                             Style="{StaticResource PillToggleButtonStyle}" Margin="8,0,0,0"/>
-            </StackPanel>
-        </Border>
+    <TabControl Style="{StaticResource MainTabControlStyle}"
+                SelectedIndex="{Binding SelectedSubTabIndex}">
+        <TabItem Header="割切">
+            <Grid DataContext="{Binding CuttingVM}">
+                <controls:AdaptiveSplitView Background="{StaticResource BackgroundBrush}"
+                                            Threshold="820"
+                                            PrimaryRatio="2" SecondaryRatio="1"
+                                            PrimaryMinWidth="460" SecondaryMinWidth="300"
+                                            PrimaryMinHeight="280" SecondaryMinHeight="240">
+                    <controls:AdaptiveSplitView.PrimaryContent>
+                        <DockPanel Margin="12">
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8" LastChildFill="True">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+                                    <RadioButton Content="2D 高度圖" GroupName="CuttingViewMode"
+                                                 IsChecked="{Binding Is2DMode, Mode=TwoWay}"
+                                                 Style="{StaticResource ToggleButtonStyle}"/>
+                                    <RadioButton Content="3D 點雲" GroupName="CuttingViewMode"
+                                                 IsChecked="{Binding Is3DMode, Mode=TwoWay}"
+                                                 Style="{StaticResource ToggleButtonStyle}" Margin="6,0,0,0"/>
+                                    <RadioButton Content="3D GLB" GroupName="CuttingViewMode"
+                                                 IsChecked="{Binding IsGlbMode, Mode=TwoWay}"
+                                                 Style="{StaticResource ToggleButtonStyle}" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </DockPanel>
 
-        <Grid>
-            <views:CuttingView
-                Visibility="{Binding IsCuttingTab, Converter={StaticResource BoolToVis}}"
-                DataContext="{Binding CuttingVM}"/>
-            <views:GrindingView
-                Visibility="{Binding IsGrindingTab, Converter={StaticResource BoolToVis}}"
-                DataContext="{Binding GrindingVM}"/>
-        </Grid>
-    </DockPanel>
+                            <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="10,8"
+                                    Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Ellipse Width="10" Height="10"
+                                                 Fill="{Binding OverallStatus, Converter={StaticResource LampBrushConv}}"
+                                                 Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding ScanStatusText}"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding LastPlyPath}"
+                                               Margin="18,4,0,0"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Grid>
+                                <Grid Visibility="{Binding Is2DMode, Converter={StaticResource BoolToVis}}">
+                                    <controls:PreviewPlaceholder
+                                        Visibility="{Binding Has2DPreview, Converter={StaticResource BoolToVisInvert}}"
+                                        Title="2D 高度圖"
+                                        SubTitle="割切區面掃描（UC-04）"/>
+                                    <Grid Visibility="{Binding Has2DPreview, Converter={StaticResource BoolToVis}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <DockPanel Grid.Column="0" Margin="0,0,4,0">
+                                            <TextBlock DockPanel.Dock="Top" Text="俯視" Margin="0,0,0,6"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                                <Image Source="{Binding Preview2DTop}" Stretch="Uniform"/>
+                                            </Border>
+                                        </DockPanel>
+                                        <DockPanel Grid.Column="1" Margin="4,0">
+                                            <TextBlock DockPanel.Dock="Top" Text="正視" Margin="0,0,0,6"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                                <Image Source="{Binding Preview2DFront}" Stretch="Uniform"/>
+                                            </Border>
+                                        </DockPanel>
+                                        <DockPanel Grid.Column="2" Margin="4,0,0,0">
+                                            <TextBlock DockPanel.Dock="Top" Text="側視" Margin="0,0,0,6"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                                <Image Source="{Binding Preview2DSide}" Stretch="Uniform"/>
+                                            </Border>
+                                        </DockPanel>
+                                    </Grid>
+                                </Grid>
+                                <controls:PointCloudViewport
+                                    Visibility="{Binding Is3DMode, Converter={StaticResource BoolToVis}, ConverterParameter=Hidden}"
+                                    Vertices="{Binding PointCloudVertices}"
+                                    HeadFeatures="{Binding HeadFeatures}"/>
+                                <controls:GlbMeshViewport
+                                    Visibility="{Binding IsGlbMode, Converter={StaticResource BoolToVis}, ConverterParameter=Hidden}"
+                                    GlbPath="{Binding GlbPath}"
+                                    HeadFeatures="{Binding HeadFeatures}"/>
+                            </Grid>
+                        </DockPanel>
+                    </controls:AdaptiveSplitView.PrimaryContent>
+
+                    <controls:AdaptiveSplitView.SecondaryContent>
+                        <Border Background="{StaticResource SurfaceBrush}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="座標資訊"
+                                           Style="{StaticResource PanelTitleStyle}" Margin="16,12"/>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <controls:HeadFeaturePanel Features="{Binding HeadFeatures}"/>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
+                    </controls:AdaptiveSplitView.SecondaryContent>
+                </controls:AdaptiveSplitView>
+            </Grid>
+        </TabItem>
+        <TabItem Header="研磨">
+            <views:GrindingView DataContext="{Binding GrindingVM}"/>
+        </TabItem>
+    </TabControl>
 </UserControl>

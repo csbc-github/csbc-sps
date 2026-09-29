@@ -5,6 +5,7 @@ namespace ThreeDScan.Application.Calibration;
 /// <summary>合併 DB ScannerConfig 與程式內建預設 LJ 校正參數（DB 優先）。</summary>
 public static class LjCalibrationMerge
 {
+    /// <summary>以掃描器設定覆寫預設參數；無設定則回傳預設。</summary>
     public static LjCalibrationParameters ForScanner(
         ScannerConfigRecord? config,
         LjCalibrationParameters appDefaults)

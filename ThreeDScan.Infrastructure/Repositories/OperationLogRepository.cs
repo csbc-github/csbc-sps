@@ -9,6 +9,7 @@ public sealed class OperationLogRepository : IOperationLogRepository
 {
     private readonly ThreeDScanDbContext _db;
 
+    /// <summary>建立操作紀錄資料庫存取。</summary>
     public OperationLogRepository(ThreeDScanDbContext db)
     {
         _db = db;

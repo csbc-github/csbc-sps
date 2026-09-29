@@ -11,6 +11,7 @@ using System.Text;
 
 // LJ Developer 1.5.0.26460 — 對齊 source\ljd_measure.cs：PM.Execute → Sphere.Execute(DeltaPosition)
 
+/// <summary>LJ Developer 尋球／平面量測核心（對齊 ljd_measure）。</summary>
 internal sealed class LjDeveloperMeasureCore
 {
     #region 參數初始化
@@ -793,16 +794,19 @@ internal sealed class LjDeveloperMeasureCore
         }
     }
 
+    /// <summary>工具結果的顯示文字。</summary>
     public string[] GetDisplayText(IList<ILToolInfo> results)
     {
         return results.Select(result => result.DisplayText()).ToArray();
     }
 
+    /// <summary>工具量測數值。</summary>
     public ILToolMeasureValues[] GetMeasureValues(IList<ILToolInfo> results)
     {
         return results.Select(result => result.ToolMeasureValues()).ToArray();
     }
 
+    /// <summary>寫入掃描器事件日誌。</summary>
     public void LogScannerEvent(string text)
     {
         AppendLog(text);
@@ -914,6 +918,7 @@ internal sealed class LjDeveloperMeasureCore
     private readonly LGrayImage _referenceGrayImage;
     private readonly string _logFile;
 
+    /// <summary>以 Contents 資料夾載入參考影像與工具。</summary>
     public LjDeveloperMeasureCore(string contentsFolderPath)
     {
         _activeRefPatternX = RefPatternX;

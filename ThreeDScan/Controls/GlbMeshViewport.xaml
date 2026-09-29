@@ -10,7 +10,14 @@
             CornerRadius="6"
             Background="#1F242E">
         <Grid>
-            <Viewport3D x:Name="Viewport"/>
+            <Viewport3D x:Name="Viewport">
+                <Viewport3D.Camera>
+                    <PerspectiveCamera Position="400,400,400"
+                                       LookDirection="-1,-1,-1"
+                                       UpDirection="0,1,0"
+                                       FieldOfView="60"/>
+                </Viewport3D.Camera>
+            </Viewport3D>
             <Canvas x:Name="AnnotationOverlay"
                     IsHitTestVisible="False"
                     Panel.ZIndex="2"/>
@@ -23,6 +30,15 @@
                     MouseLeftButtonDown="OnMouseLeftButtonDown"
                     MouseLeftButtonUp="OnMouseLeftButtonUp"
                     MouseMove="OnMouseMove"/>
+            <Button x:Name="LookHeadButton"
+                    Content="預設"
+                    Click="OnLookHeadClick"
+                    Style="{StaticResource OverlayActionButtonStyle}"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="8"
+                    Panel.ZIndex="5"
+                    Visibility="Collapsed"/>
             <StackPanel x:Name="EmptyHint"
                         VerticalAlignment="Center"
                         HorizontalAlignment="Center"

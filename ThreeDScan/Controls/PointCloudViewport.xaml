@@ -24,6 +24,15 @@
                     MouseLeftButtonDown="OnMouseLeftButtonDown"
                     MouseLeftButtonUp="OnMouseLeftButtonUp"
                     MouseMove="OnMouseMove"/>
+            <Button x:Name="LookHeadButton"
+                    Content="預設"
+                    Click="OnLookHeadClick"
+                    Style="{StaticResource OverlayActionButtonStyle}"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="8"
+                    Panel.ZIndex="5"
+                    Visibility="Collapsed"/>
             <StackPanel x:Name="EmptyHint"
                         VerticalAlignment="Center"
                         HorizontalAlignment="Center"

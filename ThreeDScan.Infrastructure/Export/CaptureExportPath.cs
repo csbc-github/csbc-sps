@@ -35,6 +35,7 @@ public static class CaptureExportPath
         return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, configured));
     }
 
+    /// <summary>建立本次擷取資料夾（scannerId／時間戳／captureId 前綴）。</summary>
     public static string CreateCaptureFolder(string exportRoot, string scannerId, string captureId)
     {
         var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");

@@ -10,6 +10,7 @@ public sealed class CompensationRepository : ICompensationRepository
 {
     private readonly ThreeDScanDbContext _db;
 
+    /// <summary>建立補償歷程資料庫存取。</summary>
     public CompensationRepository(ThreeDScanDbContext db)
     {
         _db = db;

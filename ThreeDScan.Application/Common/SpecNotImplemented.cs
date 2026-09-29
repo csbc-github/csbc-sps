@@ -1,4 +1,4 @@
-using ThreeDScan.Application.Calibration.Models;
+using ThreeDScan.Application.Common.Models;
 
 namespace ThreeDScan.Application.Common;
 

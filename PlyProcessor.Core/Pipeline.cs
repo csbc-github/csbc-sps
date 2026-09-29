@@ -4,7 +4,7 @@ namespace PlyProcessor.Core;
 
 public record PipelineOptions(
     // ── Scan processing (replaces Python backend) ─────────────────────────
-    float ZThresh       = 12f,    // minimum height above ground plane to keep (mm)
+    // float ZThresh       = 12f,    // 舊固定高度門檻；ScanProcessor 改自動空隙，已不傳入
     float NoiseVoxel    = 3f,     // voxel size for initial noise-cluster removal
     int   MinNoiseSize  = 200,    // clusters smaller than this are discarded as noise
     // ── Object clustering ─────────────────────────────────────────────────
@@ -21,12 +21,14 @@ public record PipelineOptions(
     bool  SinglePieceMode = false, // false follows the web general flow: split processed PLY, export largest object
     int   MeshBridgeFill  = 30,    // max grid gap to bridge between scan regions / flanges
     bool  MeasureFlangeThickness = false,
-    float ThicknessAx = 0f,
-    float ThicknessAy = 0f,
-    float ThicknessAz = 0f,
-    float ThicknessBx = 0f,
-    float ThicknessBy = 0f,
-    float ThicknessBz = 0f,
+    bool  HasInnerLeft = false,
+    float InnerLeftX = 0f,
+    float InnerLeftY = 0f,
+    float InnerLeftZ = 0f,
+    bool  HasInnerRight = false,
+    float InnerRightX = 0f,
+    float InnerRightY = 0f,
+    float InnerRightZ = 0f,
     bool  UseStoredFlangeThickness = false,
     float StoredThicknessA = 0f,
     float StoredThicknessB = 0f,
@@ -43,17 +45,16 @@ public record PipelineResult(
 
 /// <summary>
 /// 角鋼點雲處理與匯出：濾地、分群、PLY／JSON／STEP／GLB／PNG 打包 ZIP。
-/// 可用夾具點量測兩翼厚度、或帶入已存厚度組網格；皆無則用 <c>MeshThickness</c>。
+/// 可量測或帶入兩翼厚度供紀錄；STEP／GLB 為單一高度場，有兩側厚度時取平均擠出，無量測時用 <c>MeshThickness</c>（預設 6 mm）。
 /// </summary>
 public static class Pipeline
 {
+    // 目前沒有呼叫：舊入口 Pipeline.Run（raw 串流一次濾點+匯出）。
+    // 現場／API 改走 RawPlyScanPipeline → ScanProcessor.Process → Pipeline.Export。
+#if false
     /// <summary>
     /// 從原始掃描 PLY 串流跑完整管線：濾地／去雜訊、分群合併、匯出 ZIP（PLY／JSON／STEP／GLB／PNG）。
     /// </summary>
-    /// <param name="rawScanStream">掃描器座標的 raw PLY。</param>
-    /// <param name="baseName">匯出檔名前綴，面掃描固定用 angle_steel。</param>
-    /// <param name="opts">濾點與網格參數；null 則用預設（含 MeshThickness 6 mm）。</param>
-    /// <returns>分群物件、ZIP 位元組、合併座標 JSON，以及可選的量測厚度。</returns>
     public static PipelineResult Run(
         Stream rawScanStream,
         string baseName,
@@ -64,10 +65,11 @@ public static class Pipeline
         // 1. Parse the raw scan
         var (rawPts, _) = PlyReader.Parse(rawScanStream);
 
-        // 2. Ground-plane removal + z_thresh filter + denoise  (replaces Python backend)
-        var outPts = ScanProcessor.Process(rawPts, opts.ZThresh, opts.MinNoiseSize, opts.NoiseVoxel);
+        // 2. Ground-plane removal + denoise  (replaces Python backend)
+        var outPts = ScanProcessor.Process(rawPts, opts.MinNoiseSize, opts.NoiseVoxel);
         return BuildExports(rawPts, outPts, baseName, opts);
     }
+#endif
 
     /// <summary>
     /// 對已解析的原始點與濾點後點做分群與匯出。
@@ -76,11 +78,11 @@ public static class Pipeline
     /// <param name="processedPts">去地／去雜訊後的點。</param>
     /// <param name="baseName">匯出檔名前綴。</param>
     /// <param name="opts">
-    /// 若 <c>MeasureFlangeThickness</c>：用夾具 XYZ 量兩翼並組雙厚度網格。
-    /// 若 <c>UseStoredFlangeThickness</c>：用已存厚度組網格。
-    /// 兩者皆否：用 <c>MeshThickness</c>（預設 6 mm）。
+    /// 若 <c>MeasureFlangeThickness</c>：依規格 v1.1 §9.8 量兩斜面；STEP／GLB 用單一高度場，厚度取兩側平均（僅一側則用該側）。
+    /// 若 <c>UseStoredFlangeThickness</c>：用已存左右厚度的平均擠出。
+    /// 皆無則擠出 <c>MeshThickness</c>（預設 6 mm）。
     /// </param>
-    /// <returns>ZIP、座標 JSON，以及量測時的 thicknessA／B 與 A 是否在低翼。</returns>
+    /// <returns>ZIP、座標 JSON，以及量測時的左側／右側厚度。</returns>
     public static PipelineResult Export(
         PlyPoint[] rawPts,
         PlyPoint[] processedPts,
@@ -91,14 +93,12 @@ public static class Pipeline
         return BuildExports(rawPts, processedPts, baseName, opts);
     }
 
+    // 目前沒有呼叫：舊入口 Pipeline.RunProcessed（已濾點 PLY 直接匯出）。
+#if false
     /// <summary>
     /// 從「已經濾點」的 PLY 匯出（對齊舊網頁 /process 之後的流程）。
     /// raw 與 processed 使用同一批點。
     /// </summary>
-    /// <param name="processedPlyStream">濾點後 PLY。</param>
-    /// <param name="baseName">匯出檔名前綴。</param>
-    /// <param name="opts">網格與分群參數。</param>
-    /// <returns>與 <see cref="Run"/> 相同結構的匯出結果。</returns>
     public static PipelineResult RunProcessed(
         Stream processedPlyStream,
         string baseName,
@@ -108,6 +108,7 @@ public static class Pipeline
         var (outPts, _) = PlyReader.Parse(processedPlyStream);
         return BuildExports(outPts, outPts, baseName, opts);
     }
+#endif
 
     /// <summary>
     /// 分群、合併相鄰物件後，寫 PLY／JSON／正交圖，並依選項組網格。
@@ -121,9 +122,7 @@ public static class Pipeline
     /// <exception cref="InvalidOperationException">分群後沒有任何物件。</exception>
     static PipelineResult BuildExports(PlyPoint[] rawPts, PlyPoint[] outPts, string baseName, PipelineOptions opts)
     {
-        // Match the web general flow's effective target: the processed angle-steel PLY
-        //    is exported as one piece. C# clustering can split the two flanges, so keep all
-        //    significant clusters and merge them back into one target object before meshing.
+        // 30 mm 體素分群後只留最大群；再用 10 mm 丟掉黏在其上的小島（兩翼夠大會留下）。
         PlyPoint[] ptsForCluster = opts.RemoveDominantPlane
             ? PcaFitter.RemoveDominantPlane(outPts, opts.PlaneTol)
             : outPts;
@@ -132,10 +131,17 @@ public static class Pipeline
             baseName,
             Math.Max(opts.VoxelSize, 30f),
             opts.MinClusterSize);
-        splitObjects = MergeAdjacentObjects(splitObjects, opts.PlaneTol);
+        // 舊做法：包圍盒間距 ≤ max(PlaneTol*3, 30) 的群合併（兩翼被切開時可併回）。
+        // splitObjects = MergeAdjacentObjects(splitObjects, opts.PlaneTol);
         if (splitObjects.Count == 0)
             throw new InvalidOperationException("分群後沒有找到任何物件（點數太少或參數需調整）");
-        var targetPts = splitObjects.SelectMany(o => o.Points).ToArray();
+        // 舊做法：把所有分群（含遠處雜點）全部併成一個 angle_steel。
+        // var targetPts = splitObjects.SelectMany(o => o.Points).ToArray();
+        var targetPts = DropSmallIslands(
+            splitObjects[0].Points,
+            baseName,
+            10f,
+            opts.MinClusterSize);
         var objects = new List<ClusterObject> { new ClusterObject(baseName, targetPts) };
 
         // 4. Build raw-coordinate lookup: each processed point → its original raw index
@@ -202,61 +208,122 @@ public static class Pipeline
 
             if (opts.MeasureFlangeThickness && thicknessA is null)
             {
+                float? leftX = null;
+                float? leftY = null;
+                float? leftZ = null;
+                if (opts.HasInnerLeft)
+                {
+                    leftX = opts.InnerLeftX;
+                    leftY = opts.InnerLeftY;
+                    leftZ = opts.InnerLeftZ;
+                }
+
+                float? rightX = null;
+                float? rightY = null;
+                float? rightZ = null;
+                if (opts.HasInnerRight)
+                {
+                    rightX = opts.InnerRightX;
+                    rightY = opts.InnerRightY;
+                    rightZ = opts.InnerRightZ;
+                }
+
                 var measured = FlangeThicknessMeasurer.Measure(
                     obj.Points,
-                    opts.ThicknessAx,
-                    opts.ThicknessAy,
-                    opts.ThicknessAz,
-                    opts.ThicknessBx,
-                    opts.ThicknessBy,
-                    opts.ThicknessBz);
-                thicknessA = measured.ThicknessA;
-                thicknessB = measured.ThicknessB;
+                    leftX,
+                    leftY,
+                    leftZ,
+                    rightX,
+                    rightY,
+                    rightZ);
+                thicknessA = measured.ThicknessLeft;
+                thicknessB = measured.ThicknessRight;
             }
 
-            // Mesh → STEP + GLB
-            try {
-                MeshBuilder.Mesh mesh;
-                if (opts.MeasureFlangeThickness && thicknessA is not null && thicknessB is not null)
+            // Mesh → STEP + GLB：單一高度場（不分翼），厚度用量測／已存值；兩側都有則取平均。
+            MeshBuilder.Mesh mesh;
+            float meshThick = opts.MeshThickness;
+            if (opts.MeasureFlangeThickness && thicknessA is not null && thicknessB is not null)
+            {
+                meshThick = 0.5f * ((float)thicknessA.Value + (float)thicknessB.Value);
+                float probeX = opts.InnerLeftX;
+                float probeY = opts.InnerLeftY;
+                if (!opts.HasInnerLeft)
                 {
-                    mesh = AngleSteelMeshBuilder.BuildDualThickness(
-                        obj.Points,
-                        opts.MeshCellSize,
-                        (float)thicknessA.Value,
-                        (float)thicknessB.Value,
-                        opts.ThicknessAx,
-                        opts.ThicknessAy,
-                        opts.SmoothIter,
-                        opts.ErodeN,
-                        opts.MeshBridgeFill,
-                        out var aOnLow);
-                    thicknessAOnLowFlange = aOnLow;
+                    probeX = opts.InnerRightX;
+                    probeY = opts.InnerRightY;
                 }
-                else if (opts.UseStoredFlangeThickness)
+
+                if (AngleSteelMeshBuilder.TrySplitFlanges(obj.Points, out _, out _, out var isLow))
                 {
-                    mesh = AngleSteelMeshBuilder.BuildDualThicknessMapped(
-                        obj.Points,
-                        opts.MeshCellSize,
-                        opts.StoredThicknessA,
-                        opts.StoredThicknessB,
-                        opts.StoredThicknessAOnLowFlange,
-                        opts.SmoothIter,
-                        opts.ErodeN,
-                        opts.MeshBridgeFill);
+                    int iA = FlangeThicknessMeasurer.FindNearestXyIndex(obj.Points, probeX, probeY);
+                    thicknessAOnLowFlange = isLow[iA];
                 }
-                else
-                {
-                    mesh = HeightfieldMeshBuilder.Build(
-                        obj.Points,
-                        opts.MeshCellSize,
-                        opts.MeshThickness,
-                        opts.SmoothIter,
-                        opts.ErodeN,
-                        opts.MeshBridgeFill);
-                }
-                zipEntries.Add(($"{obj.Name}.stp", StepExporter.Export(mesh, obj.Name)));
-                zipEntries.Add(($"{obj.Name}.glb", GltfExporter.Export(mesh)));
-            } catch { /* mesh build can fail on very sparse/small objects; skip */ }
+            }
+            else if (opts.MeasureFlangeThickness && thicknessA is not null)
+            {
+                meshThick = (float)thicknessA.Value;
+            }
+            else if (opts.MeasureFlangeThickness && thicknessB is not null)
+            {
+                meshThick = (float)thicknessB.Value;
+            }
+            else if (opts.UseStoredFlangeThickness)
+            {
+                meshThick = 0.5f * (opts.StoredThicknessA + opts.StoredThicknessB);
+                thicknessAOnLowFlange = opts.StoredThicknessAOnLowFlange;
+            }
+
+            try
+            {
+                mesh = HeightfieldMeshBuilder.Build(
+                    obj.Points,
+                    opts.MeshCellSize,
+                    meshThick,
+                    opts.SmoothIter,
+                    opts.ErodeN,
+                    opts.MeshBridgeFill);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"物件 {obj.Name} 的網格建立失敗，已中止 STEP／GLB 匯出。",
+                    ex);
+            }
+
+            byte[] glbBytes;
+            byte[] stepBytes;
+            Exception? glbError = null;
+            Exception? stepError = null;
+            try
+            {
+                stepBytes = StepExporter.Export(mesh, obj.Name);
+            }
+            catch (Exception ex)
+            {
+                stepBytes = Array.Empty<byte>();
+                stepError = ex;
+            }
+
+            try
+            {
+                glbBytes = GltfExporter.Export(mesh);
+            }
+            catch (Exception ex)
+            {
+                glbBytes = Array.Empty<byte>();
+                glbError = ex;
+            }
+
+            if (stepError is not null || glbError is not null)
+            {
+                throw new InvalidOperationException(
+                    DescribeMeshExportFailure(glbError, obj.Name, stepError),
+                    stepError ?? glbError);
+            }
+
+            zipEntries.Add(($"{obj.Name}.stp", stepBytes));
+            zipEntries.Add(($"{obj.Name}.glb", glbBytes));
         }
 
         allCoordsJson.AppendLine("]");
@@ -273,6 +340,74 @@ public static class Pipeline
             }
 
         return new PipelineResult(objects, ms.ToArray(), coordsJson, thicknessA, thicknessB, thicknessAOnLowFlange);
+    }
+
+    /// <summary>
+    /// 組 STEP／GLB 分開失敗時的訊息。成功的那一邊也不會靜默略過。
+    /// </summary>
+    static string DescribeMeshExportFailure(Exception? glbError, string objectName, Exception? stepError)
+    {
+        string glbText = glbError is null ? "GLB 已產生，但因另一項失敗而未寫入。" : "GLB 匯出失敗：" + glbError.Message;
+        string stepText = stepError is null ? "STEP 已產生，但因另一項失敗而未寫入。" : "STEP 匯出失敗：" + stepError.Message;
+        return $"物件 {objectName} 的網格匯出失敗。{stepText} {glbText}";
+    }
+
+    /// <summary>
+    /// 對已取出的最大群再以較小體素分群，丟掉遠小於主體的島。
+    /// 兩翼若被細分切開但都夠大則一併保留。
+    /// </summary>
+    static PlyPoint[] DropSmallIslands(
+        PlyPoint[] pts,
+        string baseName,
+        float fineVoxelMm,
+        int minClusterSize)
+    {
+        var fine = VoxelClusterer.Cluster(pts, baseName, fineVoxelMm, minClusterSize);
+        if (fine.Count == 0)
+        {
+            return pts;
+        }
+
+        const float keepRatio = 0.05f;
+        int largest = fine[0].Points.Length;
+        int minKeep = (int)(largest * keepRatio);
+        if (minKeep < minClusterSize)
+        {
+            minKeep = minClusterSize;
+        }
+
+        int total = 0;
+        for (int i = 0; i < fine.Count; i++)
+        {
+            if (fine[i].Points.Length >= minKeep)
+            {
+                total += fine[i].Points.Length;
+            }
+        }
+
+        if (total == 0)
+        {
+            return fine[0].Points;
+        }
+
+        var kept = new PlyPoint[total];
+        int w = 0;
+        for (int i = 0; i < fine.Count; i++)
+        {
+            if (fine[i].Points.Length < minKeep)
+            {
+                continue;
+            }
+
+            PlyPoint[] src = fine[i].Points;
+            for (int j = 0; j < src.Length; j++)
+            {
+                kept[w] = src[j];
+                w++;
+            }
+        }
+
+        return kept;
     }
 
     /// <summary>

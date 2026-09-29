@@ -1,3 +1,5 @@
+using ThreeDScan.Application.Common.Models;
+
 namespace ThreeDScan.Application.Calibration.Models;
 
 /// <summary>儀器校正計算結果（補償、配對明細）。</summary>

@@ -3,6 +3,7 @@ namespace ThreeDScan.Domain.Models;
 /// <summary>LJ-S8000 掃描器拍攝參數（對應 Navigator Scan 程式設定，不含 PC 圖像過濾）。Cat/Item 依 LJ-S 通訊程式庫 §10.3.3。</summary>
 public sealed class ScannerCaptureSettings
 {
+    /// <summary>Navigator 程式編號（0～15）。</summary>
     public byte ProgramNo { get; init; }
 
     // 感光特性

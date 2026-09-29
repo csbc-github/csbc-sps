@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ThreeDScan.Application.Common.Models;
 
 namespace ThreeDScan.Application.Calibration.Models;
 

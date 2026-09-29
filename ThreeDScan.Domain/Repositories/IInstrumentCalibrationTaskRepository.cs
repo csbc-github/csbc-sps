@@ -9,5 +9,11 @@ public interface IInstrumentCalibrationTaskRepository
 
     Task<InstrumentCalibrationTaskRecord?> GetAsync(string taskId, CancellationToken ct = default);
 
+    /// <summary>尚未結束的第一次拍攝任務。</summary>
+    Task<IReadOnlyList<InstrumentCalibrationTaskRecord>> ListPendingAsync(CancellationToken ct = default);
+
     Task CompleteAsync(string taskId, CancellationToken ct = default);
+
+    /// <summary>Watchdog：標記為已逾時，不可再 complete。</summary>
+    Task ExpireAsync(string taskId, CancellationToken ct = default);
 }

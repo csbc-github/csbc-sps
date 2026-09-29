@@ -1,4 +1,6 @@
 using ThreeDScan.Application.Calibration.Models;
+using ThreeDScan.Application.Common.Models;
+using ThreeDScan.Application.Scan.Models;
 
 namespace ThreeDScan.Application.Calibration;
 
@@ -12,6 +14,24 @@ public interface ICalibrationAppService
     Task<ApiResponse<InstrumentCalibrationData>> CalibrateInstrumentAsync(
         InstrumentCalibrationRequest request,
         CancellationToken ct = default);
+
+    /// <summary>指南 POST /api/calibration/instrument/start。</summary>
+    Task<DasOperationResult<InstrumentCalibrationStartData>> StartInstrumentCalibrationAsync(
+        InstrumentCalibrationStartRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>指南 POST /api/calibration/instrument/complete。</summary>
+    Task<DasOperationResult<AsyncAcceptedData>> CompleteInstrumentCalibrationAsync(
+        InstrumentCalibrationCompleteRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>背景執行第二次拍攝、寫結果並 POST callback。</summary>
+    Task RunInstrumentCompleteJobAsync(
+        InstrumentCalibrationCompleteRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>Watchdog：逾時標記任務並寫入 Aborted 結果。</summary>
+    Task ExpireInstrumentTaskAsync(string taskId, CancellationToken ct = default);
 
     /// <summary>
     /// 開發用 Ref 建立：拍攝一張 → 在 DB 指定的 Ref XY 擬合 → 覆寫 ScannerConfig.Ref* 與 ref_*.png。

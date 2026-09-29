@@ -14,10 +14,6 @@
         Background="{StaticResource BackgroundBrush}"
         d:DataContext="{d:DesignInstance vm:MainViewModel, IsDesignTimeCreatable=True}">
     <Window.Resources>
-        <conv:SystemStatusToTextConverter x:Key="SysTextConv"/>
-        <conv:SystemStatusToLampBrushConverter x:Key="SysLampConv"/>
-        <conv:SystemStatusToBadgeBgConverter x:Key="SysBadgeBgConv"/>
-        <conv:SystemStatusToBadgeFgConverter x:Key="SysBadgeFgConv"/>
         <conv:WidthGreaterThanConverter x:Key="WidthGteConv"/>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
 
@@ -31,7 +27,7 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- 標題列：系統名稱 7 ／ 系統狀態 3（窄視窗時隱藏副標、次要文字） -->
+        <!-- 標題列：系統名稱 7 ／ 掃描參數 3（窄視窗時隱藏副標） -->
         <Border Grid.Row="0" Background="{StaticResource BackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
                 Padding="20,10">
@@ -67,7 +63,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- 右 30%：系統狀態 + 掃描參數 -->
+                <!-- 右 30%：掃描參數 -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal"
                             HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Content="掃描參數"
@@ -79,27 +75,9 @@
                             Click="OnOpenScannerTestScan"
                             ToolTip="選擇群組並擷取一幀高度／灰階預覽（不做角鋼後處理）"/>
                     <Button Content="群組名稱"
-                            Padding="14,6" Margin="0,0,10,0"
+                            Padding="14,6"
                             Click="OnOpenScannerGroupNames"
                             ToolTip="編輯各群組的顯示名稱"/>
-                    <Border Background="{Binding SystemStatus, Converter={StaticResource SysBadgeBgConv}}"
-                            CornerRadius="14" Padding="12,6">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center"
-                                     Fill="{Binding SystemStatus, Converter={StaticResource SysLampConv}}"/>
-                            <TextBlock Text="系統"
-                                       Foreground="{Binding SystemStatus, Converter={StaticResource SysBadgeFgConv}}"
-                                       FontWeight="SemiBold" VerticalAlignment="Center"
-                                       Visibility="{Binding RelativeSource={RelativeSource AncestorType=Window},
-                                                            Path=ActualWidth,
-                                                            Converter={StaticResource WidthGteConv},
-                                                            ConverterParameter=820}"
-                                       Margin="0,0,4,0"/>
-                            <TextBlock Text="{Binding SystemStatus, Converter={StaticResource SysTextConv}}"
-                                       Foreground="{Binding SystemStatus, Converter={StaticResource SysBadgeFgConv}}"
-                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
                 </StackPanel>
             </Grid>
         </Border>

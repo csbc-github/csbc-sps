@@ -10,6 +10,7 @@ public sealed class StorageSettings : IStorageSettings
     private readonly StorageOptions _options;
     private readonly string _exportRoot;
 
+    /// <summary>讀取 Storage 設定並解析匯出根目錄。</summary>
     public StorageSettings(IOptions<StorageOptions> options)
     {
         _options = options.Value;

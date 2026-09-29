@@ -10,6 +10,7 @@ public sealed class ScannerConfigRepository : IScannerConfigRepository
 {
     private readonly ThreeDScanDbContext _db;
 
+    /// <summary>建立掃描器設定資料庫存取。</summary>
     public ScannerConfigRepository(ThreeDScanDbContext db)
     {
         _db = db;

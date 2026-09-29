@@ -10,6 +10,7 @@ public sealed class ScannerRegistry : IScannerRegistry
 {
     private readonly ScannerRegistryOptions _options;
 
+    /// <summary>以 appsettings Scanners 建立註冊表。</summary>
     public ScannerRegistry(IOptions<ScannerRegistryOptions> options)
     {
         _options = options.Value;
@@ -32,6 +33,7 @@ public sealed class ScannerRegistry : IScannerRegistry
             HighSpeedPort = opt.HighSpeedPort,
             NavigatorScanNo = opt.NavigatorScanNo,
             MachineArea = opt.MachineArea,
+            OfflineCaptureDirectory = opt.OfflineCaptureDirectory,
         };
         return true;
     }

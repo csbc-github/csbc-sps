@@ -3,6 +3,7 @@ namespace ThreeDScan.Application.Calibration.Models;
 /// <summary>測試模式 Ref 建立固定回應（不連掃描器、不覆寫 ScannerConfig）。</summary>
 internal static class ReferenceSetupTestFixture
 {
+    /// <summary>組出固定範例回應。</summary>
     public static ReferenceSetupData Create(string scannerId, string traceId, string contentsFolder)
     {
         return new ReferenceSetupData

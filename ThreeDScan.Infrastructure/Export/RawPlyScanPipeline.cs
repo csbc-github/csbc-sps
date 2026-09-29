@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using PlyProcessor.Core;
@@ -11,8 +12,8 @@ using ThreeDScan.Infrastructure.Scanners;
 namespace ThreeDScan.Infrastructure.Export;
 
 /// <summary>
-/// raw PLY → <see cref="Pipeline.Run"/>／<see cref="Pipeline.Export"/> → ZIP／PLY／JSON／GLB。
-/// 有儀器校正時：原始 JSON 另存，PLY／ZIP／GLB／補償 JSON 為套 offset 後的結果。
+/// raw PLY → ScanProcessor.Process → <see cref="Pipeline.Export"/> → ZIP／PLY／JSON／GLB。
+/// 公開點雲／ZIP／GLB 為相對座標加上 cameraPosition 與儀器補償；相對 JSON 另存。
 /// </summary>
 public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
 {
@@ -42,27 +43,147 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         ScannerCaptureResult capture,
         CancellationToken ct = default,
         ThicknessMeasureRequest? thickness = null,
-        JobThicknessRecord? storedThickness = null)
+        JobThicknessRecord? storedThickness = null,
+        CameraPosition? cameraPosition = null)
     {
         var offset = await TryGetLatestOffsetAsync(capture.ScannerId, ct).ConfigureAwait(false);
-        return await Task.Run(() => ProcessCapture(capture, offset, thickness, storedThickness), ct)
-            .ConfigureAwait(false);
+        return await Task.Run(
+            () => ProcessCapture(capture, offset, thickness, storedThickness, cameraPosition),
+            ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<SurfaceScanPipelineResult> ProcessRawPlyAsync(
+        string scannerId,
+        string rawPlyPath,
+        string outputDirectory,
+        CancellationToken ct = default,
+        ThicknessMeasureRequest? thickness = null,
+        JobThicknessRecord? storedThickness = null,
+        CameraPosition? cameraPosition = null)
+    {
+        var offset = await TryGetLatestOffsetAsync(scannerId, ct).ConfigureAwait(false);
+        return await Task.Run(
+            () => ProcessRawPly(
+                rawPlyPath,
+                outputDirectory,
+                offset,
+                thickness,
+                storedThickness,
+                cameraPosition),
+            ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<SurfaceScanPipelineResult> ExportStitchedAsync(
+        IReadOnlyList<string> segmentPlyPaths,
+        string outputDirectory,
+        CancellationToken ct = default,
+        JobThicknessRecord? storedThickness = null)
+    {
+        return Task.Run(() => ExportStitched(segmentPlyPaths, outputDirectory, storedThickness), ct);
     }
 
     /// <summary>
-    /// 同步核心：高度圖 → raw PLY → 濾點 →（可選）補償平移 → 匯出 JSON／ZIP／PLY／GLB。
+    /// 讀各段 PLY、沿 X 拼接，再 <see cref="Pipeline.Export"/> 寫入 <paramref name="outputDirectory"/>。
+    /// </summary>
+    private SurfaceScanPipelineResult ExportStitched(
+        IReadOnlyList<string> segmentPlyPaths,
+        string outputDirectory,
+        JobThicknessRecord? storedThickness)
+    {
+        if (segmentPlyPaths is null || segmentPlyPaths.Count == 0)
+        {
+            throw new InvalidOperationException("拼接失敗：沒有段點雲路徑。");
+        }
+
+        Directory.CreateDirectory(outputDirectory);
+
+        var segments = new List<PlyPoint[]>();
+        for (int i = 0; i < segmentPlyPaths.Count; i++)
+        {
+            var path = segmentPlyPaths[i];
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                throw new InvalidOperationException($"拼接失敗：找不到段點雲 {path}。");
+            }
+
+            using var stream = File.OpenRead(path);
+            var pts = PlyReader.Parse(stream).Points;
+            if (pts.Length > 0)
+            {
+                segments.Add(pts);
+            }
+        }
+
+        var stitched = ScanStitcher.Stitch(segments, _options.ToScanStitchOptions());
+        var baseOpts = _options.ToPipelineOptions();
+        var exportOpts = baseOpts;
+        if (storedThickness is not null)
+        {
+            exportOpts = baseOpts with
+            {
+                UseStoredFlangeThickness = true,
+                StoredThicknessA = (float)storedThickness.ThicknessA,
+                StoredThicknessB = (float)storedThickness.ThicknessB,
+                StoredThicknessAOnLowFlange = storedThickness.ThicknessAOnLowFlange,
+            };
+        }
+
+        var export = Pipeline.Export(stitched, stitched, "angle_steel", exportOpts);
+        var zipPath = Path.Combine(outputDirectory, "angle_steel_export.zip");
+        var jsonPath = Path.Combine(outputDirectory, "angle_steel_coords.json");
+        var plyPath = Path.Combine(outputDirectory, "angle_steel.ply");
+        var glbPath = Path.Combine(outputDirectory, "angle_steel.glb");
+        File.WriteAllBytes(jsonPath, export.CoordsJsonBytes);
+        File.WriteAllBytes(zipPath, export.ZipBytes);
+        WriteExtractedPlyAndGlb(export.ZipBytes, plyPath, glbPath, out var writtenGlb);
+
+        var head = BuildHeadFeatures(export, 0, 0, 0);
+        WriteHeadFeaturesSidecar(
+            outputDirectory,
+            head,
+            storedThickness?.ThicknessA,
+            storedThickness?.ThicknessB);
+
+        var angle = AngleSteelAngleEstimator.Estimate(
+            stitched, Math.Max(1.0f, baseOpts.NoiseVoxel));
+
+        return new SurfaceScanPipelineResult
+        {
+            PointCloudPath = plyPath,
+            ZipPath = zipPath,
+            JsonPath = jsonPath,
+            CompensatedJsonPath = null,
+            GlbPath = writtenGlb,
+            MeanZ = MeanZ(export),
+            HeadFeatures = head,
+            PointCount = CountPoints(export),
+            AngleDegrees = angle?.AngleDegrees,
+            AngleDeviationFromSquareDegrees = angle?.DeviationFromSquareDegrees,
+            ThicknessA = storedThickness?.ThicknessA,
+            ThicknessB = storedThickness?.ThicknessB,
+            ThicknessAOnLowFlange = storedThickness?.ThicknessAOnLowFlange,
+            CompensationApplied = false,
+        };
+    }
+
+    /// <summary>
+    /// 同步核心：高度圖 → raw PLY → 濾點 →（可選）平移到公開絕對座標 → 匯出 JSON／ZIP／PLY／GLB。
     /// </summary>
     /// <param name="capture">擷取結果，高度圖須仍在 <see cref="ScanCaptureCache"/>。</param>
-    /// <param name="offset">該掃描器最新補償；null 表示公開檔與未補償座標相同。</param>
+    /// <param name="offset">該掃描器最新補償；null 表示不加補償，仍可加 cameraPosition。</param>
     /// <param name="thickness">夾具 A／B；null 表示不現場量測。</param>
     /// <param name="storedThickness">已存的兩翼厚度；null 表示不用存檔厚度。</param>
+    /// <param name="cameraPosition">DAS 期望掃描器到位座標；null 視為 (0,0,0)。</param>
     /// <returns>檔案路徑與（若有量測）兩翼厚度。</returns>
     /// <exception cref="InvalidOperationException">缺高度圖、快取失效、或 ZIP 內沒有 PLY。</exception>
     private SurfaceScanPipelineResult ProcessCapture(
         ScannerCaptureResult capture,
         CompensationOffset? offset,
         ThicknessMeasureRequest? thickness,
-        JobThicknessRecord? storedThickness)
+        JobThicknessRecord? storedThickness,
+        CameraPosition? cameraPosition)
     {
         if (string.IsNullOrWhiteSpace(capture.HeightImagePath))
         {
@@ -79,7 +200,21 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
 
         var rawPlyPath = Path.Combine(captureDir, "raw_scene.ply");
         HeightImagePlyExporter.SaveAsAsciiPly(heightImage, rawPlyPath);
+        return ProcessRawPly(rawPlyPath, captureDir, offset, thickness, storedThickness, cameraPosition);
+    }
 
+    /// <summary>
+    /// 讀 raw PLY → 濾點 → 相對 JSON → 平移到公開絕對座標後量厚度並匯出 PLY／ZIP／GLB。
+    /// 與現場掃描寫出 raw 之後的步驟相同。
+    /// </summary>
+    private SurfaceScanPipelineResult ProcessRawPly(
+        string rawPlyPath,
+        string outputDirectory,
+        CompensationOffset? offset,
+        ThicknessMeasureRequest? thickness,
+        JobThicknessRecord? storedThickness,
+        CameraPosition? cameraPosition)
+    {
         var baseOpts = _options.ToPipelineOptions();
         var measureOpts = baseOpts;
         if (thickness is not null)
@@ -87,12 +222,14 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
             measureOpts = baseOpts with
             {
                 MeasureFlangeThickness = true,
-                ThicknessAx = (float)thickness.Ax,
-                ThicknessAy = (float)thickness.Ay,
-                ThicknessAz = (float)thickness.Az,
-                ThicknessBx = (float)thickness.Bx,
-                ThicknessBy = (float)thickness.By,
-                ThicknessBz = (float)thickness.Bz,
+                HasInnerLeft = thickness.HasInnerLeft,
+                InnerLeftX = (float)thickness.InnerLeftX,
+                InnerLeftY = (float)thickness.InnerLeftY,
+                InnerLeftZ = (float)thickness.InnerLeftZ,
+                HasInnerRight = thickness.HasInnerRight,
+                InnerRightX = (float)thickness.InnerRightX,
+                InnerRightY = (float)thickness.InnerRightY,
+                InnerRightZ = (float)thickness.InnerRightZ,
             };
         }
         else if (storedThickness is not null)
@@ -106,35 +243,42 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
             };
         }
 
+        Directory.CreateDirectory(outputDirectory);
+
         PlyPoint[] rawPts;
         using (var rawStream = File.OpenRead(rawPlyPath))
         {
             rawPts = PlyReader.Parse(rawStream).Points;
         }
 
-        var processedPts = ScanProcessor.Process(rawPts, baseOpts.ZThresh, baseOpts.MinNoiseSize, baseOpts.NoiseVoxel);
-        var jsonOpts = offset is not null ? baseOpts : measureOpts;
-        var uncompensated = Pipeline.Export(rawPts, processedPts, "angle_steel", jsonOpts);
+        var processedPts = ScanProcessor.Process(rawPts, baseOpts.MinNoiseSize, baseOpts.NoiseVoxel);
 
-        var zipPath = Path.Combine(captureDir, "angle_steel_export.zip");
-        var jsonPath = Path.Combine(captureDir, "angle_steel_coords.json");
-        var plyPath = Path.Combine(captureDir, "angle_steel.ply");
-        var glbPath = Path.Combine(captureDir, "angle_steel.glb");
-        File.WriteAllBytes(jsonPath, uncompensated.CoordsJsonBytes);
+        ResolveTranslation(cameraPosition, offset, out double dx, out double dy, out double dz);
+        var jsonOpts = HasTranslation(dx, dy, dz) ? baseOpts : measureOpts;
+        var relative = Pipeline.Export(rawPts, processedPts, "angle_steel", jsonOpts);
 
-        var export = uncompensated;
+        var zipPath = Path.Combine(outputDirectory, "angle_steel_export.zip");
+        var jsonPath = Path.Combine(outputDirectory, "angle_steel_coords.json");
+        var plyPath = Path.Combine(outputDirectory, "angle_steel.ply");
+        var glbPath = Path.Combine(outputDirectory, "angle_steel.glb");
+        File.WriteAllBytes(jsonPath, relative.CoordsJsonBytes);
+
+        var export = relative;
         string? compensatedJsonPath = null;
-        if (offset is not null)
+        if (HasTranslation(dx, dy, dz))
         {
-            var rawComp = Translate(rawPts, offset);
-            var processedComp = Translate(processedPts, offset);
-            export = Pipeline.Export(rawComp, processedComp, "angle_steel", measureOpts);
-            compensatedJsonPath = Path.Combine(captureDir, "angle_steel_coords_compensated.json");
+            var rawAbs = Translate(rawPts, dx, dy, dz);
+            var processedAbs = Translate(processedPts, dx, dy, dz);
+            export = Pipeline.Export(rawAbs, processedAbs, "angle_steel", measureOpts);
+            compensatedJsonPath = Path.Combine(outputDirectory, "angle_steel_coords_compensated.json");
             File.WriteAllBytes(compensatedJsonPath, export.CoordsJsonBytes);
         }
 
         File.WriteAllBytes(zipPath, export.ZipBytes);
         WriteExtractedPlyAndGlb(export.ZipBytes, plyPath, glbPath, out var writtenGlb);
+
+        var head = BuildHeadFeatures(relative, dx, dy, dz);
+        WriteHeadFeaturesSidecar(outputDirectory, head, export.ThicknessA, export.ThicknessB);
 
         var angle = AngleSteelAngleEstimator.Estimate(
             processedPts, Math.Max(1.0f, baseOpts.NoiseVoxel));
@@ -147,18 +291,111 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
             CompensatedJsonPath = compensatedJsonPath,
             GlbPath = writtenGlb,
             MeanZ = MeanZ(export),
+            HeadFeatures = head,
             PointCount = CountPoints(export),
             AngleDegrees = angle?.AngleDegrees,
             AngleDeviationFromSquareDegrees = angle?.DeviationFromSquareDegrees,
             ThicknessA = export.ThicknessA,
             ThicknessB = export.ThicknessB,
             ThicknessAOnLowFlange = export.ThicknessAOnLowFlange,
+            CompensationApplied = offset is not null,
         };
     }
 
     /// <summary>
+    /// 在掃描器相對座標上取前緣三點，再平移到公開絕對座標。
+    /// </summary>
+    /// <param name="export">相對座標的 Pipeline 匯出（分群後角鋼點）。</param>
+    /// <param name="dx">公開框 X 平移 (mm)。</param>
+    /// <param name="dy">公開框 Y 平移 (mm)。</param>
+    /// <param name="dz">公開框 Z 平移 (mm)。</param>
+    /// <returns>前緣三點與包角線 Z 差；點太少時為 null。</returns>
+    static HeadFeaturesRecord? BuildHeadFeatures(PipelineResult export, double dx, double dy, double dz)
+    {
+        if (export.Objects.Count == 0 || export.Objects[0].Points.Length == 0)
+        {
+            return null;
+        }
+
+        var extracted = HeadFeatureExtractor.Extract(export.Objects[0].Points);
+        if (extracted is null)
+        {
+            return null;
+        }
+
+        return new HeadFeaturesRecord
+        {
+            Kind = extracted.Kind,
+            LeftX = extracted.LeftX + dx,
+            LeftY = extracted.LeftY + dy,
+            LeftZ = extracted.LeftZ + dz,
+            ApexX = extracted.ApexX + dx,
+            ApexY = extracted.ApexY + dy,
+            ApexZ = extracted.ApexZ + dz,
+            RightX = extracted.RightX + dx,
+            RightY = extracted.RightY + dy,
+            RightZ = extracted.RightZ + dz,
+            RidgeZDelta = extracted.RidgeZDelta,
+            Length = extracted.SpanMm,
+        };
+    }
+
+    /// <summary>
+    /// 與 GLB 同目錄寫前緣三點、厚度與包角線 Z 差，畫面載入網格時用來標註與顯示。
+    /// </summary>
+    static void WriteHeadFeaturesSidecar(
+        string outputDirectory,
+        HeadFeaturesRecord? head,
+        double? thicknessLeft = null,
+        double? thicknessRight = null)
+    {
+        var path = Path.Combine(outputDirectory, "angle_steel_head_features.json");
+        if (head is null)
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+
+            return;
+        }
+
+        using var stream = File.Create(path);
+        using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+        writer.WriteStartObject();
+        writer.WriteString("kind", head.Kind);
+        WriteXyz(writer, "leftCorner", head.LeftX, head.LeftY, head.LeftZ);
+        WriteXyz(writer, "apex", head.ApexX, head.ApexY, head.ApexZ);
+        WriteXyz(writer, "rightCorner", head.RightX, head.RightY, head.RightZ);
+        writer.WriteNumber("ridgeZDelta", head.RidgeZDelta);
+        writer.WriteNumber("length", head.Length);
+        if (thicknessLeft.HasValue)
+        {
+            writer.WriteNumber("thicknessLeft", thicknessLeft.Value);
+        }
+
+        if (thicknessRight.HasValue)
+        {
+            writer.WriteNumber("thicknessRight", thicknessRight.Value);
+        }
+
+        writer.WriteEndObject();
+        writer.Flush();
+    }
+
+    static void WriteXyz(Utf8JsonWriter writer, string name, double x, double y, double z)
+    {
+        writer.WritePropertyName(name);
+        writer.WriteStartObject();
+        writer.WriteNumber("x", x);
+        writer.WriteNumber("y", y);
+        writer.WriteNumber("z", z);
+        writer.WriteEndObject();
+    }
+
+    /// <summary>
     /// 讀該掃描器最新一筆儀器補償（offset = 實際 − 預期）。
-    /// 無歷程或掃描器編號空白時回 null，後續匯出不平移。
+    /// 無歷程或掃描器編號空白時回 null；公開檔仍可只加 cameraPosition。
     /// </summary>
     /// <param name="scannerId">掃描器編號。</param>
     /// <param name="ct">取消權杖。</param>
@@ -176,16 +413,18 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
     }
 
     /// <summary>
-    /// 將點雲每個點加上補償 offset（mm），得到公開座標框的點。
+    /// 將點雲每個點加上平移 (mm)，得到公開座標框的點。
     /// </summary>
-    /// <param name="points">未補償點。</param>
-    /// <param name="offset">儀器校正 offset。</param>
+    /// <param name="points">相對座標點。</param>
+    /// <param name="dx">X 平移 (mm)。</param>
+    /// <param name="dy">Y 平移 (mm)。</param>
+    /// <param name="dz">Z 平移 (mm)。</param>
     /// <returns>新陣列，不修改原點。</returns>
-    private static PlyPoint[] Translate(PlyPoint[] points, CompensationOffset offset)
+    private static PlyPoint[] Translate(PlyPoint[] points, double dx, double dy, double dz)
     {
-        var ox = (float)offset.OffsetX;
-        var oy = (float)offset.OffsetY;
-        var oz = (float)offset.OffsetZ;
+        var ox = (float)dx;
+        var oy = (float)dy;
+        var oz = (float)dz;
         var copy = new PlyPoint[points.Length];
         for (var i = 0; i < points.Length; i++)
         {
@@ -196,9 +435,31 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         return copy;
     }
 
+    static void ResolveTranslation(
+        CameraPosition? camera,
+        CompensationOffset? offset,
+        out double dx,
+        out double dy,
+        out double dz)
+    {
+        dx = camera is null ? 0 : camera.X;
+        dy = camera is null ? 0 : camera.Y;
+        dz = camera is null ? 0 : camera.Z;
+        if (offset is not null)
+        {
+            dx += offset.OffsetX;
+            dy += offset.OffsetY;
+            dz += offset.OffsetZ;
+        }
+    }
+
+    static bool HasTranslation(double dx, double dy, double dz)
+    {
+        return Math.Abs(dx) > 1e-9 || Math.Abs(dy) > 1e-9 || Math.Abs(dz) > 1e-9;
+    }
+
     /// <summary>
-    /// 從 Pipeline ZIP 抽出第一個 .ply 寫到 <paramref name="plyPath"/>；
-    /// 若有 .glb 則一併寫到 <paramref name="glbPath"/>。
+    /// 從 Pipeline ZIP 抽出 PLY／GLB，以及同目錄的 2D PNG／STEP。
     /// </summary>
     /// <param name="zipBytes">Pipeline 產出的 ZIP。</param>
     /// <param name="plyPath">點雲輸出絕對路徑。</param>
@@ -225,6 +486,44 @@ public sealed class RawPlyScanPipeline : ISurfaceScanPipeline
         {
             File.WriteAllBytes(glbPath, glbBytes);
             writtenGlb = glbPath;
+        }
+
+        var directory = Path.GetDirectoryName(plyPath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        ExtractEntriesByExtension(zipBytes, directory, ".png");
+        ExtractEntriesByExtension(zipBytes, directory, ".stp");
+    }
+
+    /// <summary>
+    /// 將 ZIP 內指定副檔名的項目全部寫到 <paramref name="directory"/>，檔名用 ZIP 條目名稱。
+    /// </summary>
+    /// <param name="zipBytes">Pipeline 產出的 ZIP。</param>
+    /// <param name="directory">輸出資料夾。</param>
+    /// <param name="extension">副檔名，例如 <c>.png</c>、<c>.stp</c>。</param>
+    private static void ExtractEntriesByExtension(byte[] zipBytes, string directory, string extension)
+    {
+        using var ms = new MemoryStream(zipBytes);
+        using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
+        foreach (var entry in zip.Entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry.Name))
+            {
+                continue;
+            }
+
+            if (!entry.Name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var dest = Path.Combine(directory, Path.GetFileName(entry.Name));
+            using var stream = entry.Open();
+            using var file = File.Create(dest);
+            stream.CopyTo(file);
         }
     }
 

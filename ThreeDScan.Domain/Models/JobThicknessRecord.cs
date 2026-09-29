@@ -8,10 +8,10 @@ public sealed class JobThicknessRecord
     /// <summary>工單號。</summary>
     public string JobId { get; init; } = "";
 
-    /// <summary>翼 A 厚度（mm），對應夾具點 A。</summary>
+    /// <summary>左側厚度（mm），對應 innerLeft；寫入 JobThickness.ThicknessA。</summary>
     public double ThicknessA { get; init; }
 
-    /// <summary>翼 B 厚度（mm），對應夾具點 B。</summary>
+    /// <summary>右側厚度（mm），對應 innerRight；寫入 JobThickness.ThicknessB。</summary>
     public double ThicknessB { get; init; }
 
     /// <summary>夾具 A 的最近 XY 點是否落在直方圖較低的那翼。</summary>

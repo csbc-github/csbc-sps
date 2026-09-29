@@ -11,6 +11,7 @@
              d:DesignWidth="1200" d:DesignHeight="720">
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisInvert" Invert="True"/>
         <conv:SystemStatusToLampBrushConverter x:Key="LampBrushConv"/>
     </UserControl.Resources>
 
@@ -22,30 +23,18 @@
         <controls:AdaptiveSplitView.PrimaryContent>
             <DockPanel Margin="12">
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8" LastChildFill="True">
-                    <!-- [可隱藏] 噴印區操作按鈕：於此 StackPanel 或各 Button 設 Visibility="Collapsed" -->
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Content="開始掃描" Padding="14,6" Margin="0,0,6,0"
-                                Command="{Binding StartScanCommand}"/>
-                        <Button Content="停止" Padding="14,6" Margin="0,0,6,0"
-                                Command="{Binding StopScanCommand}"/>
-                        <Button Content="測試載入 3D 檔" Padding="14,6"
-                                ToolTip="可載入 PLY（點雲）或 GLB（網格），切換上方模式比對視覺效果"
-                                Command="{Binding TestLoadPointCloudCommand}"/>
-                    </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
                         <RadioButton Content="2D 高度圖" GroupName="PrintingViewMode"
-                                     IsChecked="{Binding Is2DMode}"
+                                     IsChecked="{Binding Is2DMode, Mode=TwoWay}"
                                      Style="{StaticResource ToggleButtonStyle}"/>
                         <RadioButton Content="3D 點雲" GroupName="PrintingViewMode"
-                                     IsChecked="{Binding Is3DMode}"
+                                     IsChecked="{Binding Is3DMode, Mode=TwoWay}"
                                      Style="{StaticResource ToggleButtonStyle}" Margin="6,0,0,0"/>
                         <RadioButton Content="3D GLB" GroupName="PrintingViewMode"
-                                     IsChecked="{Binding IsGlbMode}"
+                                     IsChecked="{Binding IsGlbMode, Mode=TwoWay}"
                                      Style="{StaticResource ToggleButtonStyle}" Margin="6,0,0,0"/>
                     </StackPanel>
                 </DockPanel>
-
-                <controls:ChartToolBar DockPanel.Dock="Top" Margin="0,0,0,8"/>
 
                 <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="10,8"
                         Background="{StaticResource SurfaceBrush}"
@@ -66,16 +55,48 @@
                 </Border>
 
                 <Grid>
-                    <controls:PreviewPlaceholder
-                        Visibility="{Binding Is2DMode, Converter={StaticResource BoolToVis}}"
-                        Title="2D 高度圖"
-                        SubTitle="噴印區面掃描（UC-04）"/>
+                    <Grid Visibility="{Binding Is2DMode, Converter={StaticResource BoolToVis}}">
+                        <controls:PreviewPlaceholder
+                            Visibility="{Binding Has2DPreview, Converter={StaticResource BoolToVisInvert}}"
+                            Title="2D 高度圖"
+                            SubTitle="噴印區面掃描（UC-04）"/>
+                        <Grid Visibility="{Binding Has2DPreview, Converter={StaticResource BoolToVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <DockPanel Grid.Column="0" Margin="0,0,4,0">
+                                <TextBlock DockPanel.Dock="Top" Text="俯視" Margin="0,0,0,6"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                    <Image Source="{Binding Preview2DTop}" Stretch="Uniform"/>
+                                </Border>
+                            </DockPanel>
+                            <DockPanel Grid.Column="1" Margin="4,0">
+                                <TextBlock DockPanel.Dock="Top" Text="正視" Margin="0,0,0,6"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                    <Image Source="{Binding Preview2DFront}" Stretch="Uniform"/>
+                                </Border>
+                            </DockPanel>
+                            <DockPanel Grid.Column="2" Margin="4,0,0,0">
+                                <TextBlock DockPanel.Dock="Top" Text="側視" Margin="0,0,0,6"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                    <Image Source="{Binding Preview2DSide}" Stretch="Uniform"/>
+                                </Border>
+                            </DockPanel>
+                        </Grid>
+                    </Grid>
                     <controls:PointCloudViewport
-                        Visibility="{Binding Is3DMode, Converter={StaticResource BoolToVis}}"
-                        Vertices="{Binding PointCloudVertices}"/>
+                        Visibility="{Binding Is3DMode, Converter={StaticResource BoolToVis}, ConverterParameter=Hidden}"
+                        Vertices="{Binding PointCloudVertices}"
+                        HeadFeatures="{Binding HeadFeatures}"/>
                     <controls:GlbMeshViewport
-                        Visibility="{Binding IsGlbMode, Converter={StaticResource BoolToVis}}"
-                        GlbPath="{Binding GlbPath}"/>
+                        Visibility="{Binding IsGlbMode, Converter={StaticResource BoolToVis}, ConverterParameter=Hidden}"
+                        GlbPath="{Binding GlbPath}"
+                        HeadFeatures="{Binding HeadFeatures}"/>
                 </Grid>
             </DockPanel>
         </controls:AdaptiveSplitView.PrimaryContent>
@@ -86,9 +107,7 @@
                     <TextBlock DockPanel.Dock="Top" Text="座標資訊"
                                Style="{StaticResource PanelTitleStyle}" Margin="16,12"/>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <controls:CoordinatePanel
-                            MachineCoord="{Binding MachineCoordinate}"
-                            WorkpieceCoord="{Binding WorkpieceCoordinate}"/>
+                        <controls:HeadFeaturePanel Features="{Binding HeadFeatures}"/>
                     </ScrollViewer>
                 </DockPanel>
             </Border>

@@ -3,11 +3,16 @@ namespace ThreeDScan.Domain.Models;
 /// <summary>單次掃描擷取結果（暫存檔路徑與影像幾何）。</summary>
 public sealed class ScannerCaptureResult
 {
+    /// <summary>本次擷取識別碼。</summary>
     public required string CaptureId { get; init; }
 
     /// <summary>拍攝此幀的掃描器編號。</summary>
     public string ScannerId { get; init; } = "";
+
+    /// <summary>高度圖檔路徑。</summary>
     public string? HeightImagePath { get; init; }
+
+    /// <summary>灰階影像檔路徑。</summary>
     public string? GrayImagePath { get; init; }
 
     /// <summary>去地／去雜訊後最大點群（角鋼）ASCII PLY，單位 mm。</summary>
@@ -34,5 +39,6 @@ public sealed class ScannerCaptureResult
     /// <summary>偏離 90° 的角度（度）。</summary>
     public double? AngleDeviationFromSquareDegrees { get; init; }
 
+    /// <summary>影像座標轉換。</summary>
     public CaptureImageGeometry? Geometry { get; init; }
 }

@@ -29,8 +29,6 @@
                                  Style="{StaticResource ToggleButtonStyle}" Margin="6,0,0,0"/>
                 </StackPanel>
 
-                <controls:ChartToolBar DockPanel.Dock="Top" Margin="0,0,0,8"/>
-
                 <Grid>
                     <controls:PreviewPlaceholder
                         Visibility="{Binding Is2DMode, Converter={StaticResource BoolToVis}}"

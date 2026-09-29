@@ -22,6 +22,8 @@
   <ItemGroup>
     <ProjectReference Include="..\ThreeDScan.Infrastructure\ThreeDScan.Infrastructure.csproj" />
     <ProjectReference Include="..\ThreeDScan.Lj3DViewHost\ThreeDScan.Lj3DViewHost.csproj" />
+    <ProjectReference Include="..\PlyProcessor.Core\PlyProcessor.Core.csproj" />
+    <ProjectReference Include="..\ThreeDScan.Domain\ThreeDScan.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>

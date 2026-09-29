@@ -11,6 +11,9 @@ public static class ScanCallLogActions
     /// <summary><c>POST /api/scan/surface</c></summary>
     public const string ScanSurface = "ScanSurface";
 
+    /// <summary><c>POST /api/scan/surface-from-file</c></summary>
+    public const string ScanSurfaceFromFile = "ScanSurfaceFromFile";
+
     /// <summary><c>POST /api/scan/hole</c></summary>
     public const string ScanHole = "ScanHole";
 

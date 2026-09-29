@@ -4,5 +4,8 @@ namespace ThreeDScan.Views;
 
 public partial class PrintingView : UserControl
 {
-    public PrintingView() { InitializeComponent(); }
+    public PrintingView()
+    {
+        InitializeComponent();
+    }
 }

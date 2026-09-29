@@ -25,6 +25,9 @@ public sealed class AuthenticationOptions
     /// <summary>Access Token 預期 audience；空白則不驗證 Audience。</summary>
     public string? Audience { get; set; }
 
+    /// <summary>與 WPF 同一組 secret；callback POST 換 token 用（規格後續可改獨立憑證）。</summary>
+    public string ClientSecret { get; set; } = "";
+
     /// <summary>JwtBearer 是否要求 HTTPS metadata。</summary>
     public bool RequireHttpsMetadata { get; set; } = true;
 }

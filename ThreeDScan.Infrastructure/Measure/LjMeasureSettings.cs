@@ -9,12 +9,14 @@ internal sealed class LjMeasureSettings
     private readonly LjCalibrationParameters _p;
     private readonly ScannerConfigRecord _config;
 
+    /// <summary>以 appsettings 與 ScannerConfig 合併量測參數。</summary>
     public LjMeasureSettings(LjCalibrationParameters parameters, ScannerConfigRecord config)
     {
         _p = parameters;
         _config = config;
     }
 
+    /// <summary>預期標準球直徑 (mm)。</summary>
     public double ExpectedBallDiameter
     {
         get
@@ -22,6 +24,8 @@ internal sealed class LjMeasureSettings
             return _p.ExpectedBallDiameter;
         }
     }
+
+    /// <summary>球徑容差 (mm)。</summary>
     public double DiameterTolerance
     {
         get
@@ -29,6 +33,8 @@ internal sealed class LjMeasureSettings
             return _p.DiameterTolerance;
         }
     }
+
+    /// <summary>預期球數。</summary>
     public int BallCount
     {
         get
@@ -36,6 +42,8 @@ internal sealed class LjMeasureSettings
             return _p.BallCount;
         }
     }
+
+    /// <summary>球徑允許最大誤差 (mm)。</summary>
     public double MaxDiameterError
     {
         get
@@ -44,6 +52,7 @@ internal sealed class LjMeasureSettings
         }
     }
 
+    /// <summary>是否啟用基準面量測。</summary>
     public bool DatumPlaneEnabled
     {
         get
@@ -51,6 +60,8 @@ internal sealed class LjMeasureSettings
             return _p.DatumPlane.Enabled;
         }
     }
+
+    /// <summary>基準面 ROI 中心 X (mm)。</summary>
     public double DatumPlaneCenterX
     {
         get
@@ -58,6 +69,8 @@ internal sealed class LjMeasureSettings
             return _p.DatumPlane.CenterX;
         }
     }
+
+    /// <summary>基準面 ROI 中心 Y (mm)。</summary>
     public double DatumPlaneCenterY
     {
         get
@@ -65,6 +78,8 @@ internal sealed class LjMeasureSettings
             return _p.DatumPlane.CenterY;
         }
     }
+
+    /// <summary>基準面 ROI 寬度 (mm)。</summary>
     public double DatumPlaneWidth
     {
         get
@@ -72,6 +87,8 @@ internal sealed class LjMeasureSettings
             return _p.DatumPlane.Width;
         }
     }
+
+    /// <summary>基準面 ROI 高度 (mm)。</summary>
     public double DatumPlaneHeight
     {
         get
@@ -79,6 +96,8 @@ internal sealed class LjMeasureSettings
             return _p.DatumPlane.Height;
         }
     }
+
+    /// <summary>基準面 ROI 旋轉角（度）。</summary>
     public double DatumPlaneAngle
     {
         get
@@ -87,6 +106,7 @@ internal sealed class LjMeasureSettings
         }
     }
 
+    /// <summary>Ref 圖樣 X (mm)。</summary>
     public double RefPatternX
     {
         get
@@ -94,6 +114,8 @@ internal sealed class LjMeasureSettings
             return _config.RefPatternX;
         }
     }
+
+    /// <summary>Ref 圖樣 Y (mm)。</summary>
     public double RefPatternY
     {
         get
@@ -101,6 +123,8 @@ internal sealed class LjMeasureSettings
             return _config.RefPatternY;
         }
     }
+
+    /// <summary>Ref 球心 X (mm)。</summary>
     public double RefSphereX
     {
         get
@@ -108,6 +132,8 @@ internal sealed class LjMeasureSettings
             return _config.RefSphereX;
         }
     }
+
+    /// <summary>Ref 球心 Y (mm)。</summary>
     public double RefSphereY
     {
         get
@@ -116,6 +142,7 @@ internal sealed class LjMeasureSettings
         }
     }
 
+    /// <summary>球半徑 (mm)。</summary>
     public double BallRadiusMm
     {
         get
@@ -123,6 +150,8 @@ internal sealed class LjMeasureSettings
             return ExpectedBallDiameter * 0.5;
         }
     }
+
+    /// <summary>圖樣匹配半徑 (mm)。</summary>
     public double PatternRadius
     {
         get
@@ -131,6 +160,7 @@ internal sealed class LjMeasureSettings
         }
     }
 
+    /// <summary>球面擬合半徑 (mm)。</summary>
     public double SphereRadius
     {
         get
@@ -139,6 +169,7 @@ internal sealed class LjMeasureSettings
         }
     }
 
+    /// <summary>球心最小間距 (mm)。</summary>
     public double MinSphereCenterSeparationMm
     {
         get
@@ -168,6 +199,7 @@ internal sealed class LjMeasureSettings
         }
     }
 
+    /// <summary>校正尋球實際使用的搜尋半徑 (mm)。</summary>
     public double CalibrationDiscoverSearchRadiusMm
     {
         get
@@ -176,6 +208,7 @@ internal sealed class LjMeasureSettings
         }
     }
 
+    /// <summary>校正尋球網格步距 (mm)。</summary>
     public double CalibrationDiscoverGridStepMm
     {
         get
@@ -184,11 +217,13 @@ internal sealed class LjMeasureSettings
         }
     }
 
+    /// <summary>量得球徑是否在預期容差內。</summary>
     public bool IsExpectedDiameter(double measured)
     {
         return Math.Abs(measured - ExpectedBallDiameter) <= DiameterTolerance;
     }
 
+    /// <summary>量得球徑是否在可接受誤差內。</summary>
     public bool IsAcceptableSphereDiameter(double measured)
     {
         if (double.IsNaN(measured) || double.IsInfinity(measured)) return false;

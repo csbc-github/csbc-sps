@@ -11,6 +11,7 @@ namespace ThreeDScan.Infrastructure.Measure;
 /// </summary>
 public static class LjViewportMeasureService
 {
+    /// <summary>載入高度圖／灰階後執行 SDK 量測，供視埠顯示。</summary>
     public static LjViewportMeasureResult MeasureForViewport(
         string contentsFolder,
         string heightImagePath,

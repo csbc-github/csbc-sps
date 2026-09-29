@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,6 +18,8 @@ internal sealed class ViewportBoundsAnnotations
     private Callout? _callout;
     private ModelVisual3D? _markerVisual;
     private bool _active;
+    private readonly List<FeatureMark> _features = new();
+    private double _sceneDiagonal = 100;
 
     private sealed class Callout
     {
@@ -24,6 +27,14 @@ internal sealed class ViewportBoundsAnnotations
         public required Ellipse Anchor { get; init; }
         public required Line Leader { get; init; }
         public required Border Label { get; init; }
+        public double OffsetX { get; init; } = 28;
+        public double OffsetY { get; init; } = -36;
+    }
+
+    private sealed class FeatureMark
+    {
+        public required Callout Callout { get; init; }
+        public required ModelVisual3D Visual { get; init; }
     }
 
     public ViewportBoundsAnnotations(Viewport3D viewport, Canvas overlay)
@@ -36,15 +47,142 @@ internal sealed class ViewportBoundsAnnotations
 
     public void Clear()
     {
+        ClearPick();
+    }
+
+    /// <summary>載入新模型時清掉點選與前緣標註。</summary>
+    public void ClearAll()
+    {
+        ClearPick();
+        ClearFeatures();
+    }
+
+    void ClearPick()
+    {
         _active = false;
-        _callout = null;
-        _overlay.Children.Clear();
+        if (_callout is not null)
+        {
+            _overlay.Children.Remove(_callout.Leader);
+            _overlay.Children.Remove(_callout.Anchor);
+            _overlay.Children.Remove(_callout.Label);
+            _callout = null;
+        }
+
         if (_markerVisual is not null)
         {
             if (_viewport.Children.Contains(_markerVisual))
+            {
                 _viewport.Children.Remove(_markerVisual);
+            }
+
             _markerVisual = null;
         }
+    }
+
+    void ClearFeatures()
+    {
+        for (int i = 0; i < _features.Count; i++)
+        {
+            _overlay.Children.Remove(_features[i].Callout.Leader);
+            _overlay.Children.Remove(_features[i].Callout.Anchor);
+            _overlay.Children.Remove(_features[i].Callout.Label);
+            if (_viewport.Children.Contains(_features[i].Visual))
+            {
+                _viewport.Children.Remove(_features[i].Visual);
+            }
+        }
+
+        _features.Clear();
+    }
+
+    internal void ClearHeadFeatures()
+    {
+        ClearFeatures();
+    }
+
+    /// <summary>以網格包圍盒對角更新標註球比例。</summary>
+    public void SetSceneDiagonal(double meshDiagonalMm)
+    {
+        if (meshDiagonalMm > 1)
+        {
+            _sceneDiagonal = meshDiagonalMm;
+        }
+    }
+
+    /// <summary>標註前緣左下／頂點／右下（與 GLB 同一座標）。</summary>
+    /// <param name="meshDiagonalMm">網格包圍盒對角長度（mm），用來決定標註球大小。</param>
+    public void SetHeadFeatures(Point3D left, Point3D apex, Point3D right, double meshDiagonalMm)
+    {
+        ClearFeatures();
+        if (meshDiagonalMm > 1)
+        {
+            _sceneDiagonal = meshDiagonalMm;
+        }
+
+        var radius = MarkerRadiusMm(_sceneDiagonal);
+        AddFeature(left, Color.FromRgb(80, 180, 255), "左邊角", radius, 28, 12);
+        AddFeature(apex, Color.FromRgb(255, 90, 70), "頂點", radius, 28, -40);
+        AddFeature(right, Color.FromRgb(255, 200, 60), "右邊角", radius, 28, 12);
+        _overlay.Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Render,
+            UpdateOverlay);
+    }
+
+    void AddFeature(Point3D world, Color color, string title, double radius, double offsetX, double offsetY)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        var visual = CreateMarkerVisual(world, radius, color);
+        _viewport.Children.Add(visual);
+
+        var anchor = new Ellipse
+        {
+            Width = 8,
+            Height = 8,
+            Fill = brush,
+            Stroke = Brushes.White,
+            StrokeThickness = 1.2,
+            IsHitTestVisible = false,
+        };
+        var leader = new Line
+        {
+            Stroke = brush,
+            StrokeThickness = 1.4,
+            IsHitTestVisible = false,
+        };
+        var label = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(220, 16, 18, 22)),
+            BorderBrush = brush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(8, 4, 8, 4),
+            IsHitTestVisible = false,
+            Child = new TextBlock
+            {
+                Text = title + "\n" + FormatPoint(world),
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 12,
+                Foreground = brush,
+            },
+        };
+
+        _overlay.Children.Add(leader);
+        _overlay.Children.Add(anchor);
+        _overlay.Children.Add(label);
+        _features.Add(new FeatureMark
+        {
+            Callout = new Callout
+            {
+                World = world,
+                Anchor = anchor,
+                Leader = leader,
+                Label = label,
+                OffsetX = offsetX,
+                OffsetY = offsetY,
+            },
+            Visual = visual,
+        });
     }
 
     /// <summary>在指定世界座標顯示一組座標 Callout（取代前一次點選）。</summary>
@@ -56,8 +194,7 @@ internal sealed class ViewportBoundsAnnotations
         var brush = new SolidColorBrush(color);
         brush.Freeze();
 
-        var diagonal = EstimateSceneDiagonal();
-        var markerRadius = Math.Max(diagonal * 0.008, 0.25);
+        var markerRadius = MarkerRadiusMm(_sceneDiagonal);
 
         _markerVisual = CreateMarkerVisual(world, markerRadius, color);
         _viewport.Children.Add(_markerVisual);
@@ -114,34 +251,96 @@ internal sealed class ViewportBoundsAnnotations
 
     public void UpdateOverlay()
     {
-        if (!_active || _callout is null || _overlay.ActualWidth <= 1 || _overlay.ActualHeight <= 1)
-            return;
-
-        if (!TryProjectMarker(out var anchor))
+        if (_overlay.ActualWidth <= 1 || _overlay.ActualHeight <= 1)
         {
-            _callout.Anchor.Visibility = Visibility.Collapsed;
-            _callout.Leader.Visibility = Visibility.Collapsed;
-            _callout.Label.Visibility = Visibility.Collapsed;
             return;
         }
 
-        _callout.Anchor.Visibility = Visibility.Visible;
-        _callout.Leader.Visibility = Visibility.Visible;
-        _callout.Label.Visibility = Visibility.Visible;
+        if (_active && _callout is not null)
+        {
+            if (!TryProjectVisible(_callout.World, out var anchor))
+            {
+                HideCallout(_callout);
+            }
+            else
+            {
+                LayoutCallout(_callout, anchor);
+            }
+        }
 
-        Canvas.SetLeft(_callout.Anchor, anchor.X - _callout.Anchor.Width / 2);
-        Canvas.SetTop(_callout.Anchor, anchor.Y - _callout.Anchor.Height / 2);
+        for (int i = 0; i < _features.Count; i++)
+        {
+            var feature = _features[i];
+            if (!TryProjectVisible(feature.Callout.World, out var anchor))
+            {
+                HideCallout(feature.Callout);
+            }
+            else
+            {
+                LayoutCallout(feature.Callout, anchor);
+            }
+        }
+    }
 
-        var labelSize = MeasureLabel(_callout.Label);
-        const double offsetX = 28;
-        const double offsetY = -36;
-        var labelPos = new Point(anchor.X + offsetX, anchor.Y + offsetY);
-        labelPos.X = Math.Clamp(labelPos.X, 4, Math.Max(4, _overlay.ActualWidth - labelSize.Width - 4));
-        labelPos.Y = Math.Clamp(labelPos.Y, 4, Math.Max(4, _overlay.ActualHeight - labelSize.Height - 4));
+    private bool TryProjectVisible(Point3D world, out Point screen)
+    {
+        if (!TryProjectMatrix(_viewport, world, out screen, clipDepth: true))
+        {
+            return false;
+        }
 
-        // 引線接到標籤左緣中點（或右緣，若標籤在錨點左側）
+        const double pad = 12;
+        if (screen.X < -pad || screen.Y < -pad
+            || screen.X > _overlay.ActualWidth + pad
+            || screen.Y > _overlay.ActualHeight + pad)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    static void HideCallout(Callout callout)
+    {
+        callout.Anchor.Visibility = Visibility.Collapsed;
+        callout.Leader.Visibility = Visibility.Collapsed;
+        callout.Label.Visibility = Visibility.Collapsed;
+    }
+
+    void LayoutCallout(Callout callout, Point anchor)
+    {
+        callout.Anchor.Visibility = Visibility.Visible;
+        callout.Leader.Visibility = Visibility.Visible;
+        callout.Label.Visibility = Visibility.Visible;
+
+        Canvas.SetLeft(callout.Anchor, anchor.X - callout.Anchor.Width / 2);
+        Canvas.SetTop(callout.Anchor, anchor.Y - callout.Anchor.Height / 2);
+
+        var labelSize = MeasureLabel(callout.Label);
+        var labelPos = new Point(anchor.X + callout.OffsetX, anchor.Y + callout.OffsetY);
+        var maxX = Math.Max(4, _overlay.ActualWidth - labelSize.Width - 4);
+        var maxY = Math.Max(4, _overlay.ActualHeight - labelSize.Height - 4);
+        if (labelPos.X < 4)
+        {
+            labelPos.X = 4;
+        }
+        else if (labelPos.X > maxX)
+        {
+            labelPos.X = maxX;
+        }
+
+        if (labelPos.Y < 4)
+        {
+            labelPos.Y = 4;
+        }
+        else if (labelPos.Y > maxY)
+        {
+            labelPos.Y = maxY;
+        }
+
         var labelCenterY = labelPos.Y + labelSize.Height * 0.5;
-        double x2, y2;
+        double x2;
+        double y2;
         if (labelPos.X + labelSize.Width * 0.5 >= anchor.X)
         {
             x2 = labelPos.X;
@@ -153,50 +352,32 @@ internal sealed class ViewportBoundsAnnotations
             y2 = labelCenterY;
         }
 
-        _callout.Leader.X1 = anchor.X;
-        _callout.Leader.Y1 = anchor.Y;
-        _callout.Leader.X2 = x2;
-        _callout.Leader.Y2 = y2;
+        callout.Leader.X1 = anchor.X;
+        callout.Leader.Y1 = anchor.Y;
+        callout.Leader.X2 = x2;
+        callout.Leader.Y2 = y2;
 
-        Canvas.SetLeft(_callout.Label, labelPos.X);
-        Canvas.SetTop(_callout.Label, labelPos.Y);
+        Canvas.SetLeft(callout.Label, labelPos.X);
+        Canvas.SetTop(callout.Label, labelPos.Y);
     }
 
-    private bool TryProjectMarker(out Point screen)
+    internal static double MarkerRadiusMm(double meshDiagonalMm)
     {
-        screen = default;
-        if (_markerVisual is null || _viewport.ActualWidth <= 1)
-            return false;
-
-        try
+        var radius = meshDiagonalMm * 0.004;
+        if (radius < 1.2)
         {
-            var transform = _markerVisual.TransformToAncestor(_viewport);
-            if (transform is null)
-                return TryProjectMatrix(_viewport, _callout!.World, out screen);
+            return 1.2;
+        }
 
-            // 球心在 marker local (0,0,0)
-            screen = transform.Transform(new Point3D(0, 0, 0));
-            return !double.IsNaN(screen.X) && !double.IsNaN(screen.Y)
-                   && !double.IsInfinity(screen.X) && !double.IsInfinity(screen.Y);
-        }
-        catch
+        if (radius > 2.5)
         {
-            return _callout is not null && TryProjectMatrix(_viewport, _callout.World, out screen);
+            return 2.5;
         }
+
+        return radius;
     }
 
-    private double EstimateSceneDiagonal()
-    {
-        if (_viewport.Camera is PerspectiveCamera pc)
-        {
-            var lookLen = pc.LookDirection.Length;
-            if (lookLen > 1e-6)
-                return Math.Max(lookLen * 2, 50);
-        }
-        return 100;
-    }
-
-    private static ModelVisual3D CreateMarkerVisual(Point3D center, double radius, Color color)
+    internal static ModelVisual3D CreateMarkerVisual(Point3D center, double radius, Color color)
     {
         var mesh = BuildSphere(radius, slices: 10, stacks: 8);
         var mat = new MaterialGroup();
@@ -264,11 +445,17 @@ internal sealed class ViewportBoundsAnnotations
         => string.Format(CultureInfo.InvariantCulture,
             "X = {0:F2} mm\nY = {1:F2} mm\nZ = {2:F2} mm", p.X, p.Y, p.Z);
 
-    private static bool TryProjectMatrix(Viewport3D viewport, Point3D world, out Point screen)
+    private static bool TryProjectMatrix(
+        Viewport3D viewport,
+        Point3D world,
+        out Point screen,
+        bool clipDepth = true)
     {
         screen = default;
         if (viewport.Camera is not PerspectiveCamera camera)
+        {
             return false;
+        }
 
         var aspect = viewport.ActualWidth / viewport.ActualHeight;
         var m = GetViewMatrix(camera);
@@ -276,12 +463,16 @@ internal sealed class ViewportBoundsAnnotations
         m.Append(GetHomogeneousToViewportMatrix(viewport.ActualWidth, viewport.ActualHeight));
 
         var p = m.Transform(new Point4D(world.X, world.Y, world.Z, 1));
-        if (Math.Abs(p.W) < 1e-12)
+        if (p.W <= 1e-12)
+        {
             return false;
+        }
 
         var z = p.Z / p.W;
-        if (z < 0 || z > 1.05)
+        if (clipDepth && (z < 0 || z > 1.05))
+        {
             return false;
+        }
 
         screen = new Point(p.X / p.W, p.Y / p.W);
         return true;

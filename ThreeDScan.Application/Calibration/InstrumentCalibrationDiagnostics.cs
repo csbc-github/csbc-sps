@@ -5,6 +5,7 @@ namespace ThreeDScan.Application.Calibration;
 /// <summary>儀器校正 RMSE 失敗時的除錯說明。</summary>
 internal static class InstrumentCalibrationDiagnostics
 {
+    /// <summary>組成 RMSE 超標時的除錯文字（含球距明細）。</summary>
     public static string FormatRmseFailure(InstrumentCalibrationComputeResult computed)
     {
         var matched = computed.MatchedBalls;

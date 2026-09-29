@@ -1,4 +1,4 @@
-using ThreeDScan.Application.Calibration.Models;
+using ThreeDScan.Application.Common.Models;
 
 namespace ThreeDScan.Application.Scan.Models;
 
@@ -8,7 +8,7 @@ public sealed class AngleIronDto
     /// <summary>角鋼序號。</summary>
     public int Index { get; init; }
 
-    /// <summary>頭端左邊角／右邊角／頂點。</summary>
+    /// <summary>頭端左邊角／右邊角／頂點（面掃描為本段前緣）。</summary>
     public CornerTripletDto HeadFeatures { get; init; } = new();
 
     /// <summary>尾端左邊角／右邊角／頂點。</summary>

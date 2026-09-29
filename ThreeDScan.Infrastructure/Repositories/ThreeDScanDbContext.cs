@@ -3,10 +3,13 @@ using ThreeDScan.Infrastructure.Repositories.Models;
 
 namespace ThreeDScan.Infrastructure.Repositories;
 
+/// <summary>EF Core 資料庫內容。</summary>
 public sealed class ThreeDScanDbContext : DbContext
 {
+    /// <summary>建立資料庫內容。</summary>
     public ThreeDScanDbContext(DbContextOptions<ThreeDScanDbContext> options) : base(options) { }
 
+    /// <summary>儀器校正補償歷程。</summary>
     public DbSet<CompensationHistoryEntity> CompensationHistory
     {
         get
@@ -14,6 +17,7 @@ public sealed class ThreeDScanDbContext : DbContext
             return Set<CompensationHistoryEntity>();
         }
     }
+    /// <summary>掃描器 Ref／量測參數。</summary>
     public DbSet<ScannerConfigEntity> ScannerConfigs
     {
         get
@@ -21,6 +25,7 @@ public sealed class ThreeDScanDbContext : DbContext
             return Set<ScannerConfigEntity>();
         }
     }
+    /// <summary>目前生效的拍攝參數。</summary>
     public DbSet<ScannerProgramSettingsEntity> ScannerProgramSettings
     {
         get
@@ -28,6 +33,7 @@ public sealed class ThreeDScanDbContext : DbContext
             return Set<ScannerProgramSettingsEntity>();
         }
     }
+    /// <summary>拍攝參數歷程。</summary>
     public DbSet<ScannerProgramSettingsHistoryEntity> ScannerProgramSettingsHistory
     {
         get
@@ -35,6 +41,7 @@ public sealed class ThreeDScanDbContext : DbContext
             return Set<ScannerProgramSettingsHistoryEntity>();
         }
     }
+    /// <summary>拍攝群組顯示名稱。</summary>
     public DbSet<ScannerProgramGroupNameEntity> ScannerProgramGroupNames
     {
         get
@@ -42,6 +49,7 @@ public sealed class ThreeDScanDbContext : DbContext
             return Set<ScannerProgramGroupNameEntity>();
         }
     }
+    /// <summary>操作稽核紀錄。</summary>
     public DbSet<OperationLogEntity> OperationLogs
     {
         get
@@ -49,6 +57,7 @@ public sealed class ThreeDScanDbContext : DbContext
             return Set<OperationLogEntity>();
         }
     }
+    /// <summary>儀器校正兩次拍攝任務。</summary>
     public DbSet<InstrumentCalibrationTaskEntity> InstrumentCalibrationTasks
     {
         get
@@ -57,6 +66,7 @@ public sealed class ThreeDScanDbContext : DbContext
         }
     }
 
+    /// <summary>工單翼板厚度。</summary>
     public DbSet<JobThicknessEntity> JobThickness
     {
         get
@@ -65,6 +75,7 @@ public sealed class ThreeDScanDbContext : DbContext
         }
     }
 
+    /// <summary>掃描 API 呼叫紀錄。</summary>
     public DbSet<ScanCallLogEntity> ScanCallLogs
     {
         get
@@ -73,6 +84,7 @@ public sealed class ThreeDScanDbContext : DbContext
         }
     }
 
+    /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<CompensationHistoryEntity>(e =>
