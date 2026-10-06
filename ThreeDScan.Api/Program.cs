@@ -8,6 +8,7 @@ using ThreeDScan.Application.Common;
 using ThreeDScan.Application.Common.Models;
 using ThreeDScan.Application.Scan;
 using ThreeDScan.Domain.Abstractions;
+using ThreeDScan.Domain.Models;
 using ThreeDScan.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,6 +27,7 @@ builder.Services.Configure<CalibrationSettings>(builder.Configuration.GetSection
 builder.Services.Configure<CallbackSettings>(builder.Configuration.GetSection(CallbackSettings.SectionName));
 builder.Services.Configure<WatchdogSettings>(builder.Configuration.GetSection(WatchdogSettings.SectionName));
 builder.Services.Configure<SurfaceScanSettings>(builder.Configuration.GetSection(SurfaceScanSettings.SectionName));
+builder.Services.Configure<LineScanSettings>(builder.Configuration.GetSection(LineScanSettings.SectionName));
 builder.Services.AddThreeDScanInfrastructure(builder.Configuration);
 builder.Services.AddHttpClient("DasCallback")
     .ConfigurePrimaryHttpMessageHandler(() =>

@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using LMX;
+using ThreeDScan.Domain.Models;
 using ThreeDScan.Models;
 
 namespace ThreeDScan.Controls;
@@ -10,7 +11,6 @@ namespace ThreeDScan.Controls;
 /// <summary>
 /// X-Z 高度剖面圖渲染器。
 /// 自動依當前 frame 的 Cartesian 範圍縮放；以 Y 值中位數為基線（baseline）將 Z 顯示成相對值。
-/// 物料分區色塊：依 <see cref="Materials"/> 集合（每筆 <see cref="MaterialItem"/> 的 LeftCorner.X / RightCorner.X）。
 /// </summary>
 public sealed class LidarScanRenderer : FrameworkElement
 {
@@ -30,6 +30,21 @@ public sealed class LidarScanRenderer : FrameworkElement
     private double _xOffsetMm;
     private double _zOffsetMm;
     private double? _referenceYMm;
+    private LineScanRegion? _region;
+
+    /// <summary>框選範圍（掃描器平面）。只畫框線，剖面仍全部顯示。</summary>
+    public LineScanRegion? SensorRegion
+    {
+        get
+        {
+            return _region;
+        }
+        set
+        {
+            _region = value;
+            InvalidateVisual();
+        }
+    }
 
     /// <summary>由 <see cref="LidarScanView"/> 套用輸入框校正。</summary>
     public void ConfigureCalibration(
@@ -46,6 +61,50 @@ public sealed class LidarScanRenderer : FrameworkElement
         _xOffsetMm = xOffsetMm;
         _zOffsetMm = zOffsetMm;
         _referenceYMm = referenceYMm;
+    }
+
+    /// <summary>把畫面上拖出的矩形換成掃描器平面的框。太小則不採用。</summary>
+    public LineScanRegion? TryCreateSensorRegion(Point start, Point end)
+    {
+        ComputeLayoutAndRanges();
+        if (!TrySensorPoint(start, out var x0, out var y0) || !TrySensorPoint(end, out var x1, out var y1))
+        {
+            return null;
+        }
+
+        var xMin = Math.Min(x0, x1);
+        var xMax = Math.Max(x0, x1);
+        var yMin = Math.Min(y0, y1);
+        var yMax = Math.Max(y0, y1);
+        if (xMax - xMin < 1 || yMax - yMin < 1)
+        {
+            return null;
+        }
+
+        return new LineScanRegion
+        {
+            XMin = xMin,
+            XMax = xMax,
+            YMin = yMin,
+            YMax = yMax,
+        };
+    }
+
+    private bool TrySensorPoint(Point screen, out double sensorX, out double sensorY)
+    {
+        sensorX = 0;
+        sensorY = 0;
+        var data = ScreenToData(screen);
+        if (data is null)
+        {
+            return false;
+        }
+
+        sensorX = data.Value.X - _xOffsetMm;
+        var absoluteY = _absBase - (data.Value.Z - _zOffsetMm);
+        var sign = _baselineY < 0 ? -1.0 : 1.0;
+        sensorY = sign * absoluteY;
+        return true;
     }
 
     /// <summary>
@@ -83,11 +142,12 @@ public sealed class LidarScanRenderer : FrameworkElement
     { DashStyle = new DashStyle(new[] { 3.0, 3.0 }, 0) });
     private static readonly Brush LabelBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x4B, 0x55, 0x63)));
     private static readonly Pen ProfilePen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0x9F, 0x12, 0x39)), 1.4));
+    private static readonly Pen RegionPen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)), 1.6)
+    {
+        DashStyle = new DashStyle(new[] { 6.0, 3.0 }, 0),
+    });
     private static readonly Brush ProfileDotBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x9F, 0x12, 0x39)));
     private static readonly Brush BaselinePen = Freeze(new SolidColorBrush(Color.FromArgb(180, 0x9C, 0xA3, 0xAF)));
-    private static readonly Brush LidarBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x33, 0x77, 0xCC)));
-    private static readonly Pen LidarBeamPen = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(80, 0x33, 0x77, 0xCC)), 0.8)
-    { DashStyle = new DashStyle(new[] { 2.0, 3.0 }, 0) });
     private static readonly Typeface LabelTypeface = new("Segoe UI");
 
     /// <summary>距離有效性：0 = 無回波、1 = 雜訊、>= 999000 = 飽和/超量程。</summary>
@@ -96,15 +156,11 @@ public sealed class LidarScanRenderer : FrameworkElement
         return d > 1 && d < 999000;
     }
 
-    /// <summary>物料分區色塊調色盤（半透明）。對應介面草稿的米黃 / 橙 / 綠。</summary>
-    private static readonly Brush[] ZoneBrushes =
+    private static T Freeze<T>(T f) where T : Freezable
     {
-        Freeze(new SolidColorBrush(Color.FromArgb(50, 0xFB, 0xBF, 0x24))),  // amber
-        Freeze(new SolidColorBrush(Color.FromArgb(50, 0xF9, 0x73, 0x16))),  // orange
-        Freeze(new SolidColorBrush(Color.FromArgb(50, 0x10, 0xB9, 0x81))),  // emerald
-    };
-
-    private static T Freeze<T>(T f) where T : Freezable { f.Freeze(); return f; }
+        f.Freeze();
+        return f;
+    }
 
     public LidarFrame? Frame
     {
@@ -149,14 +205,13 @@ public sealed class LidarScanRenderer : FrameworkElement
         // 繪圖區外框
         dc.DrawRectangle(PlotBackground, FramePen, _plotRect);
 
-        DrawMaterialZones(dc);
         DrawGrid(dc);
         DrawBaseline(dc);
 
         if (_frame is not null && _frame.Cartesian.Length >= 2)
+        {
             DrawProfile(dc);
-
-        DrawLidarMarker(dc);
+        }
     }
 
     private void ComputeLayoutAndRanges()
@@ -202,13 +257,25 @@ public sealed class LidarScanRenderer : FrameworkElement
         _baselineY = _referenceYMm ?? ys[ys.Count / 2];
         _absBase = Math.Abs(_baselineY);
 
-        double zMin = double.MaxValue, zMax = double.MinValue;
+        double zMax = 0;
+        double zMin = 0;
         for (int i = 0; i < n; i++)
         {
-            if (!TryPlaneXY(f, i, out _, out var y)) continue;
+            if (!TryPlaneXY(f, i, out _, out var y))
+            {
+                continue;
+            }
+
             double z = _absBase - Math.Abs(y) + _zOffsetMm;
-            if (z < zMin) zMin = z;
-            if (z > zMax) zMax = z;
+            if (z > zMax)
+            {
+                zMax = z;
+            }
+
+            if (z < zMin)
+            {
+                zMin = z;
+            }
         }
 
         // X 範圍：使用有效資料極值，加 5% padding
@@ -216,22 +283,12 @@ public sealed class LidarScanRenderer : FrameworkElement
         _xMin = xmin - xPad;
         _xMax = xmax + xPad;
 
-        // Z 範圍：Z=0 為「參考面」（中位數 |Y| 對應的距離），物體頂端為正。
-        // 先前誤用 Math.Min(zMin, -10)，在「全部 Z≥0」時仍強制顯示負刻度 — 已改為僅在資料真有負值時才延伸到負向。
-        double span = Math.Max(zMax - zMin, 1e-3);
-        double padUp = Math.Max(span * 0.12, 8);
-        if (zMin >= 0)
-        {
-            // 沒有比參考面更遠的點：軸從 0 起，不畫負刻度（與「輸送帶在底部」一致）。
-            _zMin = 0;
-            _zMax = Math.Max(zMax + padUp, 50);
-        }
-        else
-        {
-            double padDown = Math.Max(Math.Abs(zMin) * 0.12, 4);
-            _zMin = zMin - padDown;
-            _zMax = zMax + padUp;
-        }
+        // 參考面以下也留在圖內，底邊再留至少 8 mm，避免較低的剖面貼著框線被切掉。
+        double floor = Math.Min(0, zMin);
+        double padDown = Math.Max(-floor * 0.12, 8);
+        double padUp = Math.Max(Math.Abs(zMax) * 0.12, 8);
+        _zMin = floor - padDown;
+        _zMax = Math.Max(zMax + padUp, _zMin + 50);
     }
 
     private Point DataToScreen(double x, double z)
@@ -306,96 +363,55 @@ public sealed class LidarScanRenderer : FrameworkElement
         }
         if (current.Count >= 2) segments.Add(current);
 
-        if (segments.Count == 0) return;
-
-        var geo = new StreamGeometry();
-        using (var c = geo.Open())
-        {
-            foreach (var seg in segments)
-            {
-                c.BeginFigure(seg[0], false, false);
-                if (seg.Count > 1)
-                    c.PolyLineTo(seg.GetRange(1, seg.Count - 1), true, false);
-            }
-        }
-        geo.Freeze();
-
         dc.PushClip(new RectangleGeometry(_plotRect));
-        dc.DrawGeometry(null, ProfilePen, geo);
-
-        // 點數不太多時加散點，方便看資料密度
-        if (allDots.Count <= 1200)
+        if (segments.Count > 0)
         {
-            foreach (var p in allDots)
+            var geo = new StreamGeometry();
+            using (var c = geo.Open())
             {
-                if (p.X < _plotRect.Left - 2 || p.X > _plotRect.Right + 2) continue;
-                if (p.Y < _plotRect.Top - 2 || p.Y > _plotRect.Bottom + 2) continue;
-                dc.DrawEllipse(ProfileDotBrush, null, p, 1.0, 1.0);
+                foreach (var seg in segments)
+                {
+                    c.BeginFigure(seg[0], false, false);
+                    if (seg.Count > 1)
+                        c.PolyLineTo(seg.GetRange(1, seg.Count - 1), true, false);
+                }
+            }
+            geo.Freeze();
+            dc.DrawGeometry(null, ProfilePen, geo);
+
+            if (allDots.Count <= 1200)
+            {
+                foreach (var p in allDots)
+                {
+                    if (p.X < _plotRect.Left - 2 || p.X > _plotRect.Right + 2) continue;
+                    if (p.Y < _plotRect.Top - 2 || p.Y > _plotRect.Bottom + 2) continue;
+                    dc.DrawEllipse(ProfileDotBrush, null, p, 1.0, 1.0);
+                }
             }
         }
+
+        DrawSensorRegion(dc);
         dc.Pop();
     }
 
-    /// <summary>
-    /// 在繪圖區頂端中央畫一個簡單的雷達圖示與兩條光束虛線，
-    /// 視覺強調「雷達在上面、由上往下掃」。
-    /// </summary>
-    private void DrawLidarMarker(DrawingContext dc)
+    /// <summary>畫出框選矩形，座標跟著目前剖面的換算。</summary>
+    private void DrawSensorRegion(DrawingContext dc)
     {
-        if (_plotRect.Width <= 40 || _plotRect.Height <= 40) return;
-        double cx = _plotRect.Left + _plotRect.Width * 0.5;
-        double cy = _plotRect.Top + 6;
-
-        // 兩條斜下的虛線光束，象徵掃描扇面
-        double beamLen = Math.Min(_plotRect.Width, _plotRect.Height) * 0.55;
-        dc.DrawLine(LidarBeamPen,
-            new Point(cx, cy + 4),
-            new Point(cx - beamLen * 0.6, cy + beamLen));
-        dc.DrawLine(LidarBeamPen,
-            new Point(cx, cy + 4),
-            new Point(cx + beamLen * 0.6, cy + beamLen));
-
-        // 倒三角作為雷達本體
-        var tri = new StreamGeometry();
-        using (var c = tri.Open())
+        if (_region is null || _plotRect.Width <= 0 || _plotRect.Height <= 0)
         {
-            c.BeginFigure(new Point(cx - 6, cy), true, true);
-            c.LineTo(new Point(cx + 6, cy), true, false);
-            c.LineTo(new Point(cx, cy + 8), true, false);
+            return;
         }
-        tri.Freeze();
-        dc.DrawGeometry(LidarBrush, null, tri);
 
-        var label = MakeLabel("雷達");
-        dc.DrawText(label, new Point(cx + 9, cy - 1));
-    }
-
-    private void DrawMaterialZones(DrawingContext dc)
-    {
-        if (_materials is null) return;
-        int idx = 0;
-        foreach (var item in _materials)
+        var top = DataToScreen(_region.XMin + _xOffsetMm, _absBase - Math.Abs(_region.YMax) + _zOffsetMm);
+        var bottom = DataToScreen(_region.XMax + _xOffsetMm, _absBase - Math.Abs(_region.YMin) + _zOffsetMm);
+        var rect = new Rect(top, bottom);
+        rect.Intersect(_plotRect);
+        if (rect.Width <= 0 || rect.Height <= 0)
         {
-            if (item is not MaterialItem mi) { idx++; continue; }
-            double left = mi.LeftCorner.X + _xOffsetMm;
-            double right = mi.RightCorner.X + _xOffsetMm;
-            if (right <= left) { idx++; continue; }
-
-            // 範圍若超出資料軸，clip 到繪圖區
-            double l = Math.Max(left, _xMin);
-            double r = Math.Min(right, _xMax);
-            if (r <= l) { idx++; continue; }
-
-            var topLeft = DataToScreen(l, _zMax);
-            var bottomRight = DataToScreen(r, _zMin);
-            var rect = new Rect(topLeft, bottomRight);
-            rect.Intersect(_plotRect);
-            if (rect.Width <= 0 || rect.Height <= 0) { idx++; continue; }
-
-            var brush = ZoneBrushes[idx % ZoneBrushes.Length];
-            dc.DrawRectangle(brush, null, rect);
-            idx++;
+            return;
         }
+
+        dc.DrawRectangle(null, RegionPen, rect);
     }
 
     private FormattedText MakeLabel(string text)

@@ -86,7 +86,7 @@
         <TabControl Grid.Row="1"
                     Style="{StaticResource MainTabControlStyle}"
                     SelectedIndex="{Binding SelectedTabIndex}">
-            <TabItem Header="進料區">
+            <TabItem Header="預備進料">
                 <views:FeedingView DataContext="{Binding FeedingVM}"/>
             </TabItem>
             <TabItem Header="噴印區">

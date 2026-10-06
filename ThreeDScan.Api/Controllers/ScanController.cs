@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using ThreeDScan.Api.Common;
 using ThreeDScan.Application.Scan;
 using ThreeDScan.Application.Scan.Models;
+using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Api.Controllers;
 
@@ -18,14 +19,6 @@ public sealed class ScanController : ControllerBase
         _scan = scan;
     }
 
-    /// <summary>預備進料區線掃描：滾輪傳動時持續辨識角鋼輪廓。</summary>
-    [HttpPost("line")]
-    public async Task<IActionResult> ScanLine([FromBody] LineScanRequest request, CancellationToken ct)
-    {
-        var result = await _scan.ScanLineAsync(request, ct);
-        return SpecApiActionResult.From(result);
-    }
-
     /// <summary>開始線掃描（指南 v1.1）。</summary>
     [HttpPost("line/start")]
     public async Task<IActionResult> StartLineScan([FromBody] LineScanRequest request, CancellationToken ct)
@@ -40,6 +33,49 @@ public sealed class ScanController : ControllerBase
     {
         var result = await _scan.CompleteLineScanAsync(request, ct);
         return DasApiActionResult.Accepted(result);
+    }
+
+    /// <summary>進行中的錄製與最新截面，供進料區左側即時圖。</summary>
+    [HttpGet("line/live")]
+    public IActionResult GetLiveFrame()
+    {
+        return Ok(_scan.GetLiveFrame());
+    }
+
+    /// <summary>設定進料區框選。後續 C# 量測只保留掃描器平面上框內的點。</summary>
+    [HttpPut("line/region")]
+    public IActionResult SetLineRegion([FromBody] LineScanRegion region)
+    {
+        _scan.SetLineRegion(region);
+        return Ok();
+    }
+
+    /// <summary>清除進料區框選，之後量測使用全部點。</summary>
+    [HttpDelete("line/region")]
+    public IActionResult ClearLineRegion()
+    {
+        _scan.SetLineRegion(null);
+        return Ok();
+    }
+
+    /// <summary>讀取目前框選。沒有框選時沒有內容。</summary>
+    [HttpGet("line/region")]
+    public IActionResult GetLineRegion()
+    {
+        var region = _scan.GetLineRegion();
+        if (region is null)
+        {
+            return NoContent();
+        }
+
+        return Ok(region);
+    }
+
+    /// <summary>最近一次線掃描 complete 的結果，供進料區顯示。</summary>
+    [HttpGet("line/latest")]
+    public IActionResult GetLatestLineScan()
+    {
+        return Ok(_scan.GetLatestLineScanResult());
     }
 
     /// <summary>中止線掃描（指南 v1.1）。</summary>

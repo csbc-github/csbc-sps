@@ -42,58 +42,19 @@
                                     PrimaryMinHeight="280" SecondaryMinHeight="260">
             <controls:AdaptiveSplitView.PrimaryContent>
                 <DockPanel Margin="12">
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8" LastChildFill="True">
-                        <!-- [可隱藏] 進料區操作按鈕：於此 StackPanel 或各 Button 設 Visibility="Collapsed" -->
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                            <Button Content="開始掃描" Padding="14,6" Margin="0,0,6,0"
-                                    Command="{Binding StartScanCommand}"/>
-                            <Button Content="停止"     Padding="14,6" Margin="0,0,6,0"
-                                    Command="{Binding StopScanCommand}"/>
-                            <Button Content="原始數據" Padding="14,6"
-                                    Click="OnOpenInspector"/>
-                        </StackPanel>
-                        <controls:ChartToolBar Margin="0,0,8,0"/>
-                    </DockPanel>
-                    <!-- 剖面校正：角度視窗 + 平移 + 參考面（空白角度＝不裁切） -->
-                    <!-- [可隱藏] 剖面校正整區：於下方 Border 設 Visibility="Collapsed" -->
-                    <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="10,8"
-                            Background="{StaticResource SurfaceBrush}"
-                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                        <WrapPanel Orientation="Horizontal">
-                            <TextBlock Text="角度下限°" VerticalAlignment="Center" Margin="0,0,4,4"
-                                       Foreground="{StaticResource TextSecondaryBrush}" ToolTip="例：70 — 只畫此角度以上；空白＝不限制"/>
-                            <TextBox Width="56" Margin="0,0,12,4" VerticalContentAlignment="Center"
-                                     Text="{Binding LidarCalibAngleMinDeg, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Text="角度上限°" VerticalAlignment="Center" Margin="0,0,4,4"
-                                       Foreground="{StaticResource TextSecondaryBrush}" ToolTip="例：110 — 只畫此角度以下"/>
-                            <TextBox Width="56" Margin="0,0,12,4" VerticalContentAlignment="Center"
-                                     Text="{Binding LidarCalibAngleMaxDeg, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Text="角度修正°" VerticalAlignment="Center" Margin="0,0,4,4"
-                                       Foreground="{StaticResource TextSecondaryBrush}" ToolTip="加在 θ 上，用來對齊安裝角"/>
-                            <TextBox Width="56" Margin="0,0,12,4" VerticalContentAlignment="Center"
-                                     Text="{Binding LidarCalibAngleCorrectionDeg, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Text="參考Y mm" VerticalAlignment="Center" Margin="0,0,4,4"
-                                       Foreground="{StaticResource TextSecondaryBrush}" ToolTip="輸送帶面在雷達 Y（mm）；空白＝自動中位數"/>
-                            <TextBox Width="72" Margin="0,0,12,4" VerticalContentAlignment="Center"
-                                     Text="{Binding LidarCalibReferenceYMm, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Text="X偏移 mm" VerticalAlignment="Center" Margin="0,0,4,4"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBox Width="56" Margin="0,0,12,4" VerticalContentAlignment="Center"
-                                     Text="{Binding LidarCalibXOffsetMm, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Text="Z偏移 mm" VerticalAlignment="Center" Margin="0,0,4,4"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBox Width="56" Margin="0,0,0,4" VerticalContentAlignment="Center"
-                                     Text="{Binding LidarCalibZOffsetMm, UpdateSourceTrigger=PropertyChanged}"/>
-                        </WrapPanel>
-                    </Border>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                                HorizontalAlignment="Right" Margin="0,0,0,8">
+                        <Button Content="設定掃描區域" Padding="14,6" Margin="0,0,6,0"
+                                Command="{Binding BeginSelectRegionCommand}"/>
+                        <Button Content="清除掃描區域" Padding="14,6"
+                                Command="{Binding ClearRegionCommand}"/>
+                    </StackPanel>
                     <controls:LidarScanView Frame="{Binding CurrentFrame}"
+                                            Hint="{Binding LiveHint}"
                                             Materials="{Binding Materials}"
-                                            AngleMinText="{Binding LidarCalibAngleMinDeg}"
-                                            AngleMaxText="{Binding LidarCalibAngleMaxDeg}"
-                                            AngleCorrectionDegText="{Binding LidarCalibAngleCorrectionDeg}"
-                                            ReferenceYMmText="{Binding LidarCalibReferenceYMm}"
-                                            XOffsetMmText="{Binding LidarCalibXOffsetMm}"
-                                            ZOffsetMmText="{Binding LidarCalibZOffsetMm}"/>
+                                            IsSelectingRegion="{Binding IsSelectingRegion}"
+                                            SensorRegion="{Binding SensorRegion}"
+                                            RegionChosen="OnRegionChosen"/>
                 </DockPanel>
             </controls:AdaptiveSplitView.PrimaryContent>
 
@@ -103,7 +64,7 @@
                         <!-- 標題 -->
                         <DockPanel DockPanel.Dock="Top" Margin="16,12" LastChildFill="False">
                             <TextBlock Text="物料尺寸數據" Style="{StaticResource PanelTitleStyle}"/>
-                            <controls:StatusBadge DockPanel.Dock="Right" Text="自動更新中" BadgeType="Info"/>
+                            <controls:StatusBadge DockPanel.Dock="Right" Text="{Binding LineResultHeadline}" BadgeType="Info"/>
                         </DockPanel>
 
                         <!-- 底部：掃描狀態 -->
@@ -113,9 +74,10 @@
                                 <TextBlock Text="掃描狀態" FontWeight="SemiBold" Margin="0,0,0,4"/>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <Ellipse Width="10" Height="10"
-                                             Fill="{Binding OverallStatus, Converter={StaticResource LampBrushConv}}"
+                                             Fill="{Binding LineOverallStatus, Converter={StaticResource LampBrushConv}}"
                                              Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding ScanStatusText}"
+                                    <TextBlock Text="{Binding LineResultStatusText}"
+                                               TextWrapping="Wrap"
                                                Foreground="{StaticResource TextSecondaryBrush}"/>
                                 </StackPanel>
                             </StackPanel>
@@ -123,7 +85,7 @@
 
                         <!-- 物料清單 -->
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,0">
-                            <ItemsControl ItemsSource="{Binding Materials}" Margin="0,8,0,8">
+                            <ItemsControl ItemsSource="{Binding LineResults}" Margin="0,8,0,8">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <controls:MaterialCard Item="{Binding}"/>

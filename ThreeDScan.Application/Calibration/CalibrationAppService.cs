@@ -31,6 +31,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
     private readonly IAcceptedWorkQueue _workQueue;
     private readonly ICallbackNotifier _callback;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILineScannerRegistry _lineScanners;
+    private readonly IRollerCalibrationRepository _rollerCalibration;
+    private readonly ISickLineScanner _lineScanner;
+    private readonly LineScanSettings _lineScan;
 
     /// <summary>建立校正應用服務（依賴注入）。</summary>
     public CalibrationAppService(
@@ -49,6 +53,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
         IAcceptedWorkQueue workQueue,
         ICallbackNotifier callback,
         IServiceScopeFactory scopeFactory,
+        ILineScannerRegistry lineScanners,
+        IRollerCalibrationRepository rollerCalibration,
+        ISickLineScanner lineScanner,
+        IOptions<LineScanSettings> lineScan,
         InstrumentCalibrationService? instrumentCalibration = null)
     {
         _registry = registry;
@@ -66,6 +74,10 @@ public sealed class CalibrationAppService : ICalibrationAppService
         _workQueue = workQueue;
         _callback = callback;
         _scopeFactory = scopeFactory;
+        _lineScanners = lineScanners;
+        _rollerCalibration = rollerCalibration;
+        _lineScanner = lineScanner;
+        _lineScan = lineScan.Value ?? new LineScanSettings();
         _instrumentCalibration = instrumentCalibration ?? new InstrumentCalibrationService();
     }
 
@@ -1140,13 +1152,57 @@ public sealed class CalibrationAppService : ICalibrationAppService
     }
 
     /// <inheritdoc />
-    public Task<ApiResponse<RollerCalibrationData>> CalibrateRollerAsync(
+    public async Task<ApiResponse<RollerCalibrationData>> CalibrateRollerAsync(
         RollerCalibrationRequest request,
         CancellationToken ct = default)
     {
-        _ = request;
-        _ = ct;
-        return Task.FromResult(SpecNotImplemented.Response<RollerCalibrationData>("POST /api/calibration/roller"));
+        var traceId = Guid.NewGuid().ToString("N");
+        if (!_lineScanners.TryGet(request.ScannerId, out var endpoint))
+        {
+            return ApiResponse<RollerCalibrationData>.Fail("CAL_CFG_001", "未知的線掃描 scannerId。");
+        }
+
+        if (endpoint.Port <= 0 || endpoint.Port > 65535)
+        {
+            return ApiResponse<RollerCalibrationData>.Fail("CAL_SYS_001", "線掃描埠無效。");
+        }
+
+        var sample = await _lineScanner.SampleRollerAsync(
+            endpoint.Ip,
+            endpoint.Port,
+            _lineScan.RollerFlatnessToleranceMm,
+            _lineScan.RollerRangeDeviationMm,
+            _lineScan.CalibrationFrames,
+            ct).ConfigureAwait(false);
+        if (!sample.Clear)
+        {
+            var code = string.IsNullOrWhiteSpace(sample.Code) ? "CAL_LINE_004" : sample.Code;
+            var message = string.IsNullOrWhiteSpace(sample.Message)
+                ? "輪廓變異超過容許值，判定滾輪尚未清空"
+                : sample.Message;
+            return ApiResponse<RollerCalibrationData>.Fail(code, message);
+        }
+
+        var calibratedAt = DateTimeOffset.Now;
+        await _rollerCalibration.SaveAsync(
+            new RollerBaselineRecord
+            {
+                ScannerId = request.ScannerId.Trim(),
+                ZDistance = sample.ZDistance,
+                LineA = sample.LineA,
+                LineB = sample.LineB,
+                LineC = sample.LineC,
+                CalibratedAt = calibratedAt,
+                TraceId = traceId,
+            },
+            ct).ConfigureAwait(false);
+        return ApiResponse<RollerCalibrationData>.Ok(new RollerCalibrationData
+        {
+            ScannerId = request.ScannerId.Trim(),
+            ZDistance = sample.ZDistance,
+            CalibratedAt = calibratedAt.ToString("o"),
+            TraceId = traceId,
+        });
     }
 
     /// <summary>依台船傳入 standardBalls 數量設定 SDK PatternMatch 偵測上限。</summary>

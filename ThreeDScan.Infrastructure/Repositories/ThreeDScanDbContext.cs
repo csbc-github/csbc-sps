@@ -75,6 +75,15 @@ public sealed class ThreeDScanDbContext : DbContext
         }
     }
 
+    /// <summary>滾輪校正基準，每台光達一列。</summary>
+    public DbSet<RollerCalibrationEntity> RollerCalibrations
+    {
+        get
+        {
+            return Set<RollerCalibrationEntity>();
+        }
+    }
+
     /// <summary>掃描 API 呼叫紀錄。</summary>
     public DbSet<ScanCallLogEntity> ScanCallLogs
     {
@@ -171,6 +180,14 @@ public sealed class ThreeDScanDbContext : DbContext
             e.ToTable("JobThickness");
             e.HasKey(x => x.JobId);
             e.Property(x => x.JobId).HasMaxLength(64);
+            e.Property(x => x.ScannerId).HasMaxLength(50);
+            e.Property(x => x.TraceId).HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<RollerCalibrationEntity>(e =>
+        {
+            e.ToTable("RollerCalibration");
+            e.HasKey(x => x.ScannerId);
             e.Property(x => x.ScannerId).HasMaxLength(50);
             e.Property(x => x.TraceId).HasMaxLength(64);
         });

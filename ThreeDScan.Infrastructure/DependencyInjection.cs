@@ -7,6 +7,7 @@ using ThreeDScan.Domain.Models;
 using ThreeDScan.Infrastructure.Configuration;
 using ThreeDScan.Domain.Repositories;
 using ThreeDScan.Infrastructure.Export;
+using ThreeDScan.Infrastructure.LineScan;
 using ThreeDScan.Infrastructure.Measure;
 using ThreeDScan.Infrastructure.Repositories;
 using ThreeDScan.Infrastructure.Scanners;
@@ -22,6 +23,7 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.Configure<ScannerRegistryOptions>(configuration.GetSection("Scanners"));
+        services.Configure<LineScannerRegistryOptions>(configuration.GetSection("LineScanners"));
         services.AddSingleton<IOptions<LjCalibrationParameters>>(
             _ => Options.Create(new LjCalibrationParameters()));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
@@ -29,6 +31,11 @@ public static class DependencyInjection
         services.Configure<PlyProcessorOptions>(configuration.GetSection(PlyProcessorOptions.SectionName));
         services.AddSingleton<ISurfaceScanPipeline, RawPlyScanPipeline>();
         services.AddSingleton<ISurfaceScanTaskService, SurfaceScanTaskService>();
+        services.AddSingleton<ILineScannerRegistry, LineScannerRegistry>();
+        services.AddSingleton<ILineScanTaskService, LineScanTaskService>();
+        services.AddSingleton<ILineScanRegionStore, LineScanRegionStore>();
+        services.AddSingleton<ISickLineScanner, SickPythonLineScanner>();
+        services.AddSingleton<ICSharpLineMeasure, CSharpLineMeasureService>();
 
         var connectionString = configuration.GetConnectionString("ThreeDScan")
             ?? configuration.GetConnectionString("DefaultConnection")
@@ -49,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IInstrumentCalibrationTaskRepository, InstrumentCalibrationTaskRepository>();
         services.AddScoped<IJobThicknessRepository, JobThicknessRepository>();
         services.AddScoped<IScanCallLogRepository, ScanCallLogRepository>();
+        services.AddScoped<IRollerCalibrationRepository, RollerCalibrationRepository>();
 
         return services;
     }

@@ -55,7 +55,7 @@ public sealed class TaskWatchdogHostedService : BackgroundService
         }
     }
 
-    /// <summary>中斷逾時的面掃描與儀器校正任務（不重置硬體）。</summary>
+    /// <summary>中斷逾時的面掃描、線掃描與儀器校正任務。</summary>
     private async Task SweepAsync(CancellationToken ct)
     {
         var minutes = _settings.MaxTaskDurationMinutes;
@@ -80,6 +80,19 @@ public sealed class TaskWatchdogHostedService : BackgroundService
             await scan.AbortSurfaceScanAsync(
                 new SurfaceScanAbortRequest { TaskId = task.TaskId },
                 ct).ConfigureAwait(false);
+        }
+
+        var lineTasks = scope.ServiceProvider.GetRequiredService<ILineScanTaskService>();
+        foreach (var task in lineTasks.ListIncomplete())
+        {
+            var started = task.StartedAt == default ? task.UpdatedAt : task.StartedAt;
+            if (started > cutoff)
+            {
+                continue;
+            }
+
+            _logger.LogInformation("Watchdog 中斷線掃描 taskId={TaskId}。", task.TaskId);
+            await scan.ExpireLineScanAsync(task.TaskId, ct).ConfigureAwait(false);
         }
 
         var calibration = scope.ServiceProvider.GetRequiredService<ICalibrationAppService>();

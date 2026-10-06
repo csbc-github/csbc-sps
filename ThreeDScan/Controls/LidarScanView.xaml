@@ -34,30 +34,28 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 左側：說明「高度 Z」是什麼（與螢幕左上角無關；Z 是圖上的上下刻度） -->
-            <StackPanel Grid.Row="0" Grid.Column="0"
-                        VerticalAlignment="Center" HorizontalAlignment="Center"
-                        Margin="2,0,6,0">
-                <TextBlock Text="高度 Z" FontSize="11" FontWeight="SemiBold"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           HorizontalAlignment="Center"/>
-                <TextBlock Text="(mm)" FontSize="11" FontWeight="SemiBold"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                <TextBlock TextWrapping="Wrap" TextAlignment="Center"
-                           FontSize="9" LineHeight="13"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           Text="圖裡愈往上，數字愈大＝離參考面愈高（愈靠近雷達）。"/>
-                <TextBlock TextWrapping="Wrap" TextAlignment="Center"
-                           FontSize="9" LineHeight="13" Margin="0,4,0,0"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           Text="刻度 0：用整圈有效距離的中位數當「平面」參考，不是螢幕左上角。"/>
-            </StackPanel>
+            <TextBlock Grid.Row="0" Grid.Column="0"
+                       Text="Z (mm)"
+                       VerticalAlignment="Center" HorizontalAlignment="Center"
+                       Margin="2,0,6,0"
+                       FontSize="11" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextSecondaryBrush}"/>
 
             <!-- 主繪圖區 -->
             <local:LidarScanRenderer x:Name="Renderer"
                                      Grid.Row="0" Grid.Column="1"
                                      ClipToBounds="True"/>
+
+            <Canvas x:Name="DragLayer"
+                    Grid.Row="0" Grid.Column="1"
+                    IsHitTestVisible="False">
+                <Rectangle x:Name="DragRect"
+                           Visibility="Collapsed"
+                           Stroke="#2563EB"
+                           StrokeThickness="1.6"
+                           StrokeDashArray="6 3"
+                           Fill="#332563EB"/>
+            </Canvas>
 
             <!-- 空狀態提示（疊在 Renderer 之上） -->
             <StackPanel x:Name="EmptyHint"
@@ -69,7 +67,7 @@
                            FontWeight="SemiBold"
                            HorizontalAlignment="Center"
                            Foreground="{StaticResource TextSecondaryBrush}"/>
-                <TextBlock Text="尚未取得資料 — 請按「開始掃描」"
+                <TextBlock Text="{Binding Hint, ElementName=Root}"
                            FontSize="{StaticResource FontSizeSmall}"
                            HorizontalAlignment="Center"
                            Margin="0,4,0,0"

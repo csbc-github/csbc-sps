@@ -14,7 +14,7 @@ public sealed class LineScanAngleIronDto
     /// <summary>尾端左邊角／右邊角／頂點。</summary>
     public CornerTripletDto TailFeatures { get; init; } = new();
 
-    /// <summary>寬度（由左右角點算出）。</summary>
+    /// <summary>該件全部點的 X 跨距 (mm)。</summary>
     public double Width { get; init; }
 
     /// <summary>高度（由頂點與角點高度差算出）。</summary>
@@ -25,4 +25,13 @@ public sealed class LineScanAngleIronDto
 
     /// <summary>右邊長度（頭端右角點至尾端右角點之三維距離）。</summary>
     public double RightLength { get; init; }
+
+    /// <summary>整支角鋼沿滾輪的長度 (mm)。</summary>
+    public double Length { get; init; }
+
+    /// <summary>左邊翼寬 (mm)。頭尾截面各自量完再平均。</summary>
+    public double LeftWidth { get; init; }
+
+    /// <summary>右邊翼寬 (mm)。頭尾截面各自量完再平均。</summary>
+    public double RightWidth { get; init; }
 }

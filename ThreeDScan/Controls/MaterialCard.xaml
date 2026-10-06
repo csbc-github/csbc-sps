@@ -43,23 +43,55 @@
                     </Style>
                 </Grid.Resources>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="108"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="左邊角點" Style="{StaticResource FieldLabel}"/>
-                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Item.LeftCorner}" Style="{StaticResource FieldValue}"/>
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="長度" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Item.Length, StringFormat={}{0:F1} mm}" Style="{StaticResource FieldValue}"/>
 
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="右邊角點" Style="{StaticResource FieldLabel}"/>
-                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Item.RightCorner}" Style="{StaticResource FieldValue}"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="寬度" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Item.Width, StringFormat={}{0:F1} mm}" Style="{StaticResource FieldValue}"/>
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="頂點" Style="{StaticResource FieldLabel}"/>
-                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Item.TopPoint}" Style="{StaticResource FieldValue}"/>
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="左邊寬度" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Item.LeftWidth, StringFormat={}{0:F1} mm}" Style="{StaticResource FieldValue}"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="右邊寬度" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Item.RightWidth, StringFormat={}{0:F1} mm}" Style="{StaticResource FieldValue}"/>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="高度" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Item.Height, StringFormat={}{0:F1} mm}" Style="{StaticResource FieldValue}"/>
+
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="頭端左" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Item.LeftCorner}" Style="{StaticResource FieldValue}"/>
+
+                <TextBlock Grid.Row="6" Grid.Column="0" Text="頭端右" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding Item.RightCorner}" Style="{StaticResource FieldValue}"/>
+
+                <TextBlock Grid.Row="7" Grid.Column="0" Text="頭端頂" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding Item.TopPoint}" Style="{StaticResource FieldValue}"/>
+
+                <TextBlock Grid.Row="8" Grid.Column="0" Text="尾端左" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding Item.TailLeft}" Style="{StaticResource FieldValue}"/>
+
+                <TextBlock Grid.Row="9" Grid.Column="0" Text="尾端右" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="9" Grid.Column="1" Text="{Binding Item.TailRight}" Style="{StaticResource FieldValue}"/>
+
+                <TextBlock Grid.Row="10" Grid.Column="0" Text="尾端頂" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="10" Grid.Column="1" Text="{Binding Item.TailTop}" Style="{StaticResource FieldValue}"/>
             </Grid>
         </StackPanel>
     </Border>

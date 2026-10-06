@@ -43,7 +43,6 @@ JSON 為 camelCase；`Content-Type: application/json`。改設定後須重啟 Ap
 |---|---|---|
 | POST | `/api/calibration/instrument` | 可測（TestMode） |
 | POST | `/api/calibration/roller` | 待補充 |
-| POST | `/api/scan/line` | 待補充 |
 | POST | `/api/scan/surface` | 可測（連掃描器） |
 | GET | `/api/scan/surface/{taskId}/attachments` | 可測 |
 | POST | `/api/scan/hole` | 待補充 |
@@ -164,11 +163,7 @@ Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`
 
 待補充。路由已掛，回 **501** `SYS_NYI`。
 
-### 2.3 POST `/api/scan/line`
-
-待補充。路由已掛，回 **501** `SYS_NYI`。
-
-### 2.4 POST `/api/scan/surface`
+### 2.3 POST `/api/scan/surface`
 
 公開點雲／GLB／ZIP／`headFeatures` = **相對座標 + `cameraPosition` + UC-01 補償 offset**（三軸都加）。`innerLeft`／`innerRight` 與公開點雲同一絕對框（測距儀機台座標）。沒有補償歷程時 offset 當 0，公開檔仍加 `cameraPosition`，回應 `compensationApplied: false`。
 
@@ -248,13 +243,13 @@ WPF 噴印「開始掃描」不經此 API，模型仍用假定 `MeshThickness`�
 | `SCAN_THK_002` | 未帶 innerLeft／innerRight，且資料庫沒有該 `jobId` 的噴印厚度 |
 | `SCAN_SDK_001` | 擷取或 Pipeline 失敗 |
 
-### 2.5 GET `/api/scan/surface/{taskId}/attachments`
+### 2.4 GET `/api/scan/surface/{taskId}/attachments`
 
 成功時 **直接下載 ZIP**（`Content-Type: application/zip`），內含 STEP／glTF／PNG／PLY／JSON；ZIP 內座標為公開絕對座標（相對 + cameraPosition + 補償）。**不是** `{ success, data }` 包裝。  
 失敗時仍為共通 JSON（400，`SCAN_001`）。
 
 `taskId` 用 2.4 回傳的值。單段為該次 ZIP；`final=true` 且多段時為拼接後的 ZIP。
 
-### 2.6 POST `/api/scan/hole`
+### 2.5 POST `/api/scan/hole`
 
 待補充。路由已掛，回 **501** `SYS_NYI`。

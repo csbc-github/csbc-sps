@@ -9,6 +9,8 @@ public sealed class DasTaskResultCache : IDasTaskResultCache
     private readonly ConcurrentDictionary<string, TaskResultData> _items =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private TaskResultData? _latestLine;
+
     /// <inheritdoc />
     public void Set(TaskResultData data)
     {
@@ -30,5 +32,35 @@ public sealed class DasTaskResultCache : IDasTaskResultCache
         }
 
         return _items.TryGetValue(taskId.Trim(), out data);
+    }
+
+    /// <inheritdoc />
+    public void Remove(string taskId)
+    {
+        if (string.IsNullOrWhiteSpace(taskId))
+        {
+            return;
+        }
+
+        _items.TryRemove(taskId.Trim(), out _);
+    }
+
+    /// <inheritdoc />
+    public void SetLatestLine(TaskResultData data)
+    {
+        Set(data);
+        if (data is null || string.IsNullOrWhiteSpace(data.TaskId))
+        {
+            return;
+        }
+
+        _latestLine = data;
+    }
+
+    /// <inheritdoc />
+    public bool TryGetLatestLine(out TaskResultData? data)
+    {
+        data = _latestLine;
+        return data is not null;
     }
 }

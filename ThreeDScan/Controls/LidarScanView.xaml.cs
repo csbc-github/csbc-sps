@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using LMX;
+using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Controls;
 
@@ -18,6 +19,23 @@ public partial class LidarScanView : UserControl
     {
         InitializeComponent();
         ApplyCalibrationToRenderer();
+    }
+
+    public static readonly DependencyProperty HintProperty = DependencyProperty.Register(
+        nameof(Hint), typeof(string), typeof(LidarScanView),
+        new PropertyMetadata("尚未取得資料"));
+
+    /// <summary>還沒有截面時，圖中央的說明。</summary>
+    public string Hint
+    {
+        get
+        {
+            return (string)GetValue(HintProperty);
+        }
+        set
+        {
+            SetValue(HintProperty, value);
+        }
     }
 
     public static readonly DependencyProperty FrameProperty = DependencyProperty.Register(
@@ -108,6 +126,65 @@ public partial class LidarScanView : UserControl
         SetValue(ZOffsetMmTextProperty, value);
     } }
 
+    public static readonly DependencyProperty IsSelectingRegionProperty = DependencyProperty.Register(
+        nameof(IsSelectingRegion), typeof(bool), typeof(LidarScanView),
+        new PropertyMetadata(false, OnSelectingChanged));
+
+    /// <summary>為 true 時，在剖面上拖曳可框選掃描範圍。</summary>
+    public bool IsSelectingRegion
+    {
+        get
+        {
+            return (bool)GetValue(IsSelectingRegionProperty);
+        }
+        set
+        {
+            SetValue(IsSelectingRegionProperty, value);
+        }
+    }
+
+    public static readonly DependencyProperty SensorRegionProperty = DependencyProperty.Register(
+        nameof(SensorRegion), typeof(LineScanRegion), typeof(LidarScanView),
+        new PropertyMetadata(null, OnSensorRegionChanged));
+
+    /// <summary>已套用的掃描器平面框。沒有框選時為 null。</summary>
+    public LineScanRegion? SensorRegion
+    {
+        get
+        {
+            return (LineScanRegion?)GetValue(SensorRegionProperty);
+        }
+        set
+        {
+            SetValue(SensorRegionProperty, value);
+        }
+    }
+
+    /// <summary>拖曳結束。範圍太小或落在圖外時參數為 null。</summary>
+    public event EventHandler<LineScanRegion?>? RegionChosen;
+
+    private Point? _dragStart;
+
+    private static void OnSelectingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is LidarScanView self)
+        {
+            self.Cursor = (bool)e.NewValue ? Cursors.Cross : null;
+            if (!(bool)e.NewValue)
+            {
+                self.CancelDrag();
+            }
+        }
+    }
+
+    private static void OnSensorRegionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is LidarScanView self)
+        {
+            self.Renderer.SensorRegion = e.NewValue as LineScanRegion;
+        }
+    }
+
     private static void OnCalibrationTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is LidarScanView self)
@@ -160,10 +237,30 @@ public partial class LidarScanView : UserControl
             self.Renderer.Materials = e.NewValue as IEnumerable;
     }
 
-    protected override void OnMouseMove(MouseEventArgs e)
+    protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
     {
-        base.OnMouseMove(e);
+        base.OnPreviewMouseLeftButtonDown(e);
+        if (!IsSelectingRegion)
+        {
+            return;
+        }
+
+        _dragStart = e.GetPosition(Renderer);
+        UpdateDragRect(_dragStart.Value, _dragStart.Value);
+        DragRect.Visibility = Visibility.Visible;
+        CaptureMouse();
+        e.Handled = true;
+    }
+
+    protected override void OnPreviewMouseMove(MouseEventArgs e)
+    {
+        base.OnPreviewMouseMove(e);
         var p = e.GetPosition(Renderer);
+        if (_dragStart is Point start && IsMouseCaptured)
+        {
+            UpdateDragRect(start, p);
+        }
+
         var data = Renderer.ScreenToData(p);
         if (data is { } d)
             ReadoutText.Text = $"X: {d.X,7:0.##} mm    Z: {d.Z,6:+0.##;-0.##;0}  mm";
@@ -171,9 +268,55 @@ public partial class LidarScanView : UserControl
             ReadoutText.Text = "X: —   Z: —   滑鼠移入顯示座標";
     }
 
+    protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseLeftButtonUp(e);
+        if (_dragStart is not Point start)
+        {
+            return;
+        }
+
+        var end = e.GetPosition(Renderer);
+        CancelDrag();
+        var region = Renderer.TryCreateSensorRegion(start, end);
+        RegionChosen?.Invoke(this, region);
+        e.Handled = true;
+    }
+
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
-        ReadoutText.Text = "X: —   Z: —   滑鼠移入顯示座標";
+        if (!IsMouseCaptured)
+        {
+            ReadoutText.Text = "X: —   Z: —   滑鼠移入顯示座標";
+        }
+    }
+
+    private void UpdateDragRect(Point start, Point end)
+    {
+        var layerStart = RendererToLayer(start);
+        var layerEnd = RendererToLayer(end);
+        var x = Math.Min(layerStart.X, layerEnd.X);
+        var y = Math.Min(layerStart.Y, layerEnd.Y);
+        Canvas.SetLeft(DragRect, x);
+        Canvas.SetTop(DragRect, y);
+        DragRect.Width = Math.Abs(layerEnd.X - layerStart.X);
+        DragRect.Height = Math.Abs(layerEnd.Y - layerStart.Y);
+    }
+
+    private Point RendererToLayer(Point rendererPoint)
+    {
+        var screen = Renderer.PointToScreen(rendererPoint);
+        return DragLayer.PointFromScreen(screen);
+    }
+
+    private void CancelDrag()
+    {
+        _dragStart = null;
+        DragRect.Visibility = Visibility.Collapsed;
+        if (IsMouseCaptured)
+        {
+            ReleaseMouseCapture();
+        }
     }
 }

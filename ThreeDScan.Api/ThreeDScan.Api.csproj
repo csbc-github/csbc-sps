@@ -20,7 +20,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="LineScan\*.py" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ThreeDScan.Application\ThreeDScan.Application.csproj" />
+    <ProjectReference Include="..\ThreeDScan.Domain\ThreeDScan.Domain.csproj" />
     <ProjectReference Include="..\ThreeDScan.Infrastructure\ThreeDScan.Infrastructure.csproj" />
   </ItemGroup>
 
