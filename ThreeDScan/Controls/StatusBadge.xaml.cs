@@ -73,7 +73,7 @@ public partial class StatusBadge : UserControl
                 fgKey = "InfoTextBrush";
                 break;
         }
-        if (Application.Current?.Resources[bgKey] is Brush bg) PART_Bd.Background = bg;
-        if (Application.Current?.Resources[fgKey] is Brush fg) PART_Text.Foreground = fg;
+        if (System.Windows.Application.Current?.Resources[bgKey] is Brush bg) PART_Bd.Background = bg;
+        if (System.Windows.Application.Current?.Resources[fgKey] is Brush fg) PART_Text.Foreground = fg;
     }
 }

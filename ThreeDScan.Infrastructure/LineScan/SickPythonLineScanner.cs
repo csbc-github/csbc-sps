@@ -378,12 +378,18 @@ public sealed class SickPythonLineScanner : ISickLineScanner
 
     private string RequireIpControl()
     {
-        if (string.IsNullOrWhiteSpace(_settings.IpControlRoot) || !Directory.Exists(_settings.IpControlRoot))
+        if (!string.IsNullOrWhiteSpace(_settings.IpControlRoot) && Directory.Exists(_settings.IpControlRoot))
         {
-            throw new InvalidOperationException("請在 LineScan:IpControlRoot 設定 IP_control 資料夾。");
+            return _settings.IpControlRoot;
         }
 
-        return _settings.IpControlRoot;
+        var bundled = Path.GetDirectoryName(ScriptPath());
+        if (!string.IsNullOrWhiteSpace(bundled) && Directory.Exists(bundled))
+        {
+            return bundled;
+        }
+
+        throw new InvalidOperationException("找不到線掃描 Python 模組（sick_lidar）。");
     }
 
     private static MeasuredPoint ToPoint(PointFile point)

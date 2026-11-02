@@ -40,6 +40,7 @@ public sealed class ScanAppService : IScanAppService
     private readonly ILineScanRegionStore _lineRegion;
     private readonly IRollerCalibrationRepository _rollerCalibration;
     private readonly LineScanSettings _lineScan;
+    private readonly IScanOrchestrator _orchestrator;
     private readonly ILogger<ScanAppService> _logger;
 
     /// <summary>
@@ -57,6 +58,7 @@ public sealed class ScanAppService : IScanAppService
     /// <param name="callback">完成後 POST 台船 callbackUrl。</param>
     /// <param name="scopeFactory">背景工作另開 scope，避免捕捉 Scoped 服務。</param>
     /// <param name="surfaceScan">正式面掃描是否改讀既有 ply。</param>
+    /// <param name="orchestrator">面／孔正式路徑。</param>
     /// <param name="logger">寫入呼叫紀錄失敗時記警告，掃描 API 仍回已組好的回應。</param>
     public ScanAppService(
         IScannerRegistry registry,
@@ -78,6 +80,7 @@ public sealed class ScanAppService : IScanAppService
         ILineScanRegionStore lineRegion,
         IRollerCalibrationRepository rollerCalibration,
         IOptions<LineScanSettings> lineScan,
+        IScanOrchestrator orchestrator,
         ILogger<ScanAppService> logger)
     {
         _registry = registry;
@@ -99,6 +102,7 @@ public sealed class ScanAppService : IScanAppService
         _lineRegion = lineRegion;
         _rollerCalibration = rollerCalibration;
         _lineScan = lineScan.Value ?? new LineScanSettings();
+        _orchestrator = orchestrator;
         _logger = logger;
     }
 
@@ -329,6 +333,7 @@ public sealed class ScanAppService : IScanAppService
     /// 皆無：依 jobId 讀 <c>JobThickness</c> 組模型。
     /// <c>final=true</c> 且本任務已有兩段以上時，沿 X 拼接後回傳合併點雲／ZIP。
     /// 每次呼叫（含失敗）追加一筆 <c>ScanCallLog</c>。
+    /// 正式 start／segment 已改走 Hank，此方法不再由指南路徑呼叫。
     /// </remarks>
     public async Task<ApiResponse<SurfaceScanData>> ScanSurfaceAsync(
         SurfaceScanRequest request,
@@ -625,133 +630,96 @@ public sealed class ScanAppService : IScanAppService
     /// <inheritdoc />
     public async Task<DasOperationResult<SurfaceScanStartData>> StartSurfaceScanAsync(
         SurfaceScanStartRequest request,
-        CancellationToken ct = default)
+        string traceId,
+        CancellationToken ct = default,
+        string? baseUrl = null)
     {
-        var mapped = new SurfaceScanRequest
+        try
         {
-            ScannerId = request.ScannerId,
-            JobId = request.JobId,
-            TaskId = null,
-            Final = false,
-            CameraPosition = ToCoordinate(request.CameraPosition),
-            InnerLeft = request.InnerLeft,
-            InnerRight = request.InnerRight,
-        };
-        var api = await ScanSurfaceAsync(mapped, ct).ConfigureAwait(false);
-        if (!api.Success || api.Data is null)
-        {
-            return ToDasFail<SurfaceScanStartData>(api);
+            var outcome = await _orchestrator.StartSurfaceAsync(
+                request.ScannerId,
+                request.JobId,
+                ToPose(request.CameraPosition),
+                request.NavigatorScanNo,
+                ToPoint(request.InnerLeft),
+                ToPoint(request.InnerRight),
+                request.MaterialThicknessMm,
+                request.Roi,
+                request.ComponentRank,
+                request.StitchMode,
+                request.NominalGapMm,
+                traceId,
+                baseUrl ?? "",
+                ct).ConfigureAwait(false);
+            var data = outcome.Response is { } json
+                ? json.Deserialize<SurfaceScanStartData>(JsonOptions) ?? new SurfaceScanStartData()
+                : new SurfaceScanStartData();
+            RememberProcessing(outcome.Document.TaskId, outcome.Document.TraceId);
+            return DasOperationResult<SurfaceScanStartData>.Ok(data);
         }
-
-        var data = api.Data;
-        RememberProcessing(data.TaskId, data.TraceId);
-        return DasOperationResult<SurfaceScanStartData>.Ok(new SurfaceScanStartData
+        catch (Exception ex)
         {
-            TaskId = data.TaskId,
-            PointCloudUrl = data.PointCloudUrl,
-            HeadFeatures = data.HeadFeatures ?? new CornerTripletDto(),
-            SegmentZDelta = data.SegmentZDelta,
-            ThicknessLeft = data.ThicknessLeft,
-            ThicknessRight = data.ThicknessRight,
-            TraceId = data.TraceId,
-        });
+            return ToTaskFail<SurfaceScanStartData>(ex);
+        }
     }
 
     /// <inheritdoc />
     public async Task<DasOperationResult<SurfaceScanSegmentData>> SegmentSurfaceScanAsync(
         SurfaceScanSegmentRequest request,
+        string traceId,
+        string? idempotencyKeyHeader,
         CancellationToken ct = default)
     {
-        if (!_taskService.TryGet(request.TaskId, out var task) || task is null)
+        try
         {
-            return DasOperationResult<SurfaceScanSegmentData>.Fail("SURF_001", "找不到對應的面掃描任務。");
-        }
+            var segmentKey = request.SegmentKey;
+            if (string.IsNullOrWhiteSpace(segmentKey))
+            {
+                segmentKey = idempotencyKeyHeader;
+            }
 
-        var mapped = new SurfaceScanRequest
-        {
-            ScannerId = task.ScannerId,
-            JobId = task.JobId,
-            TaskId = request.TaskId,
-            Final = false,
-            CameraPosition = ToCoordinate(request.CameraPosition),
-        };
-        var api = await ScanSurfaceAsync(mapped, ct).ConfigureAwait(false);
-        if (!api.Success || api.Data is null)
-        {
-            return ToDasFail<SurfaceScanSegmentData>(api);
+            var outcome = await _orchestrator.SegmentSurfaceAsync(
+                request.TaskId,
+                ToPose(request.CameraPosition),
+                request.NavigatorScanNo,
+                request.Roi,
+                request.ComponentRank,
+                segmentKey,
+                traceId,
+                ct).ConfigureAwait(false);
+            var data = outcome.Response is { } json
+                ? json.Deserialize<SurfaceScanSegmentData>(JsonOptions) ?? new SurfaceScanSegmentData()
+                : new SurfaceScanSegmentData();
+            RememberProcessing(outcome.Document.TaskId, outcome.Document.TraceId);
+            return DasOperationResult<SurfaceScanSegmentData>.Ok(data);
         }
-
-        var data = api.Data;
-        RememberProcessing(data.TaskId, data.TraceId);
-        return DasOperationResult<SurfaceScanSegmentData>.Ok(new SurfaceScanSegmentData
+        catch (Exception ex)
         {
-            PointCloudUrl = data.PointCloudUrl,
-            HeadFeatures = data.HeadFeatures ?? new CornerTripletDto(),
-            SegmentZDelta = data.SegmentZDelta,
-            TraceId = data.TraceId,
-        });
+            return ToTaskFail<SurfaceScanSegmentData>(ex);
+        }
     }
 
     /// <inheritdoc />
-    public Task<DasOperationResult<AsyncAcceptedData>> CompleteSurfaceScanAsync(
+    public async Task<DasOperationResult<AsyncAcceptedData>> CompleteSurfaceScanAsync(
         SurfaceScanCompleteRequest request,
+        string traceId,
         CancellationToken ct = default)
     {
-        _ = ct;
-        var taskId = request.TaskId.Trim();
-        if (!_taskService.TryGet(taskId, out var task) || task is null)
+        try
         {
-            return Task.FromResult(
-                DasOperationResult<AsyncAcceptedData>.Fail("SURF_001", "找不到對應的面掃描任務。"));
-        }
-
-        if (_taskResults.TryGet(taskId, out var stored) && stored is not null
-            && stored.Status == TaskResultData.StatusAborted)
-        {
-            return Task.FromResult(
-                DasOperationResult<AsyncAcceptedData>.Fail("SURF_001", "任務已結束，請勿再呼叫。"));
-        }
-
-        if (task.IsCompleted
-            && stored is not null
-            && stored.Status == TaskResultData.StatusCompleted)
-        {
-            var callbackUrlRepeat = request.CallbackUrl;
-            var scopeFactoryRepeat = _scopeFactory;
-            _workQueue.Enqueue(async (_, workCt) =>
+            var outcome = await _orchestrator.CompleteSurfaceAsync(request.TaskId, request.CallbackUrl, traceId, ct)
+                .ConfigureAwait(false);
+            RememberProcessing(outcome.Document.TaskId, outcome.Document.TraceId);
+            return DasOperationResult<AsyncAcceptedData>.Ok(new AsyncAcceptedData
             {
-                using var scope = scopeFactoryRepeat.CreateScope();
-                var scan = scope.ServiceProvider.GetRequiredService<IScanAppService>();
-                await scan.RunSurfaceCompleteJobAsync(taskId, callbackUrlRepeat, workCt).ConfigureAwait(false);
-            });
-            return Task.FromResult(DasOperationResult<AsyncAcceptedData>.Ok(new AsyncAcceptedData
-            {
-                TaskId = task.TaskId,
+                TaskId = outcome.Document.TaskId,
                 Status = AsyncAcceptedData.StatusProcessing,
-            }));
+            });
         }
-
-        if (task.IsCompleted)
+        catch (Exception ex)
         {
-            return Task.FromResult(
-                DasOperationResult<AsyncAcceptedData>.Fail("SURF_001", "任務已結束，請勿再呼叫。"));
+            return ToTaskFail<AsyncAcceptedData>(ex);
         }
-
-        RememberProcessing(task.TaskId, Guid.NewGuid().ToString("N"));
-        var callbackUrl = request.CallbackUrl;
-        var scopeFactory = _scopeFactory;
-        _workQueue.Enqueue(async (_, workCt) =>
-        {
-            using var scope = scopeFactory.CreateScope();
-            var scan = scope.ServiceProvider.GetRequiredService<IScanAppService>();
-            await scan.RunSurfaceCompleteJobAsync(taskId, callbackUrl, workCt).ConfigureAwait(false);
-        });
-
-        return Task.FromResult(DasOperationResult<AsyncAcceptedData>.Ok(new AsyncAcceptedData
-        {
-            TaskId = task.TaskId,
-            Status = AsyncAcceptedData.StatusProcessing,
-        }));
     }
 
     /// <inheritdoc />
@@ -797,41 +765,24 @@ public sealed class ScanAppService : IScanAppService
     }
 
     /// <inheritdoc />
-    public Task<DasOperationResult<ScanAbortData>> AbortSurfaceScanAsync(
+    public async Task<DasOperationResult<ScanAbortData>> AbortSurfaceScanAsync(
         SurfaceScanAbortRequest request,
         CancellationToken ct = default)
     {
-        _ = ct;
-        if (!_taskService.TryGet(request.TaskId, out var task) || task is null)
+        try
         {
-            return Task.FromResult(
-                DasOperationResult<ScanAbortData>.Fail("SURF_001", "找不到對應的面掃描任務。"));
+            var outcome = await _orchestrator.AbortAsync(request.TaskId, "Surface", ct).ConfigureAwait(false);
+            return DasOperationResult<ScanAbortData>.Ok(new ScanAbortData
+            {
+                TaskId = outcome.Document.TaskId,
+                Status = ScanAbortData.StatusAborted,
+                TraceId = outcome.Document.TraceId,
+            });
         }
-
-        if (task.IsCompleted)
+        catch (Exception ex)
         {
-            return Task.FromResult(
-                DasOperationResult<ScanAbortData>.Fail("SURF_001", "任務已結束，請勿再呼叫。"));
+            return ToTaskFail<ScanAbortData>(ex);
         }
-
-        var traceId = Guid.NewGuid().ToString("N");
-        task.IsCompleted = true;
-        task.UpdatedAt = DateTimeOffset.Now;
-        _taskService.Save(task);
-        _taskResults.Set(new TaskResultData
-        {
-            TaskId = task.TaskId,
-            Status = TaskResultData.StatusAborted,
-            Result = null,
-            Error = null,
-            TraceId = traceId,
-        });
-        return Task.FromResult(DasOperationResult<ScanAbortData>.Ok(new ScanAbortData
-        {
-            TaskId = task.TaskId,
-            Status = ScanAbortData.StatusAborted,
-            TraceId = traceId,
-        }));
     }
 
     /// <inheritdoc />
@@ -844,44 +795,30 @@ public sealed class ScanAppService : IScanAppService
     {
         var traceId = Guid.NewGuid().ToString("N");
         var requestJson = Serialize(new { taskId }) ?? "{}";
-
-        if (string.IsNullOrWhiteSpace(taskId))
+        try
         {
-            var missing = ApiResponse<SurfaceScanAttachmentFile>.Fail("SCAN_001", "taskId 必填。");
+            var artifact = await _orchestrator.GetAttachmentsAsync(taskId, ct).ConfigureAwait(false);
+            var file = new SurfaceScanAttachmentFile
+            {
+                ZipFullPath = artifact.Path,
+                DownloadFileName = artifact.DownloadName,
+            };
+            var ok = ApiResponse<SurfaceScanAttachmentFile>.Ok(file);
             await TryAppendScanLogAsync(
-                BuildAttachmentLog(traceId, null, requestJson, missing, null),
+                BuildAttachmentLog(traceId, taskId, requestJson, ok, artifact.Path),
                 ct).ConfigureAwait(false);
-            return missing;
+            return ok;
         }
-
-        if (!_taskService.TryGet(taskId.Trim(), out var task) || task is null)
+        catch (Exception ex)
         {
-            var notFound = ApiResponse<SurfaceScanAttachmentFile>.Fail("SCAN_001", "找不到對應的面掃描任務。");
+            var fail = ApiResponse<SurfaceScanAttachmentFile>.Fail(
+                ex is ScanTaskException scan ? scan.Code : "SCAN_001",
+                ex.Message);
             await TryAppendScanLogAsync(
-                BuildAttachmentLog(traceId, taskId, requestJson, notFound, null),
+                BuildAttachmentLog(traceId, taskId, requestJson, fail, null),
                 ct).ConfigureAwait(false);
-            return notFound;
+            return fail;
         }
-
-        if (string.IsNullOrWhiteSpace(task.ZipPath) || !File.Exists(task.ZipPath))
-        {
-            var noFile = ApiResponse<SurfaceScanAttachmentFile>.Fail("SCAN_001", "此任務尚無附加檔。");
-            await TryAppendScanLogAsync(
-                BuildAttachmentLog(traceId, task.TaskId, requestJson, noFile, null),
-                ct).ConfigureAwait(false);
-            return noFile;
-        }
-
-        var file = new SurfaceScanAttachmentFile
-        {
-            ZipFullPath = task.ZipPath,
-            DownloadFileName = Path.GetFileName(task.ZipPath),
-        };
-        var ok = ApiResponse<SurfaceScanAttachmentFile>.Ok(file);
-        await TryAppendScanLogAsync(
-            BuildAttachmentLog(traceId, task.TaskId, requestJson, ok, task.ZipPath),
-            ct).ConfigureAwait(false);
-        return ok;
     }
 
     /// <inheritdoc />
@@ -909,51 +846,49 @@ public sealed class ScanAppService : IScanAppService
     }
 
     /// <inheritdoc />
+    public async Task<DasOperationResult<AsyncAcceptedData>> StartHoleScanAsync(
+        HoleScanRequest request,
+        string baseUrl,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var outcome = await _orchestrator.StartHoleAsync(
+                request.ScannerId,
+                request.JobId,
+                request.CallbackUrl,
+                request.HoleType,
+                request.CameraPosition is null ? null : ToPose(request.CameraPosition),
+                request.Roi,
+                request.FeatureId,
+                request.NavigatorScanNo,
+                Guid.NewGuid().ToString("N"),
+                baseUrl,
+                ct).ConfigureAwait(false);
+            return DasOperationResult<AsyncAcceptedData>.Ok(new AsyncAcceptedData
+            {
+                TaskId = outcome.Document.TaskId,
+                Status = AsyncAcceptedData.StatusProcessing,
+            });
+        }
+        catch (Exception ex)
+        {
+            return ToTaskFail<AsyncAcceptedData>(ex);
+        }
+    }
+
+    /// <inheritdoc />
     public Task<DasOperationResult<TaskResultData>> GetTaskResultAsync(
         string taskId,
         CancellationToken ct = default)
     {
-        _ = ct;
         if (string.IsNullOrWhiteSpace(taskId))
         {
             return Task.FromResult(
-                DasOperationResult<TaskResultData>.Fail("SURF_001", "taskId 必填。"));
+                DasOperationResult<TaskResultData>.Fail("TASK_NOT_FOUND", "taskId 必填。"));
         }
 
-        if (_taskResults.TryGet(taskId, out var stored) && stored is not null)
-        {
-            return Task.FromResult(DasOperationResult<TaskResultData>.Ok(stored));
-        }
-
-        if (_taskService.TryGet(taskId, out var task) && task is not null)
-        {
-            if (task.IsCompleted && !string.IsNullOrWhiteSpace(task.PointCloudPath))
-            {
-                return Task.FromResult(DasOperationResult<TaskResultData>.Ok(new TaskResultData
-                {
-                    TaskId = task.TaskId,
-                    Status = TaskResultData.StatusCompleted,
-                    Result = new SurfaceScanCompleteResult
-                    {
-                        PointCloudUrl = ToScanFileUrl(task.PointCloudPath),
-                    },
-                    Error = null,
-                    TraceId = "",
-                }));
-            }
-
-            return Task.FromResult(DasOperationResult<TaskResultData>.Ok(new TaskResultData
-            {
-                TaskId = task.TaskId,
-                Status = TaskResultData.StatusProcessing,
-                Result = null,
-                Error = null,
-                TraceId = "",
-            }));
-        }
-
-        return Task.FromResult(
-            DasOperationResult<TaskResultData>.Fail("SURF_001", "找不到對應的任務。"));
+        return GetScanTaskResultAsync(taskId, ct);
     }
 
     /// <summary>
@@ -1789,4 +1724,93 @@ public sealed class ScanAppService : IScanAppService
             },
         };
     }
+
+    /// <summary>從任務表組 GET result；找不到依 kind 回錯誤碼。</summary>
+    private async Task<DasOperationResult<TaskResultData>> GetScanTaskResultAsync(string taskId, CancellationToken ct)
+    {
+        try
+        {
+            var doc = await _orchestrator.FindAsync(taskId, ct).ConfigureAwait(false);
+            if (doc is null)
+            {
+                if (_taskResults.TryGet(taskId, out var cached) && cached is not null)
+                {
+                    return DasOperationResult<TaskResultData>.Ok(cached);
+                }
+
+                return DasOperationResult<TaskResultData>.Fail("TASK_NOT_FOUND", "找不到對應的任務。");
+            }
+
+            object? result = null;
+            TaskErrorDto? error = null;
+            if (doc.Status == "Completed")
+            {
+                result = doc.Result;
+            }
+            else if (doc.Status == "Failed" && doc.Error is not null)
+            {
+                error = new TaskErrorDto { Code = doc.Error.Code, Message = doc.Error.Message };
+            }
+
+            return DasOperationResult<TaskResultData>.Ok(new TaskResultData
+            {
+                TaskId = doc.TaskId,
+                Status = doc.Status,
+                Result = result,
+                Error = error,
+                TraceId = doc.TraceId,
+            });
+        }
+        catch (Exception ex)
+        {
+            return ToTaskFail<TaskResultData>(ex);
+        }
+    }
+
+    /// <summary>任務例外轉指南失敗。</summary>
+    /// <remarks>對應 Hank Scan3D 的 ApiException 錯誤碼原樣回傳。</remarks>
+    private static DasOperationResult<T> ToTaskFail<T>(Exception ex)
+    {
+        if (ex is ScanTaskException scan)
+        {
+            if (scan.Code == "EDGE_NOTCH_UNVERIFIED" || scan.Code == SpecNotImplemented.ErrorCode)
+            {
+                return DasOperationResult<T>.Fail(scan.Code, scan.Message);
+            }
+
+            return DasOperationResult<T>.Fail(scan.Code, scan.Message);
+        }
+
+        return DasOperationResult<T>.Fail("SYS_INTERNAL", ex.Message);
+    }
+
+    /// <summary>DTO 轉 Pose5。</summary>
+    private static Pose5 ToPose(CameraPoseDto? pose)
+    {
+        if (pose is null)
+        {
+            throw new ScanTaskException(400, "INVALID_REQUEST", "cameraPosition 需提供有限的 x/y/z/a/c。");
+        }
+
+        return new Pose5
+        {
+            X = pose.X,
+            Y = pose.Y,
+            Z = pose.Z,
+            A = pose.A,
+            C = pose.C,
+        };
+    }
+
+    /// <summary>座標 DTO 轉 Point3。</summary>
+    private static Point3? ToPoint(CoordinateDto? p)
+    {
+        if (p is null)
+        {
+            return null;
+        }
+
+        return new Point3 { X = p.X, Y = p.Y, Z = p.Z };
+    }
+
 }

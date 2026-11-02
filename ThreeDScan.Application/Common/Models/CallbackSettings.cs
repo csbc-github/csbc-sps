@@ -14,4 +14,10 @@ public sealed class CallbackSettings
 
     /// <summary>單次 callback HTTP 逾時秒數（規格 CallbackTimeoutSec，預設 10）。</summary>
     public int TimeoutSec { get; set; } = 10;
+
+    /// <summary>Enabled 才由 ScanCallbackWorker 送出；PollingOnly 只供查詢。</summary>
+    public string Mode { get; set; } = "Enabled";
+
+    /// <summary>已廢止：允許主機改由 SystemConfig CallbackAllowedHosts（R02／R07）。保留屬性以相容舊設定檔。</summary>
+    public string[] AllowedHosts { get; set; } = Array.Empty<string>();
 }

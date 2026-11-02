@@ -11,4 +11,7 @@ public sealed class SurfaceScanSettings
 
     /// <summary>ply 檔絕對路徑；未設定為 null。</summary>
     public string? ExistingPlyPath { get; set; }
+
+    /// <summary>厚度算法。Hank（預設）或 Flange（舊 FlangeThicknessMeasurer）。</summary>
+    public string ThicknessEngine { get; set; } = "Hank";
 }

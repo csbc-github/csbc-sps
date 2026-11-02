@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Application.Scan.Models;
 
@@ -20,4 +21,17 @@ public sealed class HoleScanRequest
     /// <summary>結果回呼網址。</summary>
     [Required, StringLength(2048, MinimumLength = 1)]
     public string CallbackUrl { get; set; } = "";
+
+    /// <summary>規格 v1.1 未列，由 Hank 搬入。相機位姿；省略則結果為掃描器座標。</summary>
+    public CameraPoseDto? CameraPosition { get; set; }
+
+    /// <summary>規格 v1.1 未列，由 Hank 搬入。掃描器 ROI。</summary>
+    public ScannerRoi? Roi { get; set; }
+
+    /// <summary>規格 v1.1 未列，由 Hank 搬入。指定特徵。</summary>
+    public string? FeatureId { get; set; }
+
+    /// <summary>規格 v1.1 未列，由 Hank 搬入。拍攝群組 1～16。</summary>
+    [Range(1, 16)]
+    public int? NavigatorScanNo { get; set; }
 }

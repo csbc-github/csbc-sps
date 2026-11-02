@@ -721,7 +721,7 @@ public class SurfaceScanAreaViewModel : ViewModelBase
             return;
         }
 
-        var dispatcher = Application.Current?.Dispatcher;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is null)
         {
             LoadApiGlbPointer();
@@ -813,7 +813,7 @@ public class SurfaceScanAreaViewModel : ViewModelBase
             return;
         }
 
-        var dispatcher = Application.Current?.Dispatcher;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is null)
         {
             PointCloudVertices = verts;

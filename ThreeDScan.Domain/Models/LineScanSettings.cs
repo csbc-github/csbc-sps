@@ -9,7 +9,7 @@ public sealed class LineScanSettings
     /// <summary>用來執行工作程序的 Python 執行檔。</summary>
     public string PythonExe { get; set; } = "python";
 
-    /// <summary>既有 IP_control 資料夾。錄製時載入其中的 sick_lidar。</summary>
+    /// <summary>線掃描 Python 模組目錄。空白則用輸出目錄的 LineScan（含搬入的 sick_lidar）。</summary>
     public string IpControlRoot { get; set; } = "";
 
     /// <summary>橫向分件空隙，以及同一軌中間掃不到時沿滾輪的空檔 (mm)。</summary>

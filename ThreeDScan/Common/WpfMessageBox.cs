@@ -24,13 +24,13 @@ internal static class WpfMessageBox
     }
 
     /// <summary>
-    /// 顯示訊息框；若目前不在 UI 執行緒則透過 <see cref="Application.Dispatcher"/> 切換。
+    /// 顯示訊息框；若目前不在 UI 執行緒則透過 <see cref="System.Windows.Application.Dispatcher"/> 切換。
     /// </summary>
     public static void Show(string message, string title, MessageBoxImage icon)
     {
         if (string.IsNullOrWhiteSpace(message)) return;
 
-        var app = Application.Current;
+        var app = System.Windows.Application.Current;
         if (app?.Dispatcher is null)
         {
             MessageBox.Show(message, title, MessageBoxButton.OK, icon);

@@ -11,6 +11,9 @@ public sealed class InstrumentCalibrationComputeResult
     /// <summary>校正殘差 RMSE (mm)。</summary>
     public double Rmse { get; init; }
 
+    /// <summary>各球補償與平均補償之差的均方根 (mm)。</summary>
+    public double PositionResidualMm { get; init; }
+
     /// <summary>反推的掃描器實際絕對位置。</summary>
     public CoordinateDto ActualScannerPosition { get; init; } = new();
 

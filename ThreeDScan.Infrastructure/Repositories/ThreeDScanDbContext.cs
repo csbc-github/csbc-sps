@@ -93,6 +93,24 @@ public sealed class ThreeDScanDbContext : DbContext
         }
     }
 
+    /// <summary>掃描任務（一列一份 DocumentJson）。</summary>
+    public DbSet<ScanTaskEntity> ScanTasks
+    {
+        get
+        {
+            return Set<ScanTaskEntity>();
+        }
+    }
+
+    /// <summary>系統鍵值設定。</summary>
+    public DbSet<SystemConfigEntity> SystemConfigs
+    {
+        get
+        {
+            return Set<SystemConfigEntity>();
+        }
+    }
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -212,6 +230,30 @@ public sealed class ThreeDScanDbContext : DbContext
             e.HasIndex(x => new { x.JobId, x.Timestamp });
             e.HasIndex(x => new { x.Action, x.Timestamp });
             e.HasIndex(x => x.TaskId);
+        });
+
+        modelBuilder.Entity<ScanTaskEntity>(e =>
+        {
+            e.ToTable("ScanTask");
+            e.HasKey(x => x.TaskId);
+            e.Property(x => x.TaskId).HasMaxLength(100);
+            e.Property(x => x.Kind).HasMaxLength(30);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.Phase).HasMaxLength(40);
+            e.Property(x => x.ScannerId).HasMaxLength(50);
+            e.Property(x => x.JobId).HasMaxLength(64);
+            e.Property(x => x.CallbackUrl).HasMaxLength(1000);
+            e.Property(x => x.CallbackLastError).HasMaxLength(500);
+            e.HasIndex(x => new { x.Status, x.UpdatedAt });
+            e.HasIndex(x => new { x.Kind, x.Status });
+            e.HasIndex(x => x.CallbackNextAttemptAt);
+        });
+
+        modelBuilder.Entity<SystemConfigEntity>(e =>
+        {
+            e.ToTable("SystemConfig");
+            e.HasKey(x => x.ConfigKey);
+            e.Property(x => x.ConfigKey).HasMaxLength(100);
         });
     }
 }

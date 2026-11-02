@@ -332,6 +332,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
                 matchedBalls = computed.MatchedBalls,
                 scannerToFloorZ = computed.ScannerToFloorZ,
                 rmse = computed.Rmse,
+                positionResidualMm = computed.PositionResidualMm,
             }),
             TraceIdSeq1 = traceId,
         }, ct);
@@ -368,14 +369,20 @@ public sealed class CalibrationAppService : ICalibrationAppService
         CancellationToken ct)
     {
         var seq2 = frame.Computed!;
+        var seq1Compensation = new CompensationDto
+        {
+            OffsetX = seq1.ActualX - seq1.ExpectedX,
+            OffsetY = seq1.ActualY - seq1.ExpectedY,
+            OffsetZ = seq1.ScannerToFloorZ - seq1.ExpectedZ,
+        };
+        var seq1PositionResidual = ReadSeq1PositionResidual(seq1.FrameJson);
         var merged = InstrumentTwoShotMerge.Merge(
-            seq1.ScannerToFloorZ,
-            seq1.ActualX,
-            seq1.ActualY,
+            seq1Compensation,
             seq1.Rmse,
+            seq1PositionResidual,
             seq2,
             request.CameraExpectedPosition,
-            _calibrationSettings.ZDeviationThresholdMm);
+            InstrumentCalibrationService.RmseThresholdMm);
 
         var now = DateTimeOffset.Now;
         await _taskRepository.CompleteAsync(seq1.TaskId, ct);
@@ -384,7 +391,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         if (!merged.QualityOk)
         {
             var failMsg =
-                $"品質未通過（rmseXY={merged.RmseXY:F3}, zDeviation={merged.ZDeviation:F3}），未寫入補償。";
+                $"品質未通過（rmseXY={merged.RmseXY:F3}, zDeviation={merged.ZDeviation:F3}, positionResidual={merged.PositionResidualMm:F3}, xyOffsetDeviation={merged.XyOffsetDeviationMm:F3}），未寫入補償。";
             await PublishPreviewAsync(
                 request.ScannerId, traceId, false, frame.Balls, config, frame.Capture,
                 frame.PreviewGrayPath, frame.PreviewHeightPath,
@@ -1203,6 +1210,31 @@ public sealed class CalibrationAppService : ICalibrationAppService
             CalibratedAt = calibratedAt.ToString("o"),
             TraceId = traceId,
         });
+    }
+
+    /// <summary>從第一次拍攝 FrameJson 讀各球位置殘差；沒有則為 0。</summary>
+    /// <param name="frameJson">第一次拍攝存下的 JSON。</param>
+    /// <returns>位置殘差 (mm)。</returns>
+    private static double ReadSeq1PositionResidual(string? frameJson)
+    {
+        if (string.IsNullOrWhiteSpace(frameJson))
+        {
+            return 0;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(frameJson);
+            if (doc.RootElement.TryGetProperty("positionResidualMm", out var residual))
+            {
+                return residual.GetDouble();
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return 0;
     }
 
     /// <summary>依台船傳入 standardBalls 數量設定 SDK PatternMatch 偵測上限。</summary>

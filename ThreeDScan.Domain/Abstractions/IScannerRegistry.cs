@@ -22,4 +22,22 @@ public interface IScannerRegistry
 
     /// <summary>拍攝群組預覽／暫存子目錄（依 programNo）。</summary>
     string ResolveContentsFolder(string scannerId, byte programNo, string contentsRoot);
+
+    /// <summary>取得 appsettings 中該掃描器的座標轉換基底；未知 ScannerId 回傳 false。</summary>
+    bool TryGetCoordinateDefaults(string scannerId, out CoordinateTransformOptions coordinates);
+
+    /// <summary>取得 appsettings 中該掃描器的段抽取預設；未知 ScannerId 回傳 false。</summary>
+    bool TryGetProcessingDefaults(string scannerId, out SegmentProcessingOptions processing);
+
+    /// <summary>拼接網格格距（mm）；未知 ScannerId 或未設定時回傳 1.0。</summary>
+    double GetMeshCellMm(string scannerId);
+
+    /// <summary>工單未帶厚度時的預設板厚（mm）；未設定或未知 ScannerId 回傳 null。</summary>
+    double? GetDefaultMaterialThicknessMm(string scannerId);
+
+    /// <summary>孔洞分析預設 ROI；未設定或未知 ScannerId 回傳 false。</summary>
+    bool TryGetHoleRoi(string scannerId, out ScannerRoi? holeRoi);
+
+    /// <summary>孔洞掃描預設相機位姿；未設定或未知 ScannerId 回傳 false。</summary>
+    bool TryGetFixedCameraPosition(string scannerId, out Pose5? fixedCameraPosition);
 }

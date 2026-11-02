@@ -14,6 +14,15 @@ public static class ScanMonitorPaths
     /// <summary>割切區指標檔名。</summary>
     public const string CuttingGlbPointerFileName = "latest-glb-cutting.txt";
 
+    /// <summary>噴印區狀態檔名。</summary>
+    public const string StatusFileName = "latest-status.txt";
+
+    /// <summary>割切區狀態檔名。</summary>
+    public const string CuttingStatusFileName = "latest-status-cutting.txt";
+
+    /// <summary>孔洞邊界監看檔名。</summary>
+    public const string HoleBoundaryFileName = "latest-hole-boundary.json";
+
     /// <summary>最新 GLB 指標檔的絕對路徑（預設噴印區）。</summary>
     /// <param name="contentsRoot">appsettings Storage:ContentsRoot。</param>
     /// <returns>指標檔路徑；contentsRoot 空白時為空字串。</returns>
@@ -48,5 +57,34 @@ public static class ScanMonitorPaths
         }
 
         return GlbPointerFileName;
+    }
+
+    /// <summary>依產線區域取得狀態檔路徑。</summary>
+    /// <param name="contentsRoot">ContentsRoot。</param>
+    /// <param name="machineArea">printing 或 cutting。</param>
+    public static string StatusFile(string? contentsRoot, string? machineArea)
+    {
+        if (string.IsNullOrWhiteSpace(contentsRoot))
+        {
+            return "";
+        }
+
+        var name = !string.IsNullOrWhiteSpace(machineArea)
+            && string.Equals(machineArea.Trim(), "cutting", StringComparison.OrdinalIgnoreCase)
+            ? CuttingStatusFileName
+            : StatusFileName;
+        return Path.Combine(contentsRoot.Trim(), DirectoryName, name);
+    }
+
+    /// <summary>孔洞邊界監看檔路徑。</summary>
+    /// <param name="contentsRoot">ContentsRoot。</param>
+    public static string HoleBoundaryFile(string? contentsRoot)
+    {
+        if (string.IsNullOrWhiteSpace(contentsRoot))
+        {
+            return "";
+        }
+
+        return Path.Combine(contentsRoot.Trim(), DirectoryName, HoleBoundaryFileName);
     }
 }

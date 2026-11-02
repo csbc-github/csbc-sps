@@ -10,7 +10,8 @@ internal static class DasApiActionResult
     /// <summary>同步成功 200；尚未實作 501；其他失敗 400。</summary>
     public static IActionResult From<T>(DasOperationResult<T> result)
     {
-        if (result.IsNotImplemented)
+        if (result.IsNotImplemented
+            || string.Equals(result.Error?.Code, "EDGE_NOTCH_UNVERIFIED", StringComparison.Ordinal))
         {
             return new ObjectResult(ToErrorBody(result))
             {

@@ -27,7 +27,7 @@ public sealed class ScanStatusToForegroundConverter : IValueConverter
             }
         }
 
-        return Application.Current.Resources[key] as Brush ?? Brushes.Black;
+        return System.Windows.Application.Current.Resources[key] as Brush ?? Brushes.Black;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

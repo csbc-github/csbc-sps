@@ -384,7 +384,7 @@ public class FeedingViewModel : ViewModelBase
 
     private static async Task RunOnUiAsync(Action action)
     {
-        var dispatcher = Application.Current?.Dispatcher;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher == null || dispatcher.CheckAccess())
         {
             action();
@@ -444,7 +444,7 @@ public class FeedingViewModel : ViewModelBase
             }
 
             var json = await LineResultHttp.GetStringAsync(baseUrl.TrimEnd('/') + "/api/scan/line/live").ConfigureAwait(false);
-            var dispatcher = Application.Current?.Dispatcher;
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
             if (dispatcher == null || dispatcher.CheckAccess())
             {
                 ApplyLive(json);
@@ -456,7 +456,7 @@ public class FeedingViewModel : ViewModelBase
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
-            var dispatcher = Application.Current?.Dispatcher;
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
             if (dispatcher == null || dispatcher.CheckAccess())
             {
                 EnsureLocalLive();
@@ -558,7 +558,7 @@ public class FeedingViewModel : ViewModelBase
 
     private void OnLiveFrame(object? sender, LidarFrame frame)
     {
-        var dispatcher = Application.Current?.Dispatcher;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
         void Apply()
         {
             if (_live == null || _selectingRegion)
@@ -595,7 +595,7 @@ public class FeedingViewModel : ViewModelBase
 
     private void OnLiveStatus(object? sender, string message)
     {
-        var dispatcher = Application.Current?.Dispatcher;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
         void Apply()
         {
             if (_live == null)
@@ -777,7 +777,7 @@ public class FeedingViewModel : ViewModelBase
 
             var url = baseUrl.TrimEnd('/') + "/api/scan/line/latest";
             var json = await LineResultHttp.GetStringAsync(url).ConfigureAwait(false);
-            var dispatcher = Application.Current?.Dispatcher;
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
             if (dispatcher == null)
             {
                 ApplyLineResult(json);
@@ -789,7 +789,7 @@ public class FeedingViewModel : ViewModelBase
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
-            var dispatcher = Application.Current?.Dispatcher;
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
             if (dispatcher == null || dispatcher.CheckAccess())
             {
                 ShowLineResultOffline();

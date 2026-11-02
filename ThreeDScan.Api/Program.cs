@@ -25,7 +25,6 @@ builder.Services.AddCors(options =>
 builder.Services.AddThreeDScanAuthentication(builder.Configuration);
 builder.Services.Configure<CalibrationSettings>(builder.Configuration.GetSection("Calibration"));
 builder.Services.Configure<CallbackSettings>(builder.Configuration.GetSection(CallbackSettings.SectionName));
-builder.Services.Configure<WatchdogSettings>(builder.Configuration.GetSection(WatchdogSettings.SectionName));
 builder.Services.Configure<SurfaceScanSettings>(builder.Configuration.GetSection(SurfaceScanSettings.SectionName));
 builder.Services.Configure<LineScanSettings>(builder.Configuration.GetSection(LineScanSettings.SectionName));
 builder.Services.AddThreeDScanInfrastructure(builder.Configuration);
@@ -38,9 +37,13 @@ builder.Services.AddHttpClient("DasCallback")
         };
     });
 builder.Services.AddSingleton<IAcceptedWorkQueue, AcceptedWorkQueue>();
+builder.Services.AddSingleton<IScanWorkQueue, ScanWorkQueue>();
 builder.Services.AddSingleton<CallbackAccessTokenSource>();
 builder.Services.AddSingleton<ICallbackNotifier, CallbackNotifier>();
+builder.Services.AddScoped<IScanWorkExecutor, ScanWorkExecutor>();
 builder.Services.AddHostedService<AcceptedWorkHostedService>();
+builder.Services.AddHostedService<ScanWorkHostedService>();
+builder.Services.AddHostedService<ScanCallbackWorker>();
 builder.Services.AddHostedService<TaskWatchdogHostedService>();
 builder.Services.AddSingleton<InstrumentCalibrationService>();
 builder.Services.AddSingleton<IDasTaskResultCache, DasTaskResultCache>();
@@ -79,5 +82,8 @@ app.UseHttpsRedirection();
 app.UseThreeDScanAuthentication();
 // IdP：對應 Controllers／Hub；Enabled=true 時 RequireAuthorization
 app.MapThreeDScanAuthenticatedEndpoints();
+
+await SystemConfigBootstrap.InitializeAsync(app.Services).ConfigureAwait(false);
+await ScanTaskRecoveryBootstrap.RecoverAsync(app.Services).ConfigureAwait(false);
 
 app.Run();

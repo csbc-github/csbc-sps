@@ -20,6 +20,12 @@ public sealed class InstrumentTwoShotMergeResult
     /// <summary>XY 平面 RMSE (mm)。</summary>
     public double RmseXY { get; init; }
 
+    /// <summary>兩次拍攝各球位置殘差的較大值 (mm)。</summary>
+    public double PositionResidualMm { get; init; }
+
+    /// <summary>兩次 X、Y 補償差 (mm)。</summary>
+    public double XyOffsetDeviationMm { get; init; }
+
     /// <summary>品質是否通過門檻。</summary>
     public bool QualityOk { get; init; }
 }

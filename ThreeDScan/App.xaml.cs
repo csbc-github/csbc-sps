@@ -5,7 +5,7 @@ using ThreeDScan.Views;
 
 namespace ThreeDScan;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     /// <summary>
     /// 啟動入口：若 <c>Authentication:Enabled=true</c>，先取得 IdP Token 再開主視窗。

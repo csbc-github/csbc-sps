@@ -13,6 +13,7 @@ internal sealed class LineScanFrameAverager
     private readonly Dictionary<int, List<RayHit>> _rays = new();
 
     /// <summary>加入一圈。沒有點的圈也要算進分母。同一編號是同一條射線。</summary>
+    /// <remarks>來自 Hank IP_control 的 <c>PointMean</c>。</remarks>
     public void Add(IReadOnlyList<(int Index, double X, double Y)> points)
     {
         _frames++;
@@ -40,6 +41,7 @@ internal sealed class LineScanFrameAverager
     }
 
     /// <summary>輸出通過門檻的射線平均點。清空後可再收下一批。</summary>
+    /// <remarks>來自 Hank IP_control 的 <c>PointMean</c>。</remarks>
     public List<(double X, double Y)> Take()
     {
         var result = new List<(double X, double Y)>();

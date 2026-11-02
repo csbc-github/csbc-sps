@@ -27,7 +27,7 @@ public sealed class SystemStatusToLampBrushConverter : IValueConverter
             }
         }
 
-        return Application.Current.Resources[key] as Brush ?? Brushes.Gray;
+        return System.Windows.Application.Current.Resources[key] as Brush ?? Brushes.Gray;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

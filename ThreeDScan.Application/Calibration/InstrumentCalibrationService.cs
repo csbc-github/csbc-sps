@@ -14,8 +14,9 @@ public sealed class InstrumentCalibrationService
     public const double RmseThresholdMm = 1.0;
 
     /// <summary>
-    /// 執行儀器校正計算：配對 → 剛體變換 → 補償 offset。
+    /// 執行儀器校正計算：配對後依 Hank 取「已知 − 量測 − 預期」三軸平均。
     /// </summary>
+    /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Features.SphereCalibration</c>。</remarks>
     /// <param name="expectedPosition">掃描器預期絕對位置（台船傳入）。</param>
     /// <param name="standardBalls">標準球已知絕對座標；數量以台船傳入為準。</param>
     /// <param name="measuredBalls">掃描器量測到的球心（掃描器座標系）。</param>
@@ -26,37 +27,69 @@ public sealed class InstrumentCalibrationService
         IReadOnlyList<StandardBallDto> standardBalls,
         IReadOnlyList<MeasuredBall> measuredBalls)
     {
-        if (standardBalls.Count == 0)
-            throw new InstrumentCalibrationException("CAL_FEED_001", "未提供標準球已知座標。");
+        if (standardBalls.Count < 2)
+        {
+            throw new InstrumentCalibrationException("CAL_FEED_001", "儀器校正至少需要 2 顆標準球。");
+        }
 
         if (measuredBalls.Count < standardBalls.Count)
+        {
             throw new InstrumentCalibrationException(
                 "CAL_FEED_001",
                 $"標準球未偵測到或無法識別：需 {standardBalls.Count} 顆，僅量得 {measuredBalls.Count} 顆。");
+        }
 
         var pairs = PairBalls(standardBalls, measuredBalls);
-        var actualXY = EstimateScannerPositionXY(pairs);
         var rmse = ComputePairwiseDistanceRmse(pairs);
-        var perBallPairErrors = ComputePerBallMaxPairDistanceError(pairs);
-
         var expected = ToVec(expectedPosition);
-        var scannerToFloorZ = ComputeScannerToFloorZ(expectedPosition, pairs);
-        var offset = new Vec3(
-            actualXY.X - expected.X,
-            actualXY.Y - expected.Y,
-            scannerToFloorZ - expected.Z);
 
-        var matched = pairs.Select((p, i) => new MatchedBallDto
+        // Hank SphereCalibration：每顆「已知 − 量測 − 預期」再三軸平均。
+        var perBall = new List<Vec3>(pairs.Count);
+        var sumX = 0.0;
+        var sumY = 0.0;
+        var sumZ = 0.0;
+        foreach (var p in pairs)
         {
-            BallId = p.BallId,
-            MeasuredX = p.Measured.X,
-            MeasuredY = p.Measured.Y,
-            MeasuredZ = p.Measured.Z,
-            KnownX = p.Known.X,
-            KnownY = p.Known.Y,
-            KnownZ = p.Known.Z,
-            ResidualMm = perBallPairErrors[i],
-        }).ToList();
+            var ox = p.Known.X - p.Measured.X - expected.X;
+            var oy = p.Known.Y - p.Measured.Y - expected.Y;
+            var oz = p.Known.Z - p.Measured.Z - expected.Z;
+            perBall.Add(new Vec3(ox, oy, oz));
+            sumX += ox;
+            sumY += oy;
+            sumZ += oz;
+        }
+
+        var offset = new Vec3(sumX / pairs.Count, sumY / pairs.Count, sumZ / pairs.Count);
+        var residualSq = 0.0;
+        var matched = new List<MatchedBallDto>(pairs.Count);
+        for (var i = 0; i < pairs.Count; i++)
+        {
+            var p = pairs[i];
+            var dx = perBall[i].X - offset.X;
+            var dy = perBall[i].Y - offset.Y;
+            var dz = perBall[i].Z - offset.Z;
+            var ballResidual = Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
+            residualSq += ballResidual * ballResidual;
+            matched.Add(new MatchedBallDto
+            {
+                BallId = p.BallId,
+                MeasuredX = p.Measured.X,
+                MeasuredY = p.Measured.Y,
+                MeasuredZ = p.Measured.Z,
+                KnownX = p.Known.X,
+                KnownY = p.Known.Y,
+                KnownZ = p.Known.Z,
+                ResidualMm = ballResidual,
+            });
+        }
+
+        var positionResidual = Math.Sqrt(residualSq / pairs.Count);
+        var actual = new CoordinateDto
+        {
+            X = expected.X + offset.X,
+            Y = expected.Y + offset.Y,
+            Z = expected.Z + offset.Z,
+        };
 
         return new InstrumentCalibrationComputeResult
         {
@@ -67,13 +100,9 @@ public sealed class InstrumentCalibrationService
                 OffsetZ = offset.Z,
             },
             Rmse = rmse,
-            ActualScannerPosition = new CoordinateDto
-            {
-                X = actualXY.X,
-                Y = actualXY.Y,
-                Z = scannerToFloorZ,
-            },
-            ScannerToFloorZ = scannerToFloorZ,
+            PositionResidualMm = positionResidual,
+            ActualScannerPosition = actual,
+            ScannerToFloorZ = actual.Z,
             MatchedBalls = matched,
         };
     }

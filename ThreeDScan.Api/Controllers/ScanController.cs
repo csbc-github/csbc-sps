@@ -86,27 +86,27 @@ public sealed class ScanController : ControllerBase
         return DasApiActionResult.From(result);
     }
 
-    /// <summary>面掃描。</summary>
-    [HttpPost("surface")]
-    public async Task<IActionResult> ScanSurface([FromBody] SurfaceScanRequest request, CancellationToken ct)
-    {
-        var result = await _scan.ScanSurfaceAsync(request, ct);
-        return SpecApiActionResult.From(result);
-    }
-
-    /// <summary>略過掃描器擷取，用既有 raw_scene.ply 跑與面掃描相同的後續處理。</summary>
-    [HttpPost("surface-from-file")]
-    public async Task<IActionResult> ScanSurfaceFromFile([FromBody] SurfaceFromFileRequest request, CancellationToken ct)
-    {
-        var result = await _scan.ScanSurfaceFromFileAsync(request, ct);
-        return SpecApiActionResult.From(result);
-    }
+    // 舊入口已退場：正式路徑請用 surface/start、surface/segment。
+    // [HttpPost("surface")]
+    // public async Task<IActionResult> ScanSurface([FromBody] SurfaceScanRequest request, CancellationToken ct)
+    // {
+    //     var result = await _scan.ScanSurfaceAsync(request, ct);
+    //     return SpecApiActionResult.From(result);
+    // }
+    //
+    // [HttpPost("surface-from-file")]
+    // public async Task<IActionResult> ScanSurfaceFromFile([FromBody] SurfaceFromFileRequest request, CancellationToken ct)
+    // {
+    //     var result = await _scan.ScanSurfaceFromFileAsync(request, ct);
+    //     return SpecApiActionResult.From(result);
+    // }
 
     /// <summary>開始面掃描第一段（指南 v1.1）。</summary>
     [HttpPost("surface/start")]
     public async Task<IActionResult> StartSurfaceScan([FromBody] SurfaceScanStartRequest request, CancellationToken ct)
     {
-        var result = await _scan.StartSurfaceScanAsync(request, ct);
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var result = await _scan.StartSurfaceScanAsync(request, HttpContext.TraceIdentifier, ct, baseUrl);
         return DasApiActionResult.From(result);
     }
 
@@ -114,7 +114,8 @@ public sealed class ScanController : ControllerBase
     [HttpPost("surface/segment")]
     public async Task<IActionResult> SegmentSurfaceScan([FromBody] SurfaceScanSegmentRequest request, CancellationToken ct)
     {
-        var result = await _scan.SegmentSurfaceScanAsync(request, ct);
+        var idempotencyKey = Request.Headers["Idempotency-Key"].FirstOrDefault();
+        var result = await _scan.SegmentSurfaceScanAsync(request, HttpContext.TraceIdentifier, idempotencyKey, ct);
         return DasApiActionResult.From(result);
     }
 
@@ -124,7 +125,7 @@ public sealed class ScanController : ControllerBase
         [FromBody] SurfaceScanCompleteRequest request,
         CancellationToken ct)
     {
-        var result = await _scan.CompleteSurfaceScanAsync(request, ct);
+        var result = await _scan.CompleteSurfaceScanAsync(request, HttpContext.TraceIdentifier, ct);
         return DasApiActionResult.Accepted(result);
     }
 
@@ -149,11 +150,12 @@ public sealed class ScanController : ControllerBase
         return PhysicalFile(result.Data.ZipFullPath, "application/zip", result.Data.DownloadFileName);
     }
 
-    /// <summary>研磨區孔洞掃描，回傳孔洞邊界座標。</summary>
+    /// <summary>孔洞／邊緣掃描（指南 v1.1）。立即 202。</summary>
     [HttpPost("hole")]
     public async Task<IActionResult> ScanHole([FromBody] HoleScanRequest request, CancellationToken ct)
     {
-        var result = await _scan.ScanHoleAsync(request, ct);
-        return SpecApiActionResult.From(result);
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var result = await _scan.StartHoleScanAsync(request, baseUrl, ct);
+        return DasApiActionResult.Accepted(result);
     }
 }

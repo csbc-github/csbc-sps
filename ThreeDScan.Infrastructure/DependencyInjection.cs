@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using ThreeDScan.Application.Common;
+using ThreeDScan.Application.Scan;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Infrastructure.Configuration;
@@ -10,6 +12,7 @@ using ThreeDScan.Infrastructure.Export;
 using ThreeDScan.Infrastructure.LineScan;
 using ThreeDScan.Infrastructure.Measure;
 using ThreeDScan.Infrastructure.Repositories;
+using ThreeDScan.Infrastructure.Scan;
 using ThreeDScan.Infrastructure.Scanners;
 
 namespace ThreeDScan.Infrastructure;
@@ -24,6 +27,8 @@ public static class DependencyInjection
     {
         services.Configure<ScannerRegistryOptions>(configuration.GetSection("Scanners"));
         services.Configure<LineScannerRegistryOptions>(configuration.GetSection("LineScanners"));
+        services.Configure<SurfaceScanOrchestratorOptions>(
+            configuration.GetSection(SurfaceScanOrchestratorOptions.SectionName));
         services.AddSingleton<IOptions<LjCalibrationParameters>>(
             _ => Options.Create(new LjCalibrationParameters()));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
@@ -44,6 +49,8 @@ public static class DependencyInjection
         services.AddDbContext<ThreeDScanDbContext>(options =>
             options.UseSqlServer(connectionString));
 
+        services.AddSingleton<SystemRuntimeConfig>();
+        services.AddSingleton<ISystemRuntimeConfig>(sp => sp.GetRequiredService<SystemRuntimeConfig>());
         services.AddSingleton<IScannerRegistry, ScannerRegistry>();
         services.AddSingleton<IScannerCaptureFactory, ScannerCaptureFactory>();
         services.AddSingleton<ILjSphereMeasureService, LjDeveloperMeasureService>();
@@ -57,6 +64,12 @@ public static class DependencyInjection
         services.AddScoped<IJobThicknessRepository, JobThicknessRepository>();
         services.AddScoped<IScanCallLogRepository, ScanCallLogRepository>();
         services.AddScoped<IRollerCalibrationRepository, RollerCalibrationRepository>();
+        services.AddSingleton<ScanTaskGate>();
+        services.AddSingleton<IDeviceCoordinator, DeviceCoordinator>();
+        services.AddScoped<IScanTaskRepository, ScanTaskRepository>();
+        services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
+        services.AddScoped<IScanOrchestrator, ScanOrchestrator>();
+        services.AddSingleton<IHoleBoundaryReader, HoleBoundaryReader>();
 
         return services;
     }

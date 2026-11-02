@@ -49,35 +49,52 @@ public interface IScanAppService
         CancellationToken ct = default);
 
     /// <summary>指南 POST /api/scan/surface/start。</summary>
+    /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Service.ScanOrchestrator</c>。</remarks>
     Task<DasOperationResult<SurfaceScanStartData>> StartSurfaceScanAsync(
         SurfaceScanStartRequest request,
-        CancellationToken ct = default);
+        string traceId,
+        CancellationToken ct = default,
+        string? baseUrl = null);
 
     /// <summary>指南 POST /api/scan/surface/segment。</summary>
+    /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Service.ScanOrchestrator</c>。</remarks>
     Task<DasOperationResult<SurfaceScanSegmentData>> SegmentSurfaceScanAsync(
         SurfaceScanSegmentRequest request,
+        string traceId,
+        string? idempotencyKeyHeader,
         CancellationToken ct = default);
 
     /// <summary>指南 POST /api/scan/surface/complete。</summary>
+    /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Service.ScanOrchestrator</c>。</remarks>
     Task<DasOperationResult<AsyncAcceptedData>> CompleteSurfaceScanAsync(
         SurfaceScanCompleteRequest request,
+        string traceId,
         CancellationToken ct = default);
 
     /// <summary>背景拼接、寫結果並 POST callback。</summary>
     Task RunSurfaceCompleteJobAsync(string taskId, string callbackUrl, CancellationToken ct = default);
 
     /// <summary>指南 POST /api/scan/surface/abort。</summary>
+    /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Service.ScanOrchestrator</c>。</remarks>
     Task<DasOperationResult<ScanAbortData>> AbortSurfaceScanAsync(
         SurfaceScanAbortRequest request,
         CancellationToken ct = default);
 
     /// <summary>下載面掃描附加檔（ZIP：STEP／glTF／PNG）。</summary>
+    /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Service.ArtifactService</c>。</remarks>
     Task<ApiResponse<SurfaceScanAttachmentFile>> GetSurfaceAttachmentsAsync(
         string taskId,
         CancellationToken ct = default);
 
-    /// <summary>研磨區孔洞掃描，回傳孔洞邊界座標。</summary>
+    /// <summary>研磨區孔洞掃描（舊同步契約；正式路徑請用 <see cref="StartHoleScanAsync"/>）。</summary>
     Task<ApiResponse<HoleScanData>> ScanHoleAsync(HoleScanRequest request, CancellationToken ct = default);
+
+    /// <summary>指南 POST /api/scan/hole。立即 202。</summary>
+    /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Service.ScanOrchestrator</c>。</remarks>
+    Task<DasOperationResult<AsyncAcceptedData>> StartHoleScanAsync(
+        HoleScanRequest request,
+        string baseUrl,
+        CancellationToken ct = default);
 
     /// <summary>指南 GET /api/tasks/{taskId}/result。</summary>
     Task<DasOperationResult<TaskResultData>> GetTaskResultAsync(

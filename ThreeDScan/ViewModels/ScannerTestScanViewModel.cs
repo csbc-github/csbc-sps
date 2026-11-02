@@ -235,7 +235,7 @@ public sealed class ScannerTestScanViewModel : ViewModelBase
 
             StatusText = $"掃描完成 · {ScanTargetLabel}\n{result.HeightImagePath}";
 
-            Application.Current.Dispatcher.Invoke(() =>
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 CapturePreviewReady?.Invoke(this, new ScannerCapturePreviewEventArgs
                 {
                     HeightImagePath = result.HeightImagePath,
