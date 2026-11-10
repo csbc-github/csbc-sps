@@ -36,23 +36,15 @@
                     </StackPanel>
                 </DockPanel>
 
-                <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="10,8"
-                        Background="{StaticResource SurfaceBrush}"
-                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="10" Height="10"
-                                     Fill="{Binding OverallStatus, Converter={StaticResource LampBrushConv}}"
-                                     Margin="0,0,8,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding ScanStatusText}"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                        </StackPanel>
+                <controls:AreaConnectionStatusBar DockPanel.Dock="Top" Margin="0,0,0,8"
+                                                  ConnectionLamp="{Binding ConnectionLamp}"
+                                                  ConnectionStatusText="{Binding ConnectionStatusText}">
+                    <controls:AreaConnectionStatusBar.DetailContent>
                         <TextBlock Text="{Binding LastPlyPath}"
-                                   Margin="18,4,0,0"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
-                </Border>
+                    </controls:AreaConnectionStatusBar.DetailContent>
+                </controls:AreaConnectionStatusBar>
 
                 <Grid>
                     <Grid Visibility="{Binding Is2DMode, Converter={StaticResource BoolToVis}}">

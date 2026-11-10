@@ -1,3 +1,5 @@
+// v1 legacy：未註冊 DI，保留原始碼供對照。
+#if false
 using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Domain.Abstractions;
@@ -11,3 +13,4 @@ public interface ILineScanRegionStore
     /// <summary>寫入框選。傳 null 表示清除。</summary>
     void Save(LineScanRegion? region);
 }
+#endif

@@ -37,10 +37,19 @@ public static class DependencyInjection
         services.AddSingleton<ISurfaceScanPipeline, RawPlyScanPipeline>();
         services.AddSingleton<ISurfaceScanTaskService, SurfaceScanTaskService>();
         services.AddSingleton<ILineScannerRegistry, LineScannerRegistry>();
-        services.AddSingleton<ILineScanTaskService, LineScanTaskService>();
-        services.AddSingleton<ILineScanRegionStore, LineScanRegionStore>();
-        services.AddSingleton<ISickLineScanner, SickPythonLineScanner>();
-        services.AddSingleton<ICSharpLineMeasure, CSharpLineMeasureService>();
+        // v1 legacy：ExportRoot/line-tasks；v2 線掃描任務改 IScanTaskRepository（tasks/{id}/）
+        // services.AddSingleton<ILineScanTaskService, LineScanTaskService>();
+        // v1 legacy：ExportRoot/line-roi.json；v2 ROI 改 LineScannerSettingsRepository
+        // services.AddSingleton<ILineScanRegionStore, LineScanRegionStore>();
+        services.AddSingleton<LineScanOptionsResolver>();
+        services.AddSingleton<LineScanDeviceHost>();
+        services.AddSingleton<ILineScanDeviceFacade, LineScanDeviceFacade>();
+        services.AddSingleton<LineScanMeasureService>();
+        services.AddScoped<ILineScannerSettingsRepository, LineScannerSettingsRepository>();
+        // services.AddSingleton<ISickLineScanner, SickPythonLineScanner>();
+        services.AddSingleton<ISickLineScanner, SickCSharpLineScanner>();
+        // v1 legacy：session/frames.jsonl；v2 量測改 LineScanMeasureService（line_raw_3d.ply）
+        // services.AddSingleton<ICSharpLineMeasure, CSharpLineMeasureService>();
 
         var connectionString = configuration.GetConnectionString("ThreeDScan")
             ?? configuration.GetConnectionString("DefaultConnection")

@@ -35,6 +35,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
     private readonly IRollerCalibrationRepository _rollerCalibration;
     private readonly ISickLineScanner _lineScanner;
     private readonly LineScanSettings _lineScan;
+    private readonly ILineScannerSettingsRepository _lineScannerSettings;
 
     /// <summary>建立校正應用服務（依賴注入）。</summary>
     public CalibrationAppService(
@@ -57,6 +58,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         IRollerCalibrationRepository rollerCalibration,
         ISickLineScanner lineScanner,
         IOptions<LineScanSettings> lineScan,
+        ILineScannerSettingsRepository lineScannerSettings,
         InstrumentCalibrationService? instrumentCalibration = null)
     {
         _registry = registry;
@@ -78,6 +80,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
         _rollerCalibration = rollerCalibration;
         _lineScanner = lineScanner;
         _lineScan = lineScan.Value ?? new LineScanSettings();
+        _lineScannerSettings = lineScannerSettings;
         _instrumentCalibration = instrumentCalibration ?? new InstrumentCalibrationService();
     }
 
@@ -1174,10 +1177,25 @@ public sealed class CalibrationAppService : ICalibrationAppService
             return ApiResponse<RollerCalibrationData>.Fail("CAL_SYS_001", "線掃描埠無效。");
         }
 
+        var scannerId = request.ScannerId.Trim();
+        var desktop = await _lineScannerSettings.GetAsync(scannerId, ct).ConfigureAwait(false);
+        if (desktop is null || !desktop.HasCalibration)
+        {
+            return ApiResponse<RollerCalibrationData>.Fail(
+                "CAL_CFG_001",
+                "請先設定桌面校正的 calibrationFirst 與 calibrationSecond。");
+        }
+
+        var tolerance = endpoint.RollerClearanceToleranceMm;
+        if (!double.IsFinite(tolerance) || tolerance <= 0)
+        {
+            return ApiResponse<RollerCalibrationData>.Fail("CAL_CFG_001", "滾輪清空容許值設定無效。");
+        }
+
         var sample = await _lineScanner.SampleRollerAsync(
             endpoint.Ip,
             endpoint.Port,
-            _lineScan.RollerFlatnessToleranceMm,
+            tolerance,
             _lineScan.RollerRangeDeviationMm,
             _lineScan.CalibrationFrames,
             ct).ConfigureAwait(false);
@@ -1194,11 +1212,8 @@ public sealed class CalibrationAppService : ICalibrationAppService
         await _rollerCalibration.SaveAsync(
             new RollerBaselineRecord
             {
-                ScannerId = request.ScannerId.Trim(),
+                ScannerId = scannerId,
                 ZDistance = sample.ZDistance,
-                LineA = sample.LineA,
-                LineB = sample.LineB,
-                LineC = sample.LineC,
                 CalibratedAt = calibratedAt,
                 TraceId = traceId,
             },

@@ -1,3 +1,5 @@
+// v1 legacy：未註冊 DI，保留原始碼供對照。
+#if false
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
@@ -225,9 +227,10 @@ public sealed class SickPythonLineScanner : ISickLineScanner
             baselinePath,
             JsonSerializer.Serialize(new
             {
-                lineA = baseline.LineA,
-                lineB = baseline.LineB,
-                lineC = baseline.LineC,
+                lineA = 0.0,
+                lineB = 1.0,
+                lineC = -baseline.ZDistance,
+                zDistance = baseline.ZDistance,
             }, JsonOptions),
             ct).ConfigureAwait(false);
         var culture = System.Globalization.CultureInfo.InvariantCulture;
@@ -485,3 +488,4 @@ public sealed class SickPythonLineScanner : ISickLineScanner
         public double Z { get; set; }
     }
 }
+#endif

@@ -83,20 +83,25 @@ public sealed class TaskWatchdogHostedService : BackgroundService
                 ct).ConfigureAwait(false);
         }
 
-        var lineTasks = scope.ServiceProvider.GetRequiredService<ILineScanTaskService>();
-        foreach (var task in lineTasks.ListIncomplete())
+        var scanTasks = scope.ServiceProvider.GetRequiredService<IScanTaskRepository>();
+        foreach (var taskId in await scanTasks.NonTerminalTaskIdsAsync(ct).ConfigureAwait(false))
         {
-            var started = task.StartedAt == default ? task.UpdatedAt : task.StartedAt;
+            var lineDoc = await scanTasks.FindAsync(taskId, ct).ConfigureAwait(false);
+            if (lineDoc is null || lineDoc.Kind != "Line" || lineDoc.Terminal)
+            {
+                continue;
+            }
+
+            var started = lineDoc.CreatedAt;
             if (started > cutoff)
             {
                 continue;
             }
 
-            _logger.LogInformation("Watchdog 中斷線掃描 taskId={TaskId}。", task.TaskId);
-            await scan.ExpireLineScanAsync(task.TaskId, ct).ConfigureAwait(false);
+            _logger.LogInformation("Watchdog 中斷線掃描 taskId={TaskId}。", taskId);
+            await scan.ExpireLineScanAsync(taskId, ct).ConfigureAwait(false);
         }
 
-        var scanTasks = scope.ServiceProvider.GetRequiredService<IScanTaskRepository>();
         var workQueue = scope.ServiceProvider.GetRequiredService<IScanWorkQueue>();
         var workExecutor = scope.ServiceProvider.GetRequiredService<IScanWorkExecutor>();
         var scanTaskIds = await scanTasks.TaskIdsAsync(ct).ConfigureAwait(false);

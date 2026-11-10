@@ -37,38 +37,91 @@ public sealed class ScanController : ControllerBase
 
     /// <summary>進行中的錄製與最新截面，供進料區左側即時圖。</summary>
     [HttpGet("line/live")]
-    public IActionResult GetLiveFrame()
+    public async Task<IActionResult> GetLiveFrame(CancellationToken ct)
     {
-        return Ok(_scan.GetLiveFrame());
+        return Ok(await _scan.GetLiveFrameAsync(ct).ConfigureAwait(false));
     }
 
-    /// <summary>設定進料區框選。後續 C# 量測只保留掃描器平面上框內的點。</summary>
+    /// <summary>開始架設長連預覽（O8）。</summary>
+    [HttpPost("line/setup/start")]
+    public async Task<IActionResult> StartLineSetup([FromBody] LineScanSetupRequest request, CancellationToken ct)
+    {
+        var result = await _scan.StartLineSetupPreviewAsync(request, ct).ConfigureAwait(false);
+        return DasApiActionResult.From(result);
+    }
+
+    /// <summary>結束架設預覽。</summary>
+    [HttpPost("line/setup/stop")]
+    public async Task<IActionResult> StopLineSetup([FromBody] LineScanSetupRequest request, CancellationToken ct)
+    {
+        var result = await _scan.StopLineSetupPreviewAsync(request, ct).ConfigureAwait(false);
+        return DasApiActionResult.From(result);
+    }
+
+    /// <summary>凍結完整 XY 輪廓（Hank 擴充）。</summary>
+    [HttpPost("profile")]
+    public async Task<IActionResult> CaptureProfile([FromBody] LineScanProfileRequest request, CancellationToken ct)
+    {
+        var result = await _scan.CaptureLineProfileAsync(request, ct).ConfigureAwait(false);
+        if (result.Error != null)
+        {
+            return DasApiActionResult.From(result);
+        }
+
+        var body = result.Data!;
+        return Ok(new
+        {
+            scannerId = body.ScannerId,
+            points = body.X.Zip(body.Y, (x, y) => new { x, y }),
+            capturedAt = body.CapturedAt,
+            units = body.Units,
+            coordinateFrame = body.CoordinateFrame,
+            averageScans = body.AverageScans,
+            traceId = body.TraceId,
+            encoders = body.Encoders.Select(e => new { position = e.Position, reserved = e.Reserved }),
+        });
+    }
+
+    /// <summary>已廢止；請改用 POST /api/scanners/{scannerId}/roi。</summary>
     [HttpPut("line/region")]
     public IActionResult SetLineRegion([FromBody] LineScanRegion region)
     {
-        _scan.SetLineRegion(region);
-        return Ok();
+        return BadRequest(new
+        {
+            error = new
+            {
+                code = "DEPRECATED",
+                message = "line/region 已廢止，請改用 POST /api/scanners/{scannerId}/roi。",
+            },
+        });
     }
 
-    /// <summary>清除進料區框選，之後量測使用全部點。</summary>
+    /// <summary>已廢止；請改用 POST /api/scanners/{scannerId}/roi（bounds 為 null 清除）。</summary>
     [HttpDelete("line/region")]
     public IActionResult ClearLineRegion()
     {
-        _scan.SetLineRegion(null);
-        return Ok();
+        return BadRequest(new
+        {
+            error = new
+            {
+                code = "DEPRECATED",
+                message = "line/region 已廢止，請改用 POST /api/scanners/{scannerId}/roi。",
+            },
+        });
     }
 
-    /// <summary>讀取目前框選。沒有框選時沒有內容。</summary>
+    /// <summary>已廢止；請改用 GET /api/scanners/{scannerId}/settings。</summary>
     [HttpGet("line/region")]
     public IActionResult GetLineRegion()
     {
-        var region = _scan.GetLineRegion();
-        if (region is null)
+        return BadRequest(new
         {
-            return NoContent();
-        }
-
-        return Ok(region);
+            error = new
+            {
+                code = "DEPRECATED",
+                message = "line/region 已廢止，請改用 GET /api/scanners/{scannerId}/settings。",
+            },
+        });
     }
 
     /// <summary>最近一次線掃描 complete 的結果，供進料區顯示。</summary>

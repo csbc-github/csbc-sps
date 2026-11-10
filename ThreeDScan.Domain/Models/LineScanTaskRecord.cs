@@ -1,3 +1,5 @@
+// v1 legacy：未註冊 DI，保留原始碼供對照。
+#if false
 namespace ThreeDScan.Domain.Models;
 
 /// <summary>進行中的線掃描任務（檔案暫存，含錄製目錄與滾輪速度）。</summary>
@@ -33,3 +35,4 @@ public sealed class LineScanTaskRecord
     /// <summary>最後更新時間。</summary>
     public DateTimeOffset UpdatedAt { get; set; }
 }
+#endif

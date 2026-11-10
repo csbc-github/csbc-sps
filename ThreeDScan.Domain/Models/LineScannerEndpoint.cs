@@ -11,4 +11,7 @@ public sealed class LineScannerEndpoint
 
     /// <summary>CoLa B 埠。</summary>
     public int Port { get; init; } = 2111;
+
+    /// <summary>滾輪清空容許 (mm)；對應 appsettings LineScanners.RollerClearanceToleranceMm。</summary>
+    public double RollerClearanceToleranceMm { get; init; } = 3;
 }

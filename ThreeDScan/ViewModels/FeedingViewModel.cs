@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -9,8 +10,8 @@ using System.Windows.Threading;
 using LMX;
 using ThreeDScan.Common;
 using ThreeDScan.Domain.Models;
-using ThreeDScan.LineScan;
 using ThreeDScan.Models;
+using ThreeDScan.Services;
 
 namespace ThreeDScan.ViewModels;
 
@@ -42,9 +43,16 @@ public class FeedingViewModel : ViewModelBase
     private bool _livePollBusy;
     private string _liveHint = "正在連接線掃描器…";
     private DispatcherTimer? _liveTimer;
-    private SickLiveScanner? _live;
     private bool _selectingRegion;
     private LineScanRegion? _sensorRegion;
+    private SystemStatus _connectionLamp = SystemStatus.Error;
+    private string _connectionStatusText = "正在檢查連線…";
+    private bool _connectionPollBusy;
+    private DispatcherTimer? _connectionTimer;
+    private bool _apiLineRecording;
+    private bool _profileFrozen;
+    private bool _isPickingDesktopPoints;
+    private int _desktopPointsChosen;
 
     // 剖面圖校正（綁定到 LidarScanView；之後可改為設定檔）
     private string _lidarCalibAngleMinDeg = "";
@@ -89,6 +97,32 @@ public class FeedingViewModel : ViewModelBase
     {
         SetProperty(ref _overallStatus, value);
     } }
+
+    /// <summary>連線狀態燈（Normal＝綠，Error＝紅）。</summary>
+    public SystemStatus ConnectionLamp
+    {
+        get
+        {
+            return _connectionLamp;
+        }
+        set
+        {
+            SetProperty(ref _connectionLamp, value);
+        }
+    }
+
+    /// <summary>連線狀態說明（掃描服務與線掃光達）。</summary>
+    public string ConnectionStatusText
+    {
+        get
+        {
+            return _connectionStatusText;
+        }
+        set
+        {
+            SetProperty(ref _connectionStatusText, value);
+        }
+    }
 
     /// <summary>右側結果區的狀態燈。</summary>
     public SystemStatus LineOverallStatus
@@ -167,6 +201,109 @@ public class FeedingViewModel : ViewModelBase
     public ICommand StopScanCommand { get; }
     public ICommand BeginSelectRegionCommand { get; }
     public ICommand ClearRegionCommand { get; }
+    public ICommand CaptureProfileCommand { get; }
+    public ICommand BeginDesktopCalibrationCommand { get; }
+    public ICommand CancelDesktopCalibrationCommand { get; }
+    public ICommand SubmitTwoPointCommand { get; }
+    public ICommand RefreshScannerSettingsCommand { get; }
+    public ICommand ResumeLiveProfileCommand { get; }
+
+    /// <summary>凍結輪廓點，供兩點點選貼齊。</summary>
+    public ObservableCollection<ScannerPlanePoint> ProfileSnapPoints { get; } = new();
+
+    /// <summary>輪廓已凍結時不再覆寫即時剖面。</summary>
+    public bool IsProfileFrozen
+    {
+        get
+        {
+            return _profileFrozen;
+        }
+        set
+        {
+            if (SetProperty(ref _profileFrozen, value))
+            {
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
+
+    /// <summary>正在點選桌面校正兩點。</summary>
+    public bool IsPickingDesktopPoints
+    {
+        get
+        {
+            return _isPickingDesktopPoints;
+        }
+        set
+        {
+            SetProperty(ref _isPickingDesktopPoints, value);
+        }
+    }
+
+    private double? _desktopFirstX;
+    private double? _desktopFirstY;
+    private double? _desktopSecondX;
+    private double? _desktopSecondY;
+
+    public double? DesktopFirstX
+    {
+        get
+        {
+            return _desktopFirstX;
+        }
+        set
+        {
+            if (SetProperty(ref _desktopFirstX, value))
+            {
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
+
+    public double? DesktopFirstY
+    {
+        get
+        {
+            return _desktopFirstY;
+        }
+        set
+        {
+            if (SetProperty(ref _desktopFirstY, value))
+            {
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
+
+    public double? DesktopSecondX
+    {
+        get
+        {
+            return _desktopSecondX;
+        }
+        set
+        {
+            if (SetProperty(ref _desktopSecondX, value))
+            {
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
+
+    public double? DesktopSecondY
+    {
+        get
+        {
+            return _desktopSecondY;
+        }
+        set
+        {
+            if (SetProperty(ref _desktopSecondY, value))
+            {
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
 
     /// <summary>正在剖面上拖曳框選時為 true，此時畫面停在目前截面。</summary>
     public bool IsSelectingRegion
@@ -254,6 +391,20 @@ public class FeedingViewModel : ViewModelBase
         StopScanCommand = new RelayCommand(_ => _ = StopAsync(), _ => IsScanning);
         BeginSelectRegionCommand = new RelayCommand(_ => BeginSelectRegion());
         ClearRegionCommand = new RelayCommand(_ => ClearRegion());
+        CaptureProfileCommand = new RelayCommand(_ => _ = CaptureProfileAsync(), _ => !IsProfileFrozen);
+        BeginDesktopCalibrationCommand = new RelayCommand(
+            _ => BeginDesktopCalibration(),
+            _ => IsProfileFrozen && ProfileSnapPoints.Count > 0);
+        CancelDesktopCalibrationCommand = new RelayCommand(
+            _ => CancelDesktopCalibration(),
+            _ => IsPickingDesktopPoints);
+        SubmitTwoPointCommand = new RelayCommand(
+            _ => _ = SubmitTwoPointAsync(),
+            _ => DesktopFirstX.HasValue && DesktopFirstY.HasValue && DesktopSecondX.HasValue && DesktopSecondY.HasValue);
+        RefreshScannerSettingsCommand = new RelayCommand(_ => _ = LoadScannerSettingsAsync());
+        ResumeLiveProfileCommand = new RelayCommand(
+            _ => ResumeLiveAfterProfile(),
+            _ => IsProfileFrozen);
 
         LoadDesignTimeData();
         if (!IsInDesignMode())
@@ -261,8 +412,108 @@ public class FeedingViewModel : ViewModelBase
             LineResults.Clear();
             StartLineResultPolling();
             StartLiveWatch();
-            _ = LoadRegionAsync();
+            StartConnectionMonitoring();
+            _ = LoadScannerSettingsAsync();
         }
+    }
+
+    /// <summary>視窗關閉時停止輪詢並結束架設預覽。</summary>
+    public async Task CleanupAsync()
+    {
+        _liveTimer?.Stop();
+        _connectionTimer?.Stop();
+        _linePollTimer?.Stop();
+        if (IsScanning)
+        {
+            await StopAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>剖面點選回呼（由 FeedingView 轉發）。</summary>
+    public void ApplyDesktopPointPick(ScannerPlanePoint point)
+    {
+        if (!IsPickingDesktopPoints)
+        {
+            return;
+        }
+
+        if (_desktopPointsChosen == 0)
+        {
+            DesktopFirstX = point.X;
+            DesktopFirstY = point.Y;
+            _desktopPointsChosen = 1;
+            ScanStatusText = "已選第一點，請點第二點";
+            return;
+        }
+
+        DesktopSecondX = point.X;
+        DesktopSecondY = point.Y;
+        _desktopPointsChosen = 2;
+        IsPickingDesktopPoints = false;
+        ScanStatusText = "兩點已選定，可按「儲存兩點校正」";
+    }
+
+    private void StartConnectionMonitoring()
+    {
+        _connectionTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(3),
+        };
+        _connectionTimer.Tick += OnConnectionPollTick;
+        _connectionTimer.Start();
+        _ = RefreshConnectionAsync();
+    }
+
+    private void OnConnectionPollTick(object? sender, EventArgs e)
+    {
+        _ = RefreshConnectionAsync();
+    }
+
+    private async Task RefreshConnectionAsync()
+    {
+        if (_connectionPollBusy)
+        {
+            return;
+        }
+
+        _connectionPollBusy = true;
+        try
+        {
+            var config = AppConfiguration.Load();
+            var deviceOk = await ProbeLineScannerAsync(config).ConfigureAwait(false);
+            var suffix = _apiLineRecording ? "線掃描錄製中" : "";
+            var deviceLabel = ResolveLineDeviceLabel(config);
+            var display = AreaConnectionDisplay.Build(deviceOk, deviceLabel, suffix);
+            await RunOnUiAsync(() =>
+            {
+                ConnectionLamp = display.Lamp;
+                ConnectionStatusText = display.Text;
+            });
+        }
+        finally
+        {
+            _connectionPollBusy = false;
+        }
+    }
+
+    private static string ResolveLineDeviceLabel(IConfiguration config)
+    {
+        if (WpfServiceProviderFactory.TryResolveLineScannerEndpoint(config, out var endpoint))
+        {
+            return "線掃光達 " + endpoint.ScannerId;
+        }
+
+        return "線掃光達";
+    }
+
+    private async Task<bool> ProbeLineScannerAsync(IConfiguration config)
+    {
+        if (!WpfServiceProviderFactory.TryResolveLineScannerEndpoint(config, out var endpoint))
+        {
+            return false;
+        }
+
+        return await TcpEndpointConnectivity.TryConnectAsync(endpoint.Ip, endpoint.Port, 2500).ConfigureAwait(false);
     }
 
     private void BeginSelectRegion()
@@ -280,8 +531,38 @@ public class FeedingViewModel : ViewModelBase
             return;
         }
 
+        CancelDesktopCalibration();
         IsSelectingRegion = true;
         ScanStatusText = "在左側剖面上拖曳框選範圍";
+    }
+
+    private void BeginDesktopCalibration()
+    {
+        CancelDesktopCalibration();
+        IsSelectingRegion = false;
+        _desktopPointsChosen = 0;
+        DesktopFirstX = null;
+        DesktopFirstY = null;
+        DesktopSecondX = null;
+        DesktopSecondY = null;
+        IsPickingDesktopPoints = true;
+        ScanStatusText = "在凍結輪廓上點選第一點（桌面校正）";
+    }
+
+    private void CancelDesktopCalibration()
+    {
+        IsPickingDesktopPoints = false;
+        _desktopPointsChosen = 0;
+    }
+
+    private void ResumeLiveAfterProfile()
+    {
+        IsProfileFrozen = false;
+        ProfileSnapPoints.Clear();
+        IsPickingDesktopPoints = false;
+        _desktopPointsChosen = 0;
+        LiveHint = "架設預覽";
+        ScanStatusText = "已恢復即時剖面";
     }
 
     /// <summary>套用畫面上拖出的框，並寫入掃描服務。</summary>
@@ -324,12 +605,14 @@ public class FeedingViewModel : ViewModelBase
         return baseUrl.TrimEnd('/');
     }
 
-    private async Task LoadRegionAsync()
+    private async Task LoadScannerSettingsAsync()
     {
         try
         {
-            var response = await LineResultHttp.GetAsync(ApiBase() + "/api/scan/line/region").ConfigureAwait(false);
-            if (response.StatusCode == HttpStatusCode.NoContent || !response.IsSuccessStatusCode)
+            var scannerId = ResolveDefaultScannerId();
+            var response = await LineResultHttp.GetAsync(ApiBase() + "/api/scanners/" + scannerId + "/settings")
+                .ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
             {
                 return;
             }
@@ -340,46 +623,262 @@ public class FeedingViewModel : ViewModelBase
                 return;
             }
 
-            var region = JsonSerializer.Deserialize<LineScanRegion>(json, RegionJson);
-            if (region == null || region.XMax <= region.XMin || region.YMax <= region.YMin)
-            {
-                return;
-            }
-
-            await RunOnUiAsync(() => SensorRegion = region);
+            await RunOnUiAsync(() => ApplyScannerSettingsJson(json));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
         }
     }
 
+    private void ApplyScannerSettingsJson(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("roiXY", out var roiNode)
+            && roiNode.ValueKind == JsonValueKind.Array
+            && roiNode.GetArrayLength() == 4)
+        {
+            var bounds = new double[4];
+            for (var i = 0; i < 4; i++)
+            {
+                bounds[i] = roiNode[i].GetDouble();
+            }
+
+            var region = new LineScanRegion
+            {
+                XMin = bounds[0],
+                XMax = bounds[1],
+                YMin = bounds[2],
+                YMax = bounds[3],
+            };
+            if (region.XMax > region.XMin && region.YMax > region.YMin)
+            {
+                SensorRegion = region;
+            }
+        }
+
+        if (root.TryGetProperty("calibration", out var cal) && cal.ValueKind == JsonValueKind.Object)
+        {
+            if (cal.TryGetProperty("first", out var first) && cal.TryGetProperty("second", out var second))
+            {
+                DesktopFirstX = ReadDouble(first, "x");
+                DesktopFirstY = ReadDouble(first, "y");
+                DesktopSecondX = ReadDouble(second, "x");
+                DesktopSecondY = ReadDouble(second, "y");
+            }
+        }
+    }
+
+    private async Task CaptureProfileAsync()
+    {
+        try
+        {
+            var scannerId = ResolveDefaultScannerId();
+            var body = JsonSerializer.Serialize(new { scannerId });
+            var response = await LineResultHttp.PostAsync(
+                ApiBase() + "/api/scan/profile",
+                new StringContent(body, Encoding.UTF8, "application/json")).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                await RunOnUiAsync(() => ScanStatusText = "擷取輪廓失敗（HTTP " + (int)response.StatusCode + "）");
+                return;
+            }
+
+            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            await RunOnUiAsync(() => ApplyCapturedProfile(json));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            await RunOnUiAsync(() => ScanStatusText = "擷取輪廓失敗：" + ex.Message);
+        }
+    }
+
+    private void ApplyCapturedProfile(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        if (!root.TryGetProperty("points", out var points) || points.ValueKind != JsonValueKind.Array)
+        {
+            ScanStatusText = "回應無輪廓點";
+            return;
+        }
+
+        var xs = new List<double>();
+        var ys = new List<double>();
+        ProfileSnapPoints.Clear();
+        foreach (var node in points.EnumerateArray())
+        {
+            var x = ReadDouble(node, "x");
+            var y = ReadDouble(node, "y");
+            if (Math.Sqrt(x * x + y * y) <= 1)
+            {
+                continue;
+            }
+
+            xs.Add(x);
+            ys.Add(y);
+            ProfileSnapPoints.Add(new ScannerPlanePoint { X = x, Y = y });
+        }
+
+        if (xs.Count < 2)
+        {
+            ScanStatusText = "有效輪廓點不足";
+            return;
+        }
+
+        var frame = ToLidarFrameFromScannerXY(xs, ys);
+        if (frame == null)
+        {
+            ScanStatusText = "無法轉成剖面";
+            return;
+        }
+
+        CurrentFrame = frame;
+        IsProfileFrozen = true;
+        CancelDesktopCalibration();
+        LiveHint = "輪廓已凍結";
+        ScanStatusText = "可點「兩點校正」或設定 ROI";
+    }
+
+    private async Task SubmitTwoPointAsync()
+    {
+        if (!DesktopFirstX.HasValue || !DesktopFirstY.HasValue || !DesktopSecondX.HasValue || !DesktopSecondY.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            var scannerId = ResolveDefaultScannerId();
+            var payload = new
+            {
+                first = new { x = DesktopFirstX.Value, y = DesktopFirstY.Value },
+                second = new { x = DesktopSecondX.Value, y = DesktopSecondY.Value },
+            };
+            var json = JsonSerializer.Serialize(payload);
+            var response = await LineResultHttp.PostAsync(
+                ApiBase() + "/api/scanners/" + scannerId + "/calibration/two-point",
+                new StringContent(json, Encoding.UTF8, "application/json")).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                await RunOnUiAsync(() => ScanStatusText = "儲存兩點失敗：" + err);
+                return;
+            }
+
+            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            await RunOnUiAsync(() =>
+            {
+                ApplyScannerSettingsJson(body);
+                ScanStatusText = "兩點桌面校正已儲存";
+            });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            await RunOnUiAsync(() => ScanStatusText = "儲存兩點失敗：" + ex.Message);
+        }
+    }
+
+    private static LidarFrame? ToLidarFrameFromScannerXY(IReadOnlyList<double> xs, IReadOnlyList<double> ys)
+    {
+        var count = Math.Min(xs.Count, ys.Count);
+        var samples = new List<(double Angle, int Distance)>();
+        for (var i = 0; i < count; i++)
+        {
+            var x = xs[i];
+            var y = ys[i];
+            var distance = Math.Sqrt(x * x + y * y);
+            if (distance <= 1)
+            {
+                continue;
+            }
+
+            var angle = Math.Atan2(y, x) * 180.0 / Math.PI;
+            samples.Add((angle, (int)Math.Round(distance)));
+        }
+
+        if (samples.Count < 2)
+        {
+            return null;
+        }
+
+        samples.Sort((left, right) => left.Angle.CompareTo(right.Angle));
+        var steps = new List<double>();
+        for (var i = 1; i < samples.Count; i++)
+        {
+            var step = samples[i].Angle - samples[i - 1].Angle;
+            if (step > 0.001)
+            {
+                steps.Add(step);
+            }
+        }
+
+        if (steps.Count == 0)
+        {
+            return null;
+        }
+
+        steps.Sort();
+        var resolution = steps[steps.Count / 2];
+        var start = samples[0].Angle;
+        var bins = (int)Math.Round((samples[samples.Count - 1].Angle - start) / resolution) + 1;
+        if (bins < 2 || bins > 20000)
+        {
+            return null;
+        }
+
+        var distances = new int[bins];
+        foreach (var sample in samples)
+        {
+            var index = (int)Math.Round((sample.Angle - start) / resolution);
+            if (index >= 0 && index < bins)
+            {
+                distances[index] = sample.Distance;
+            }
+        }
+
+        return new LidarFrame(0, -start, resolution, distances);
+    }
+
     private async Task SaveRegionAsync(LineScanRegion? region)
     {
         try
         {
-            var url = ApiBase() + "/api/scan/line/region";
-            HttpResponseMessage response;
-            if (region == null)
+            var scannerId = ResolveDefaultScannerId();
+            var url = ApiBase() + "/api/scanners/" + scannerId + "/roi";
+            double[]? bounds = null;
+            if (region != null)
             {
-                response = await LineResultHttp.DeleteAsync(url).ConfigureAwait(false);
+                bounds = new[] { region.XMin, region.XMax, region.YMin, region.YMax };
             }
-            else
-            {
-                var json = JsonSerializer.Serialize(region, RegionJson);
-                response = await LineResultHttp.PutAsync(
-                    url,
-                    new StringContent(json, Encoding.UTF8, "application/json")).ConfigureAwait(false);
-            }
+
+            var json = JsonSerializer.Serialize(new { bounds });
+            var response = await LineResultHttp.PostAsync(
+                url,
+                new StringContent(json, Encoding.UTF8, "application/json")).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {
-                await RunOnUiAsync(() => ScanStatusText = "掃描區域未寫入服務，請確認掃描服務已啟動");
+                await RunOnUiAsync(() => ScanStatusText = "ROI 未寫入服務，請確認掃描服務已啟動");
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            await RunOnUiAsync(() => ScanStatusText = "掃描區域未寫入服務，請確認掃描服務已啟動");
+            await RunOnUiAsync(() => ScanStatusText = "ROI 未寫入服務，請確認掃描服務已啟動");
         }
+    }
+
+    private static string ResolveDefaultScannerId()
+    {
+        var config = AppConfiguration.Load();
+        var id = config["LineScan:DefaultScannerId"];
+        if (!string.IsNullOrWhiteSpace(id))
+        {
+            return id.Trim();
+        }
+
+        return "LINE-LIDAR-01";
     }
 
     private static async Task RunOnUiAsync(Action action)
@@ -394,21 +893,59 @@ public class FeedingViewModel : ViewModelBase
         await dispatcher.InvokeAsync(action);
     }
 
-    private Task StartAsync()
+    private async Task StartAsync()
     {
         _userStoppedLive = false;
-        StartLocalLive();
-        return Task.CompletedTask;
+        try
+        {
+            var scannerId = ResolveDefaultScannerId();
+            var json = JsonSerializer.Serialize(new { scannerId });
+            var response = await LineResultHttp.PostAsync(
+                ApiBase() + "/api/scan/line/setup/start",
+                new StringContent(json, Encoding.UTF8, "application/json")).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                await RunOnUiAsync(() =>
+                {
+                    ScanStatusText = "無法啟動架設預覽";
+                    OverallStatus = SystemStatus.Error;
+                });
+                return;
+            }
+
+            IsScanning = true;
+            await RunOnUiAsync(() =>
+            {
+                LiveHint = "架設預覽";
+                ScanStatusText = "即時剖面 · API";
+                OverallStatus = SystemStatus.Warning;
+            });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            await RunOnUiAsync(() => ScanStatusText = ex.Message);
+        }
     }
 
-    private Task StopAsync()
+    private async Task StopAsync()
     {
         _userStoppedLive = true;
-        StopLocalLive();
+        try
+        {
+            var scannerId = ResolveDefaultScannerId();
+            var json = JsonSerializer.Serialize(new { scannerId });
+            await LineResultHttp.PostAsync(
+                ApiBase() + "/api/scan/line/setup/stop",
+                new StringContent(json, Encoding.UTF8, "application/json")).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+        }
+
+        IsScanning = false;
         LiveHint = "已停止即時剖面";
         ScanStatusText = "已停止";
         OverallStatus = SystemStatus.Normal;
-        return Task.CompletedTask;
     }
 
     private void StartLiveWatch()
@@ -419,6 +956,7 @@ public class FeedingViewModel : ViewModelBase
         };
         _liveTimer.Tick += OnLiveTick;
         _liveTimer.Start();
+        _ = StartAsync();
         _ = RefreshLiveAsync();
     }
 
@@ -459,11 +997,16 @@ public class FeedingViewModel : ViewModelBase
             var dispatcher = System.Windows.Application.Current?.Dispatcher;
             if (dispatcher == null || dispatcher.CheckAccess())
             {
-                EnsureLocalLive();
+                LiveHint = "無法讀取 line/live";
+                ScanStatusText = ex.Message;
             }
             else
             {
-                _ = dispatcher.BeginInvoke(EnsureLocalLive);
+                _ = dispatcher.BeginInvoke(() =>
+                {
+                    LiveHint = "無法讀取 line/live";
+                    ScanStatusText = ex.Message;
+                });
             }
         }
         finally
@@ -474,7 +1017,7 @@ public class FeedingViewModel : ViewModelBase
 
     private void ApplyLive(string json)
     {
-        if (_selectingRegion)
+        if (_selectingRegion || _profileFrozen)
         {
             return;
         }
@@ -482,10 +1025,11 @@ public class FeedingViewModel : ViewModelBase
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         var recording = root.TryGetProperty("recording", out var flag) && flag.ValueKind == JsonValueKind.True;
+        _apiLineRecording = recording;
         if (recording)
         {
-            StopLocalLive();
             LiveHint = "線掃描錄製中";
+            _ = RefreshConnectionAsync();
             if (root.TryGetProperty("x", out var xs) && root.TryGetProperty("y", out var ys))
             {
                 var frame = ToRecordedFrame(xs, ys);
@@ -498,127 +1042,21 @@ public class FeedingViewModel : ViewModelBase
             return;
         }
 
-        EnsureLocalLive();
-    }
-
-    private void EnsureLocalLive()
-    {
-        if (_userStoppedLive)
+        _apiLineRecording = false;
+        IsScanning = !_userStoppedLive;
+        if (root.TryGetProperty("x", out var setupX) && root.TryGetProperty("y", out var setupY))
         {
-            return;
-        }
-
-        StartLocalLive();
-    }
-
-    private void StartLocalLive()
-    {
-        if (_live != null)
-        {
-            return;
-        }
-
-        var config = AppConfiguration.Load();
-        var ip = config["LineScanner:Ip"];
-        if (string.IsNullOrWhiteSpace(ip))
-        {
-            ip = "192.168.0.1";
-        }
-
-        var port = 2111;
-        if (int.TryParse(config["LineScanner:Port"], out var parsed) && parsed > 0)
-        {
-            port = parsed;
-        }
-
-        var scanner = new SickLiveScanner();
-        scanner.FrameReceived += OnLiveFrame;
-        scanner.StatusChanged += OnLiveStatus;
-        _live = scanner;
-        scanner.Start(ip, port);
-        IsScanning = true;
-        OverallStatus = SystemStatus.Warning;
-    }
-
-    private void StopLocalLive()
-    {
-        var scanner = _live;
-        _live = null;
-        if (scanner == null)
-        {
-            IsScanning = false;
-            return;
-        }
-
-        scanner.FrameReceived -= OnLiveFrame;
-        scanner.StatusChanged -= OnLiveStatus;
-        scanner.Dispose();
-        IsScanning = false;
-    }
-
-    private void OnLiveFrame(object? sender, LidarFrame frame)
-    {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        void Apply()
-        {
-            if (_live == null || _selectingRegion)
+            var frame = ToRecordedFrame(setupX, setupY);
+            if (frame != null)
             {
-                return;
-            }
-
-            CurrentFrame = frame;
-            var valid = 0;
-            for (var i = 0; i < frame.Distances.Length; i++)
-            {
-                var distance = frame.Distances[i];
-                if (distance > 1 && distance < 999000)
-                {
-                    valid++;
-                }
-            }
-
-            ContourCount = valid;
-            LiveHint = "已連線";
-            ScanStatusText = "即時剖面 · " + valid + " 點";
-            OverallStatus = SystemStatus.Normal;
-        }
-
-        if (dispatcher == null || dispatcher.CheckAccess())
-        {
-            Apply();
-        }
-        else
-        {
-            _ = dispatcher.BeginInvoke(Apply);
-        }
-    }
-
-    private void OnLiveStatus(object? sender, string message)
-    {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        void Apply()
-        {
-            if (_live == null)
-            {
-                return;
-            }
-
-            LiveHint = message;
-            ScanStatusText = message;
-            if (message.Contains("未連線", StringComparison.Ordinal))
-            {
-                OverallStatus = SystemStatus.Warning;
+                CurrentFrame = frame;
+                LiveHint = "架設預覽";
+                ScanStatusText = "即時剖面 · API";
+                OverallStatus = SystemStatus.Normal;
             }
         }
 
-        if (dispatcher == null || dispatcher.CheckAccess())
-        {
-            Apply();
-        }
-        else
-        {
-            _ = dispatcher.BeginInvoke(Apply);
-        }
+        _ = RefreshConnectionAsync();
     }
 
     private static LidarFrame? ToRecordedFrame(JsonElement xs, JsonElement ys)

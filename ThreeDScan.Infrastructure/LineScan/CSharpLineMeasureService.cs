@@ -1,3 +1,5 @@
+// v1 legacy：未註冊 DI，保留原始碼供對照。
+#if false
 using System.Text.Json;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
@@ -8,6 +10,7 @@ namespace ThreeDScan.Infrastructure.LineScan;
 /// 逐截面沿 X 空隙分段，再把相鄰截面重疊的段串成同一件。量測前先剔除離群並平均連續圈。
 /// 只有高過門檻的點參與分段；量測時每個截面從最高點往兩側走到落回當地滾輪面取翼尖，
 /// 底寬、高度與翼長取中段截面的中位數。長度是整支的行程。
+/// v1 legacy：依 session/frames.jsonl；v2 未註冊 DI，正式路徑見 <see cref="LineScanMeasureService"/>。
 /// </summary>
 public sealed class CSharpLineMeasureService : ICSharpLineMeasure
 {
@@ -39,6 +42,7 @@ public sealed class CSharpLineMeasureService : ICSharpLineMeasure
     private const int TrackSkipSections = 3;
 
     /// <inheritdoc />
+    /// <remarks>v1 legacy：讀取 session/frames.jsonl。v2 請用 PLY + <see cref="LineScanMeasureService.MeasureLine"/>。</remarks>
     public IReadOnlyList<MeasuredAngleIron> Measure(
         string sessionDirectory,
         RollerBaselineRecord baseline,
@@ -327,6 +331,7 @@ public sealed class CSharpLineMeasureService : ICSharpLineMeasure
         double cropStartSeconds,
         double? cropEndSeconds)
     {
+        // v1 legacy：Python line_scan_worker 逐行寫入的截面檔
         var path = Path.Combine(sessionDirectory, "frames.jsonl");
         if (!File.Exists(path))
         {
@@ -501,7 +506,7 @@ public sealed class CSharpLineMeasureService : ICSharpLineMeasure
                 continue;
             }
 
-            Project(sensorX, sensorY, baseline.LineA, baseline.LineB, baseline.LineC, out var along, out var height);
+            Project(sensorX, sensorY, 0, 1, -baseline.ZDistance, out var along, out var height);
             if (along < AlongXMinMm || along > AlongXMaxMm || height > MaxHeightMm)
             {
                 continue;
@@ -967,3 +972,4 @@ public sealed class CSharpLineMeasureService : ICSharpLineMeasure
         public double Z;
     }
 }
+#endif

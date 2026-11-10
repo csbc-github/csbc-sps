@@ -1,3 +1,5 @@
+// v1 legacy：未註冊 DI，保留原始碼供對照。
+#if false
 using System.Text.Json;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
@@ -67,3 +69,4 @@ public sealed class LineScanRegionStore : ILineScanRegionStore
         }
     }
 }
+#endif

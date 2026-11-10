@@ -25,14 +25,27 @@ public interface IScanAppService
     /// <summary>最近一次線掃描 complete 的結果；尚無結果時狀態為 None。</summary>
     TaskResultData GetLatestLineScanResult();
 
-    /// <summary>讀取進料區框選。沒有框選則為 null。</summary>
-    LineScanRegion? GetLineRegion();
+    // v1 legacy line/region（API 已 DEPRECATED；ROI 改 api/scanners/{id}/roi）
+    // LineScanRegion? GetLineRegion();
+    // void SetLineRegion(LineScanRegion? region);
 
-    /// <summary>寫入或清除進料區框選。null 表示清除。</summary>
-    void SetLineRegion(LineScanRegion? region);
+    /// <summary>進行中的錄製與最新一圈截面；未錄製時讀架設預覽快取（O8）。</summary>
+    Task<LineScanLiveFrame> GetLiveFrameAsync(CancellationToken ct = default);
 
-    /// <summary>進行中的錄製與最新一圈截面。沒有錄製時 Recording 為 false。</summary>
-    LineScanLiveFrame GetLiveFrame();
+    /// <summary>開始架設長連預覽。</summary>
+    Task<DasOperationResult<object>> StartLineSetupPreviewAsync(
+        LineScanSetupRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>結束架設預覽。</summary>
+    Task<DasOperationResult<object>> StopLineSetupPreviewAsync(
+        LineScanSetupRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>凍結一帧完整輪廓（POST /api/scan/profile）。</summary>
+    Task<DasOperationResult<LineScanProfileData>> CaptureLineProfileAsync(
+        LineScanProfileRequest request,
+        CancellationToken ct = default);
 
     /// <summary>背景停止錄製、整理角鋼並 POST callback。</summary>
     Task RunLineCompleteJobAsync(string taskId, string callbackUrl, CancellationToken ct = default);

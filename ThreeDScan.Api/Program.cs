@@ -49,6 +49,7 @@ builder.Services.AddSingleton<InstrumentCalibrationService>();
 builder.Services.AddSingleton<IDasTaskResultCache, DasTaskResultCache>();
 builder.Services.AddScoped<ICalibrationAppService, CalibrationAppService>();
 builder.Services.AddScoped<IScanAppService, ScanAppService>();
+builder.Services.AddScoped<LineScannerSettingsAppService>();
 builder.Services.AddSingleton<ICalibrationPreviewPublisher, SignalRCalibrationPreviewPublisher>();
 
 var app = builder.Build();

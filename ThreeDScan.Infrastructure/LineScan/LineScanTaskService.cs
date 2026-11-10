@@ -1,3 +1,5 @@
+// v1 legacy：未註冊 DI，保留原始碼供對照。
+#if false
 using System.Collections.Concurrent;
 using System.Text.Json;
 using ThreeDScan.Domain.Abstractions;
@@ -5,7 +7,7 @@ using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Infrastructure.LineScan;
 
-/// <summary>線掃描任務寫在 ExportRoot/line-tasks。</summary>
+/// <summary>線掃描任務寫在 ExportRoot/line-tasks（v1 legacy；v2 未註冊 DI）。</summary>
 public sealed class LineScanTaskService : ILineScanTaskService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -163,3 +165,4 @@ public sealed class LineScanTaskService : ILineScanTaskService
         return Path.Combine(_root, taskId, "task.json");
     }
 }
+#endif

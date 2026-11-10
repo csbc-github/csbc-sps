@@ -34,10 +34,14 @@ public sealed class ScanAppService : IScanAppService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly SurfaceScanSettings _surfaceScan;
     private readonly ILineScannerRegistry _lineScanners;
-    private readonly ILineScanTaskService _lineTasks;
+    // private readonly ILineScanTaskService _lineTasks; // v1 legacy（ExportRoot/line-tasks），v2 改 IScanTaskRepository
+    private readonly IScanTaskRepository _scanTaskStore;
+    private readonly ILineScannerSettingsRepository _lineScannerSettings;
+    private readonly IDeviceCoordinator _devices;
+    private readonly ILineScanDeviceFacade _lineDevice;
     private readonly ISickLineScanner _lineScanner;
-    private readonly ICSharpLineMeasure _csharpMeasure;
-    private readonly ILineScanRegionStore _lineRegion;
+    // private readonly ICSharpLineMeasure _csharpMeasure; // v1 legacy（frames.jsonl 量測），v2 改 LineScanMeasureService + PLY
+    // private readonly ILineScanRegionStore _lineRegion; // v1 legacy（line-roi.json），v2 改 DB LineScannerSettings
     private readonly IRollerCalibrationRepository _rollerCalibration;
     private readonly LineScanSettings _lineScan;
     private readonly IScanOrchestrator _orchestrator;
@@ -74,10 +78,14 @@ public sealed class ScanAppService : IScanAppService
         IServiceScopeFactory scopeFactory,
         IOptions<SurfaceScanSettings> surfaceScan,
         ILineScannerRegistry lineScanners,
-        ILineScanTaskService lineTasks,
+        // ILineScanTaskService lineTasks,
+        IScanTaskRepository scanTaskStore,
+        ILineScannerSettingsRepository lineScannerSettings,
+        IDeviceCoordinator devices,
+        ILineScanDeviceFacade lineDevice,
         ISickLineScanner lineScanner,
-        ICSharpLineMeasure csharpMeasure,
-        ILineScanRegionStore lineRegion,
+        // ICSharpLineMeasure csharpMeasure,
+        // ILineScanRegionStore lineRegion,
         IRollerCalibrationRepository rollerCalibration,
         IOptions<LineScanSettings> lineScan,
         IScanOrchestrator orchestrator,
@@ -96,10 +104,14 @@ public sealed class ScanAppService : IScanAppService
         _scopeFactory = scopeFactory;
         _surfaceScan = surfaceScan.Value ?? new SurfaceScanSettings();
         _lineScanners = lineScanners;
-        _lineTasks = lineTasks;
+        // _lineTasks = lineTasks;
+        _scanTaskStore = scanTaskStore;
+        _lineScannerSettings = lineScannerSettings;
+        _devices = devices;
+        _lineDevice = lineDevice;
         _lineScanner = lineScanner;
-        _csharpMeasure = csharpMeasure;
-        _lineRegion = lineRegion;
+        // _csharpMeasure = csharpMeasure;
+        // _lineRegion = lineRegion;
         _rollerCalibration = rollerCalibration;
         _lineScan = lineScan.Value ?? new LineScanSettings();
         _orchestrator = orchestrator;
@@ -112,18 +124,27 @@ public sealed class ScanAppService : IScanAppService
         CancellationToken ct = default)
     {
         var traceId = Guid.NewGuid().ToString("N");
-        if (!_lineScanners.TryGet(request.ScannerId, out var endpoint))
+        var scannerId = request.ScannerId.Trim();
+        if (!_lineScanners.TryGet(scannerId, out var endpoint))
         {
             return DasOperationResult<LineScanStartData>.Fail("SCAN_LINE_002", "未知的線掃描 scannerId。");
         }
 
-        var baseline = await _rollerCalibration.GetAsync(request.ScannerId, ct).ConfigureAwait(false);
+        var desktop = await _lineScannerSettings.GetAsync(scannerId, ct).ConfigureAwait(false);
+        if (desktop is null || !desktop.HasCalibration)
+        {
+            return DasOperationResult<LineScanStartData>.Fail(
+                "CAL_CFG_001",
+                "請先設定桌面校正的 calibrationFirst 與 calibrationSecond。");
+        }
+
+        var baseline = await _rollerCalibration.GetAsync(scannerId, ct).ConfigureAwait(false);
         if (baseline is null)
         {
             return DasOperationResult<LineScanStartData>.Fail("SCAN_LINE_003", "尚未完成滾輪校正，無法提供絕對高度。");
         }
 
-        if (_lineTasks.TryGetActiveByScanner(request.ScannerId, out _))
+        if (await FindActiveLineTaskIdForScannerAsync(scannerId, ct).ConfigureAwait(false) is not null)
         {
             return DasOperationResult<LineScanStartData>.Fail("SCAN_LINE_004", "此光達已有進行中的線掃描。");
         }
@@ -133,150 +154,186 @@ public sealed class ScanAppService : IScanAppService
             return DasOperationResult<LineScanStartData>.Fail("SCAN_LINE_002", "線掃描埠無效。");
         }
 
-        var task = _lineTasks.Create(request.ScannerId.Trim(), request.RollerSpeed, traceId);
+        var taskId = Guid.NewGuid().ToString("N");
+        var startedAt = DateTimeOffset.UtcNow;
+        var doc = new TaskDocument
+        {
+            TaskId = taskId,
+            Kind = "Line",
+            ScannerId = scannerId,
+            TraceId = traceId,
+            Status = "Processing",
+            Phase = "LineAcquiring",
+            RollerSpeed = request.RollerSpeed,
+            CreatedAt = startedAt,
+            UpdatedAt = startedAt,
+        };
+        var deviceKey = $"line:{endpoint.Ip}:{endpoint.Port}";
         try
         {
-            await _lineScanner.StartRecordingAsync(task.SessionDirectory, endpoint.Ip, endpoint.Port, ct).ConfigureAwait(false);
+            _devices.Reserve(deviceKey, taskId);
+            await _scanTaskStore.CreateAsync(doc, ct).ConfigureAwait(false);
+            var sessionDir = _scanTaskStore.TaskDirectory(taskId);
+            await _lineScanner.StartRecordingAsync(sessionDir, endpoint.Ip, endpoint.Port, ct).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or IOException)
+        catch (ScanTaskException ex)
         {
-            await _lineScanner.AbortRecordingAsync(task.SessionDirectory, ct).ConfigureAwait(false);
-            _lineTasks.Remove(task.TaskId);
+            _devices.ReleaseByTaskId(taskId);
+            return DasOperationResult<LineScanStartData>.Fail(ex.Code, ex.Message);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or IOException or InvalidDataException)
+        {
+            _devices.ReleaseByTaskId(taskId);
+            await _lineScanner.AbortRecordingAsync(_scanTaskStore.TaskDirectory(taskId), ct).ConfigureAwait(false);
             return DasOperationResult<LineScanStartData>.Fail("SCAN_LINE_002", ex.Message);
         }
 
-        RememberProcessing(task.TaskId, traceId);
+        RememberProcessing(taskId, traceId);
         return DasOperationResult<LineScanStartData>.Ok(new LineScanStartData
         {
-            TaskId = task.TaskId,
-            StartedAt = task.StartedAt.ToString("o"),
+            TaskId = taskId,
+            StartedAt = startedAt.ToString("o"),
             TraceId = traceId,
         });
     }
 
     /// <inheritdoc />
-    public Task<DasOperationResult<AsyncAcceptedData>> CompleteLineScanAsync(
+    public async Task<DasOperationResult<AsyncAcceptedData>> CompleteLineScanAsync(
         LineScanCompleteRequest request,
         CancellationToken ct = default)
     {
-        _ = ct;
         var taskId = request.TaskId.Trim();
-        if (!_lineTasks.TryGet(taskId, out var task) || task is null || task.Aborted || task.IsCompleted)
+        TaskDocument doc;
+        try
         {
-            return Task.FromResult(
-                DasOperationResult<AsyncAcceptedData>.Fail("SCAN_LINE_001", "taskId 不存在或已逾時。"));
+            doc = await _scanTaskStore.GetAsync(taskId, "Line", ct).ConfigureAwait(false);
+        }
+        catch (ScanTaskException)
+        {
+            return DasOperationResult<AsyncAcceptedData>.Fail("SCAN_LINE_001", "taskId 不存在或已逾時。");
         }
 
-        if (!task.Completing)
+        if (doc.Terminal)
         {
-            task.Completing = true;
-            _lineTasks.Save(task);
-            var callbackUrl = request.CallbackUrl;
-            var scopeFactory = _scopeFactory;
-            _workQueue.Enqueue(async (_, workCt) =>
+            return DasOperationResult<AsyncAcceptedData>.Fail("SCAN_LINE_001", "taskId 不存在或已逾時。");
+        }
+
+        if (doc.Phase != "LineAcquiring")
+        {
+            return DasOperationResult<AsyncAcceptedData>.Ok(new AsyncAcceptedData
             {
-                using var scope = scopeFactory.CreateScope();
-                var scan = scope.ServiceProvider.GetRequiredService<IScanAppService>();
-                await scan.RunLineCompleteJobAsync(taskId, callbackUrl, workCt).ConfigureAwait(false);
+                TaskId = taskId,
+                Status = AsyncAcceptedData.StatusProcessing,
             });
         }
 
-        return Task.FromResult(DasOperationResult<AsyncAcceptedData>.Ok(new AsyncAcceptedData
+        await _scanTaskStore.UpdateAsync(
+            taskId,
+            d =>
+            {
+                d.Phase = "LineProcessing";
+                d.CallbackUrl = request.CallbackUrl;
+            },
+            ct).ConfigureAwait(false);
+
+        var callbackUrl = request.CallbackUrl;
+        var scopeFactory = _scopeFactory;
+        _workQueue.Enqueue(async (_, workCt) =>
         {
-            TaskId = task.TaskId,
+            using var scope = scopeFactory.CreateScope();
+            var scan = scope.ServiceProvider.GetRequiredService<IScanAppService>();
+            await scan.RunLineCompleteJobAsync(taskId, callbackUrl, workCt).ConfigureAwait(false);
+        });
+
+        return DasOperationResult<AsyncAcceptedData>.Ok(new AsyncAcceptedData
+        {
+            TaskId = taskId,
             Status = AsyncAcceptedData.StatusProcessing,
-        }));
+        });
     }
 
     /// <inheritdoc />
     public async Task RunLineCompleteJobAsync(string taskId, string callbackUrl, CancellationToken ct = default)
     {
-        if (!_lineTasks.TryGet(taskId, out var task) || task is null || task.Aborted)
+        TaskDocument? doc;
+        try
+        {
+            doc = await _scanTaskStore.GetAsync(taskId, "Line", ct).ConfigureAwait(false);
+        }
+        catch (ScanTaskException)
         {
             return;
         }
 
+        if (doc.Terminal)
+        {
+            return;
+        }
+
+        var sessionDir = _scanTaskStore.TaskDirectory(taskId);
         try
         {
-            await _lineScanner.StopRecordingAsync(task.SessionDirectory, ct).ConfigureAwait(false);
-            if (task.Aborted)
+            await _lineScanner.StopRecordingAsync(sessionDir, ct).ConfigureAwait(false);
+            doc = await _scanTaskStore.GetAsync(taskId, "Line", ct).ConfigureAwait(false);
+            if (doc.Terminal || doc.Status == "Aborted")
             {
                 return;
             }
 
-            var baseline = await _rollerCalibration.GetAsync(task.ScannerId, ct).ConfigureAwait(false);
+            var baseline = await _rollerCalibration.GetAsync(doc.ScannerId, ct).ConfigureAwait(false);
             if (baseline is null)
             {
-                await FinishLineFailedAsync(task, callbackUrl, "SCAN_LINE_003", "尚未完成滾輪校正，無法提供絕對高度。", ct)
+                await FinishLineTaskFailedAsync(taskId, callbackUrl, "SCAN_LINE_003", "尚未完成滾輪校正，無法提供絕對高度。", ct)
                     .ConfigureAwait(false);
                 return;
             }
 
-            IReadOnlyList<MeasuredAngleIron> parts;
-            if (string.Equals(_lineScan.MeasurementEngine, LineScanSettings.EngineCSharp, StringComparison.OrdinalIgnoreCase))
-            {
-                parts = _csharpMeasure.Measure(
-                    task.SessionDirectory,
-                    baseline,
-                    task.RollerSpeed,
-                    _lineScan.GapMm,
-                    _lineScan.MinHeightMm,
-                    _lineRegion.Get(),
-                    _lineScan.AverageScans,
-                    _lineScan.CropStartSeconds,
-                    _lineScan.CropEndSeconds);
-            }
-            else if (string.Equals(_lineScan.MeasurementEngine, LineScanSettings.EngineHankPython, StringComparison.OrdinalIgnoreCase))
-            {
-                parts = await _lineScanner.MeasureAsync(
-                    task.SessionDirectory,
-                    baseline,
-                    task.RollerSpeed,
-                    _lineScan.GapMm,
-                    _lineScan.MinHeightMm,
-                    ct).ConfigureAwait(false);
-            }
-            else
-            {
-                await FinishLineFailedAsync(
-                    task,
-                    callbackUrl,
-                    "SCAN_LINE_002",
-                    "LineScan:MeasurementEngine 必須是 HankPython 或 CSharp。",
-                    ct).ConfigureAwait(false);
-                return;
-            }
-            if (task.Aborted)
-            {
-                return;
-            }
+            var parts = await _lineScanner.MeasureAsync(
+                sessionDir,
+                baseline,
+                doc.RollerSpeed ?? 0,
+                0,
+                0,
+                ct).ConfigureAwait(false);
 
             var result = new LineScanCompleteResult
             {
                 DetectedCount = parts.Count,
                 AngleIrons = parts.Select(ToAngleIron).ToList(),
             };
-            task.IsCompleted = true;
-            _lineTasks.Save(task);
+            var resultJson = JsonSerializer.SerializeToElement(result, JsonOptions);
+            await _scanTaskStore.UpdateAsync(
+                taskId,
+                d =>
+                {
+                    d.Status = "Completed";
+                    d.Phase = "Completed";
+                    d.Result = resultJson;
+                    d.Error = null;
+                    d.CapturedAt = DateTimeOffset.UtcNow;
+                },
+                ct).ConfigureAwait(false);
+            _devices.ReleaseByTaskId(taskId);
             var payload = new TaskResultData
             {
-                TaskId = task.TaskId,
+                TaskId = taskId,
                 Status = TaskResultData.StatusCompleted,
                 Result = result,
                 Error = null,
-                TraceId = task.TraceId,
+                TraceId = doc.TraceId,
             };
             _taskResults.SetLatestLine(payload);
             await _callback.NotifyAsync(callbackUrl, payload, ct).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or IOException or JsonException)
+        catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or IOException or JsonException or InvalidDataException)
         {
-            if (task.Aborted)
+            doc = await _scanTaskStore.FindAsync(taskId, ct).ConfigureAwait(false);
+            if (doc is null || doc.Status == "Aborted")
             {
                 return;
             }
 
-            await FinishLineFailedAsync(task, callbackUrl, "SCAN_LINE_002", ex.Message, ct).ConfigureAwait(false);
+            await FinishLineTaskFailedAsync(taskId, callbackUrl, "SCAN_LINE_002", ex.Message, ct).ConfigureAwait(false);
         }
     }
 
@@ -285,19 +342,36 @@ public sealed class ScanAppService : IScanAppService
         LineScanAbortRequest request,
         CancellationToken ct = default)
     {
-        if (!_lineTasks.TryGet(request.TaskId, out var task) || task is null || task.Aborted || task.IsCompleted)
+        var taskId = request.TaskId.Trim();
+        TaskDocument doc;
+        try
+        {
+            doc = await _scanTaskStore.GetAsync(taskId, "Line", ct).ConfigureAwait(false);
+        }
+        catch (ScanTaskException)
+        {
+            return DasOperationResult<ScanAbortData>.Fail("SCAN_LINE_001", "taskId 不存在或已逾時。");
+        }
+
+        if (doc.Terminal)
         {
             return DasOperationResult<ScanAbortData>.Fail("SCAN_LINE_001", "taskId 不存在或已逾時。");
         }
 
         var traceId = Guid.NewGuid().ToString("N");
-        task.Aborted = true;
-        task.IsCompleted = true;
-        _lineTasks.Save(task);
-        await _lineScanner.AbortRecordingAsync(task.SessionDirectory, ct).ConfigureAwait(false);
+        await _scanTaskStore.UpdateAsync(
+            taskId,
+            d =>
+            {
+                d.Status = "Aborted";
+                d.Phase = "Aborted";
+            },
+            ct).ConfigureAwait(false);
+        await _lineScanner.AbortRecordingAsync(_scanTaskStore.TaskDirectory(taskId), ct).ConfigureAwait(false);
+        _devices.ReleaseByTaskId(taskId);
         var payload = new TaskResultData
         {
-            TaskId = task.TaskId,
+            TaskId = taskId,
             Status = TaskResultData.StatusAborted,
             Result = null,
             Error = null,
@@ -306,7 +380,7 @@ public sealed class ScanAppService : IScanAppService
         _taskResults.Set(payload);
         return DasOperationResult<ScanAbortData>.Ok(new ScanAbortData
         {
-            TaskId = task.TaskId,
+            TaskId = taskId,
             Status = ScanAbortData.StatusAborted,
             TraceId = traceId,
         });
@@ -315,16 +389,23 @@ public sealed class ScanAppService : IScanAppService
     /// <inheritdoc />
     public async Task ExpireLineScanAsync(string taskId, CancellationToken ct = default)
     {
-        if (!_lineTasks.TryGet(taskId, out var task) || task is null || task.IsCompleted)
+        var doc = await _scanTaskStore.FindAsync(taskId, ct).ConfigureAwait(false);
+        if (doc is null || doc.Kind != "Line" || doc.Terminal)
         {
             return;
         }
 
-        task.Aborted = true;
-        task.IsCompleted = true;
-        await _lineScanner.AbortRecordingAsync(task.SessionDirectory, ct).ConfigureAwait(false);
+        await _scanTaskStore.UpdateAsync(
+            taskId,
+            d =>
+            {
+                d.Status = "Aborted";
+                d.Phase = "Aborted";
+            },
+            ct).ConfigureAwait(false);
+        await _lineScanner.AbortRecordingAsync(_scanTaskStore.TaskDirectory(taskId), ct).ConfigureAwait(false);
+        _devices.ReleaseByTaskId(taskId);
         _taskResults.Remove(taskId);
-        _lineTasks.Remove(taskId);
     }
 
     /// <inheritdoc />
@@ -1025,18 +1106,44 @@ public sealed class ScanAppService : IScanAppService
     }
 
     /// <summary>start／segment 後供 DAS 輪詢，狀態為 Processing。</summary>
-    private async Task FinishLineFailedAsync(
-        LineScanTaskRecord task,
+    private async Task<string?> FindActiveLineTaskIdForScannerAsync(string scannerId, CancellationToken ct)
+    {
+        foreach (var id in await _scanTaskStore.NonTerminalTaskIdsAsync(ct).ConfigureAwait(false))
+        {
+            var doc = await _scanTaskStore.FindAsync(id, ct).ConfigureAwait(false);
+            if (doc is not null
+                && doc.Kind == "Line"
+                && string.Equals(doc.ScannerId, scannerId, StringComparison.OrdinalIgnoreCase)
+                && (doc.Phase == "LineAcquiring" || doc.Phase == "LineProcessing"))
+            {
+                return id;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task FinishLineTaskFailedAsync(
+        string taskId,
         string callbackUrl,
         string code,
         string message,
         CancellationToken ct)
     {
-        task.IsCompleted = true;
-        _lineTasks.Save(task);
+        var doc = await _scanTaskStore.FindAsync(taskId, ct).ConfigureAwait(false);
+        await _scanTaskStore.UpdateAsync(
+            taskId,
+            d =>
+            {
+                d.Status = "Failed";
+                d.Phase = "Failed";
+                d.Error = new TaskApiError { Code = code, Message = message };
+            },
+            ct).ConfigureAwait(false);
+        _devices.ReleaseByTaskId(taskId);
         var payload = new TaskResultData
         {
-            TaskId = task.TaskId,
+            TaskId = taskId,
             Status = TaskResultData.StatusFailed,
             Result = null,
             Error = new TaskErrorDto
@@ -1044,7 +1151,7 @@ public sealed class ScanAppService : IScanAppService
                 Code = code,
                 Message = message,
             },
-            TraceId = task.TraceId,
+            TraceId = doc?.TraceId ?? "",
         };
         _taskResults.SetLatestLine(payload);
         await _callback.NotifyAsync(callbackUrl, payload, ct).ConfigureAwait(false);
@@ -1064,48 +1171,123 @@ public sealed class ScanAppService : IScanAppService
         };
     }
 
-    /// <inheritdoc />
-    public LineScanRegion? GetLineRegion()
-    {
-        return _lineRegion.Get();
-    }
+    // v1 legacy line/region（見 IScanAppService 註解）
+    // public LineScanRegion? GetLineRegion() { return _lineRegion.Get(); }
+    // public void SetLineRegion(LineScanRegion? region) { _lineRegion.Save(region); }
 
     /// <inheritdoc />
-    public void SetLineRegion(LineScanRegion? region)
+    public async Task<LineScanLiveFrame> GetLiveFrameAsync(CancellationToken ct = default)
     {
-        _lineRegion.Save(region);
-    }
-
-    /// <inheritdoc />
-    public LineScanLiveFrame GetLiveFrame()
-    {
-        LineScanTaskRecord? active = null;
-        foreach (var task in _lineTasks.ListIncomplete())
+        foreach (var id in await _scanTaskStore.NonTerminalTaskIdsAsync(ct).ConfigureAwait(false))
         {
-            if (task.Aborted || task.IsCompleted || task.Completing)
+            var doc = await _scanTaskStore.FindAsync(id, ct).ConfigureAwait(false);
+            if (doc is not null && doc.Kind == "Line" && doc.Phase == "LineAcquiring")
             {
-                continue;
-            }
-
-            if (active is null || task.StartedAt > active.StartedAt)
-            {
-                active = task;
+                if (_lineDevice.TryGetRecordingLive(id, out var x, out var y))
+                {
+                    return new LineScanLiveFrame
+                    {
+                        Recording = true,
+                        TaskId = id,
+                        X = x,
+                        Y = y,
+                    };
+                }
             }
         }
 
-        if (active is null)
+        var scannerId = string.IsNullOrWhiteSpace(_lineScan.DefaultScannerId)
+            ? "LINE-LIDAR-01"
+            : _lineScan.DefaultScannerId.Trim();
+        if (_lineDevice.TryGetSetupLive(scannerId, out var sx, out var sy))
         {
-            return new LineScanLiveFrame();
+            return new LineScanLiveFrame
+            {
+                Recording = false,
+                X = sx,
+                Y = sy,
+            };
         }
 
-        var (xs, ys) = ReadLatestFrame(Path.Combine(active.SessionDirectory, "frames.jsonl"));
-        return new LineScanLiveFrame
+        return new LineScanLiveFrame();
+    }
+
+    /// <inheritdoc />
+    public async Task<DasOperationResult<object>> StartLineSetupPreviewAsync(
+        LineScanSetupRequest request,
+        CancellationToken ct = default)
+    {
+        var scannerId = ResolveLineScannerId(request.ScannerId);
+        if (!_lineScanners.TryGet(scannerId, out _))
         {
-            Recording = true,
-            TaskId = active.TaskId,
-            X = xs,
-            Y = ys,
-        };
+            return DasOperationResult<object>.Fail("CAL_CFG_001", "未知的線掃描 scannerId。");
+        }
+
+        if (await FindActiveLineTaskIdForScannerAsync(scannerId, ct).ConfigureAwait(false) is not null)
+        {
+            return DasOperationResult<object>.Fail("SCANNER_BUSY", "掃描器已有進行中的線掃描任務。");
+        }
+
+        try
+        {
+            await _lineDevice.StartSetupPreviewAsync(scannerId, ct).ConfigureAwait(false);
+            return DasOperationResult<object>.Ok(new object());
+        }
+        catch (ScanTaskException ex)
+        {
+            return DasOperationResult<object>.Fail(ex.Code, ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<DasOperationResult<object>> StopLineSetupPreviewAsync(
+        LineScanSetupRequest request,
+        CancellationToken ct = default)
+    {
+        _ = ct;
+        var scannerId = ResolveLineScannerId(request.ScannerId);
+        await _lineDevice.StopSetupPreviewAsync(scannerId).ConfigureAwait(false);
+        return DasOperationResult<object>.Ok(new object());
+    }
+
+    /// <inheritdoc />
+    public async Task<DasOperationResult<LineScanProfileData>> CaptureLineProfileAsync(
+        LineScanProfileRequest request,
+        CancellationToken ct = default)
+    {
+        var traceId = Guid.NewGuid().ToString("N");
+        var scannerId = ResolveLineScannerId(request.ScannerId);
+        if (!_lineScanners.TryGet(scannerId, out _))
+        {
+            return DasOperationResult<LineScanProfileData>.Fail("CAL_CFG_001", "未知的線掃描 scannerId。");
+        }
+
+        if (await FindActiveLineTaskIdForScannerAsync(scannerId, ct).ConfigureAwait(false) is not null)
+        {
+            return DasOperationResult<LineScanProfileData>.Fail("SCANNER_BUSY", "掃描器已有進行中的任務。");
+        }
+
+        try
+        {
+            var data = await _lineDevice.CaptureProfileAsync(scannerId, traceId, ct).ConfigureAwait(false);
+            return DasOperationResult<LineScanProfileData>.Ok(data);
+        }
+        catch (ScanTaskException ex)
+        {
+            return DasOperationResult<LineScanProfileData>.Fail(ex.Code, ex.Message);
+        }
+    }
+
+    private string ResolveLineScannerId(string? scannerId)
+    {
+        if (!string.IsNullOrWhiteSpace(scannerId))
+        {
+            return scannerId.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(_lineScan.DefaultScannerId)
+            ? "LINE-LIDAR-01"
+            : _lineScan.DefaultScannerId.Trim();
     }
 
     private static (double[] X, double[] Y) ReadLatestFrame(string path)
@@ -1613,9 +1795,22 @@ public sealed class ScanAppService : IScanAppService
         ApiResponse<SurfaceScanAttachmentFile> response,
         string? zipPath)
     {
-        object responseBody = response.Success && response.Data is not null
-            ? new { response.Data.DownloadFileName, zipPath }
-            : response;
+        object responseBody;
+        if (response.Success && response.Data is not null)
+        {
+            responseBody = new { response.Data.DownloadFileName, zipPath };
+        }
+        else
+        {
+            responseBody = new DasErrorBody
+            {
+                Error = new TaskErrorDto
+                {
+                    Code = string.IsNullOrWhiteSpace(response.ErrorCode) ? "SCAN_001" : response.ErrorCode,
+                    Message = string.IsNullOrWhiteSpace(response.ErrorMessage) ? "未知錯誤。" : response.ErrorMessage,
+                },
+            };
+        }
         return new ScanCallLogRecord
         {
             Timestamp = DateTimeOffset.Now,

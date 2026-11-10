@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Media;
@@ -11,6 +12,7 @@ using ThreeDScan.Common;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Models;
+using ThreeDScan.Services;
 
 namespace ThreeDScan.ViewModels;
 
@@ -35,6 +37,10 @@ public class SurfaceScanAreaViewModel : ViewModelBase
     private bool _isScanning;
     private string _scanStatusText = "就緒 — 等待面掃描";
     private SystemStatus _overallStatus = SystemStatus.Normal;
+    private SystemStatus _connectionLamp = SystemStatus.Error;
+    private string _connectionStatusText = "正在檢查連線…";
+    private bool _connectionPollBusy;
+    private DispatcherTimer? _connectionTimer;
     private string _lastPlyPath = "";
     private string? _glbPath;
     private IReadOnlyList<PointCloudRenderVertex> _pointCloudVertices = Array.Empty<PointCloudRenderVertex>();
@@ -128,6 +134,33 @@ public class SurfaceScanAreaViewModel : ViewModelBase
     {
         SetProperty(ref _overallStatus, value);
     } }
+
+    /// <summary>連線狀態燈（Normal＝綠，Error＝紅）。</summary>
+    public SystemStatus ConnectionLamp
+    {
+        get
+        {
+            return _connectionLamp;
+        }
+        set
+        {
+            SetProperty(ref _connectionLamp, value);
+        }
+    }
+
+    /// <summary>連線狀態說明（掃描服務與該區面掃描器）。</summary>
+    public string ConnectionStatusText
+    {
+        get
+        {
+            return _connectionStatusText;
+        }
+        set
+        {
+            SetProperty(ref _connectionStatusText, value);
+        }
+    }
+
     public string LastPlyPath { get
     {
         return _lastPlyPath;
@@ -226,6 +259,88 @@ public class SurfaceScanAreaViewModel : ViewModelBase
         catch (Exception)
         {
         }
+
+        StartConnectionMonitoring();
+    }
+
+    private void StartConnectionMonitoring()
+    {
+        _connectionTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(3),
+        };
+        _connectionTimer.Tick += OnConnectionPollTick;
+        _connectionTimer.Start();
+        _ = RefreshConnectionAsync();
+    }
+
+    private void OnConnectionPollTick(object? sender, EventArgs e)
+    {
+        _ = RefreshConnectionAsync();
+    }
+
+    private async Task RefreshConnectionAsync()
+    {
+        if (_connectionPollBusy)
+        {
+            return;
+        }
+
+        _connectionPollBusy = true;
+        try
+        {
+            var deviceOk = await ProbeSurfaceScannerAsync().ConfigureAwait(false);
+            var suffix = IsScanning ? "面掃描進行中" : "";
+            string deviceLabel;
+            if (MachineAreaScannerResolver.TryResolve(_config, _machineArea, out var scannerId))
+            {
+                deviceLabel = "面掃描器 " + scannerId;
+            }
+            else
+            {
+                deviceLabel = "面掃描器";
+                deviceOk = false;
+            }
+
+            var display = AreaConnectionDisplay.Build(deviceOk, deviceLabel, suffix);
+            await RunOnUiAsync(() =>
+            {
+                ConnectionLamp = display.Lamp;
+                ConnectionStatusText = display.Text;
+            });
+        }
+        finally
+        {
+            _connectionPollBusy = false;
+        }
+    }
+
+    private async Task<bool> ProbeSurfaceScannerAsync()
+    {
+        if (!MachineAreaScannerResolver.TryResolve(_config, _machineArea, out var scannerId))
+        {
+            return false;
+        }
+
+        var registry = WpfServiceProviderFactory.GetScannerRegistry(_config);
+        if (!registry.TryGetEndpoint(scannerId, out var endpoint))
+        {
+            return false;
+        }
+
+        return await TcpEndpointConnectivity.TryConnectAsync(endpoint.Ip, endpoint.Port, 2500).ConfigureAwait(false);
+    }
+
+    private static async Task RunOnUiAsync(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        await dispatcher.InvokeAsync(action);
     }
 
     private void SetPreviewMode(PreviewMode mode)
@@ -768,7 +883,7 @@ public class SurfaceScanAreaViewModel : ViewModelBase
         OverallStatus = SystemStatus.Normal;
     }
 
-    /// <summary>同目錄的 PLY 與三張 2D PNG 一併載入，切換模式即可看。</summary>
+    /// <summary>同目錄的 PLY 與拼接產出的 top／front／side.png 一併載入，切換模式即可看。</summary>
     private void LoadSiblingPreviews(string glbPath, int version)
     {
         var dir = Path.GetDirectoryName(glbPath);
@@ -782,9 +897,9 @@ public class SurfaceScanAreaViewModel : ViewModelBase
             return;
         }
 
-        Preview2DTop = TryLoadBitmap(Path.Combine(dir, stem + "_2d_top.png"));
-        Preview2DFront = TryLoadBitmap(Path.Combine(dir, stem + "_2d_front.png"));
-        Preview2DSide = TryLoadBitmap(Path.Combine(dir, stem + "_2d_side.png"));
+        Preview2DTop = TryLoadBitmap(Path.Combine(dir, "top.png"));
+        Preview2DFront = TryLoadBitmap(Path.Combine(dir, "front.png"));
+        Preview2DSide = TryLoadBitmap(Path.Combine(dir, "side.png"));
 
         var plyPath = Path.Combine(dir, stem + ".ply");
         if (!File.Exists(plyPath))

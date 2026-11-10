@@ -1,5 +1,6 @@
 using System.Windows.Controls;
 using ThreeDScan.Domain.Models;
+using ThreeDScan.Models;
 using ThreeDScan.ViewModels;
 
 namespace ThreeDScan.Views;
@@ -16,6 +17,14 @@ public partial class FeedingView : UserControl
         if (DataContext is FeedingViewModel vm)
         {
             vm.ApplyChosenRegion(region);
+        }
+    }
+
+    private void OnDesktopPointPicked(object sender, ScannerPlanePoint point)
+    {
+        if (DataContext is FeedingViewModel vm)
+        {
+            vm.ApplyDesktopPointPick(point);
         }
     }
 }

@@ -31,6 +31,7 @@ public sealed class LineScannerRegistry : ILineScannerRegistry
             ScannerId = scannerId.Trim(),
             Ip = opt.Ip.Trim(),
             Port = opt.Port,
+            RollerClearanceToleranceMm = opt.RollerClearanceToleranceMm,
         };
         return true;
     }

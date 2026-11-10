@@ -1,3 +1,5 @@
+// v1 legacy：未註冊 DI，保留原始碼供對照。
+#if false
 using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Domain.Abstractions;
@@ -23,3 +25,4 @@ public interface ILineScanTaskService
     /// <summary>尚未結束的任務。</summary>
     IReadOnlyList<LineScanTaskRecord> ListIncomplete();
 }
+#endif

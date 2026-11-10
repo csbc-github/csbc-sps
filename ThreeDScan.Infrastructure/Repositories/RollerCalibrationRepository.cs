@@ -33,9 +33,6 @@ public sealed class RollerCalibrationRepository : IRollerCalibrationRepository
         {
             ScannerId = row.ScannerId,
             ZDistance = row.ZDistance,
-            LineA = row.LineA,
-            LineB = row.LineB,
-            LineC = row.LineC,
             CalibratedAt = row.CalibratedAt,
             TraceId = row.TraceId,
         };
@@ -58,9 +55,6 @@ public sealed class RollerCalibrationRepository : IRollerCalibrationRepository
         }
 
         row.ZDistance = record.ZDistance;
-        row.LineA = record.LineA;
-        row.LineB = record.LineB;
-        row.LineC = record.LineC;
         row.CalibratedAt = record.CalibratedAt;
         row.TraceId = record.TraceId;
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);

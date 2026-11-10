@@ -75,6 +75,15 @@ public sealed class ThreeDScanDbContext : DbContext
         }
     }
 
+    /// <summary>線掃描器兩點桌面與 ROI。</summary>
+    public DbSet<LineScannerSettingsEntity> LineScannerSettings
+    {
+        get
+        {
+            return Set<LineScannerSettingsEntity>();
+        }
+    }
+
     /// <summary>滾輪校正基準，每台光達一列。</summary>
     public DbSet<RollerCalibrationEntity> RollerCalibrations
     {
@@ -198,6 +207,14 @@ public sealed class ThreeDScanDbContext : DbContext
             e.ToTable("JobThickness");
             e.HasKey(x => x.JobId);
             e.Property(x => x.JobId).HasMaxLength(64);
+            e.Property(x => x.ScannerId).HasMaxLength(50);
+            e.Property(x => x.TraceId).HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<LineScannerSettingsEntity>(e =>
+        {
+            e.ToTable("LineScannerSettings");
+            e.HasKey(x => x.ScannerId);
             e.Property(x => x.ScannerId).HasMaxLength(50);
             e.Property(x => x.TraceId).HasMaxLength(64);
         });

@@ -70,6 +70,7 @@ public partial class MainWindow : Window
 
     private async void OnClosedAsync(object? sender, EventArgs e)
     {
+        await _vm.FeedingVM.CleanupAsync().ConfigureAwait(false);
         await _vm.CalibrationMonitorVM.DisposeAsync();
     }
 

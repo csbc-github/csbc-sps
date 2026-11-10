@@ -3,8 +3,10 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using LMX;
 using ThreeDScan.Domain.Models;
+using ThreeDScan.Models;
 
 namespace ThreeDScan.Controls;
 
@@ -163,7 +165,128 @@ public partial class LidarScanView : UserControl
     /// <summary>拖曳結束。範圍太小或落在圖外時參數為 null。</summary>
     public event EventHandler<LineScanRegion?>? RegionChosen;
 
+    /// <summary>兩點桌面校正：點選輪廓上一點（scanner XY mm）。</summary>
+    public event EventHandler<ScannerPlanePoint>? DesktopPointPicked;
+
+    public static readonly DependencyProperty IsPickingDesktopPointsProperty = DependencyProperty.Register(
+        nameof(IsPickingDesktopPoints), typeof(bool), typeof(LidarScanView),
+        new PropertyMetadata(false, OnPickingDesktopChanged));
+
+    /// <summary>為 true 時，在剖面上點選兩點桌面校正。</summary>
+    public bool IsPickingDesktopPoints
+    {
+        get
+        {
+            return (bool)GetValue(IsPickingDesktopPointsProperty);
+        }
+        set
+        {
+            SetValue(IsPickingDesktopPointsProperty, value);
+        }
+    }
+
+    public static readonly DependencyProperty ProfileSnapPointsProperty = DependencyProperty.Register(
+        nameof(ProfileSnapPoints), typeof(IEnumerable), typeof(LidarScanView),
+        new PropertyMetadata(null));
+
+    /// <summary>凍結輪廓點，供點選貼齊。</summary>
+    public IEnumerable? ProfileSnapPoints
+    {
+        get
+        {
+            return (IEnumerable?)GetValue(ProfileSnapPointsProperty);
+        }
+        set
+        {
+            SetValue(ProfileSnapPointsProperty, value);
+        }
+    }
+
+    public static readonly DependencyProperty DesktopFirstXProperty = DependencyProperty.Register(
+        nameof(DesktopFirstX), typeof(double?), typeof(LidarScanView), new PropertyMetadata(null, OnDesktopMarkerChanged));
+    public static readonly DependencyProperty DesktopFirstYProperty = DependencyProperty.Register(
+        nameof(DesktopFirstY), typeof(double?), typeof(LidarScanView), new PropertyMetadata(null, OnDesktopMarkerChanged));
+    public static readonly DependencyProperty DesktopSecondXProperty = DependencyProperty.Register(
+        nameof(DesktopSecondX), typeof(double?), typeof(LidarScanView), new PropertyMetadata(null, OnDesktopMarkerChanged));
+    public static readonly DependencyProperty DesktopSecondYProperty = DependencyProperty.Register(
+        nameof(DesktopSecondY), typeof(double?), typeof(LidarScanView), new PropertyMetadata(null, OnDesktopMarkerChanged));
+
+    public double? DesktopFirstX
+    {
+        get
+        {
+            return (double?)GetValue(DesktopFirstXProperty);
+        }
+        set
+        {
+            SetValue(DesktopFirstXProperty, value);
+        }
+    }
+
+    public double? DesktopFirstY
+    {
+        get
+        {
+            return (double?)GetValue(DesktopFirstYProperty);
+        }
+        set
+        {
+            SetValue(DesktopFirstYProperty, value);
+        }
+    }
+
+    public double? DesktopSecondX
+    {
+        get
+        {
+            return (double?)GetValue(DesktopSecondXProperty);
+        }
+        set
+        {
+            SetValue(DesktopSecondXProperty, value);
+        }
+    }
+
+    public double? DesktopSecondY
+    {
+        get
+        {
+            return (double?)GetValue(DesktopSecondYProperty);
+        }
+        set
+        {
+            SetValue(DesktopSecondYProperty, value);
+        }
+    }
+
     private Point? _dragStart;
+
+    private static void OnPickingDesktopChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is LidarScanView self)
+        {
+            if ((bool)e.NewValue)
+            {
+                self.Cursor = Cursors.Hand;
+            }
+            else if (!self.IsSelectingRegion)
+            {
+                self.Cursor = null;
+            }
+        }
+    }
+
+    private static void OnDesktopMarkerChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is LidarScanView self)
+        {
+            self.Renderer.DesktopFirstX = self.DesktopFirstX;
+            self.Renderer.DesktopFirstY = self.DesktopFirstY;
+            self.Renderer.DesktopSecondX = self.DesktopSecondX;
+            self.Renderer.DesktopSecondY = self.DesktopSecondY;
+            self.Renderer.InvalidateVisual();
+        }
+    }
 
     private static void OnSelectingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -240,6 +363,18 @@ public partial class LidarScanView : UserControl
     protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnPreviewMouseLeftButtonDown(e);
+        if (IsPickingDesktopPoints && ProfileSnapPoints is IEnumerable snaps)
+        {
+            var pick = Renderer.PickNearestSnapPoint(e.GetPosition(Renderer), snaps);
+            if (pick is not null)
+            {
+                DesktopPointPicked?.Invoke(this, pick);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         if (!IsSelectingRegion)
         {
             return;

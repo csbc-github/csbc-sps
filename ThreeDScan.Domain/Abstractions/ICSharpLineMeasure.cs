@@ -1,3 +1,5 @@
+// v1 legacy：未註冊 DI，保留原始碼供對照（frames.jsonl）。
+#if false
 using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Domain.Abstractions;
@@ -26,3 +28,4 @@ public interface ICSharpLineMeasure
         double cropStartSeconds,
         double? cropEndSeconds);
 }
+#endif

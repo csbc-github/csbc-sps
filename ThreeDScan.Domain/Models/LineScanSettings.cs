@@ -6,7 +6,10 @@ public sealed class LineScanSettings
     /// <summary>設定區段名稱。</summary>
     public const string SectionName = "LineScan";
 
-    /// <summary>用來執行工作程序的 Python 執行檔。</summary>
+    /// <summary>未帶 scannerId 時的預設線掃描器（對應 LineScanners 鍵名）。</summary>
+    public string DefaultScannerId { get; set; } = "LINE-LIDAR-01";
+
+    /// <summary>用來執行工作程序的 Python 執行檔（v2 正式路徑已停用，過渡保留）。</summary>
     public string PythonExe { get; set; } = "python";
 
     /// <summary>線掃描 Python 模組目錄。空白則用輸出目錄的 LineScan（含搬入的 sick_lidar）。</summary>

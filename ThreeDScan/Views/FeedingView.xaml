@@ -42,19 +42,40 @@
                                     PrimaryMinHeight="280" SecondaryMinHeight="260">
             <controls:AdaptiveSplitView.PrimaryContent>
                 <DockPanel Margin="12">
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
-                                HorizontalAlignment="Right" Margin="0,0,0,8">
-                        <Button Content="設定掃描區域" Padding="14,6" Margin="0,0,6,0"
+                    <WrapPanel DockPanel.Dock="Top" HorizontalAlignment="Right" Margin="0,0,0,8">
+                        <Button Content="擷取輪廓" Padding="12,6" Margin="0,0,6,6"
+                                Command="{Binding CaptureProfileCommand}"/>
+                        <Button Content="兩點校正" Padding="12,6" Margin="0,0,6,6"
+                                Command="{Binding BeginDesktopCalibrationCommand}"/>
+                        <Button Content="儲存兩點" Padding="12,6" Margin="0,0,6,6"
+                                Command="{Binding SubmitTwoPointCommand}"/>
+                        <Button Content="取消點選" Padding="12,6" Margin="0,0,6,6"
+                                Command="{Binding CancelDesktopCalibrationCommand}"/>
+                        <Button Content="讀取設定" Padding="12,6" Margin="0,0,6,6"
+                                Command="{Binding RefreshScannerSettingsCommand}"/>
+                        <Button Content="恢復即時" Padding="12,6" Margin="0,0,6,6"
+                                Command="{Binding ResumeLiveProfileCommand}"/>
+                        <Button Content="設定掃描區域" Padding="12,6" Margin="0,0,6,6"
                                 Command="{Binding BeginSelectRegionCommand}"/>
-                        <Button Content="清除掃描區域" Padding="14,6"
+                        <Button Content="清除掃描區域" Padding="12,6" Margin="0,0,6,6"
                                 Command="{Binding ClearRegionCommand}"/>
-                    </StackPanel>
+                    </WrapPanel>
+                    <controls:AreaConnectionStatusBar DockPanel.Dock="Top" Margin="0,0,0,8"
+                                                      ConnectionLamp="{Binding ConnectionLamp}"
+                                                      ConnectionStatusText="{Binding ConnectionStatusText}"/>
                     <controls:LidarScanView Frame="{Binding CurrentFrame}"
                                             Hint="{Binding LiveHint}"
                                             Materials="{Binding Materials}"
                                             IsSelectingRegion="{Binding IsSelectingRegion}"
                                             SensorRegion="{Binding SensorRegion}"
-                                            RegionChosen="OnRegionChosen"/>
+                                            ProfileSnapPoints="{Binding ProfileSnapPoints}"
+                                            IsPickingDesktopPoints="{Binding IsPickingDesktopPoints}"
+                                            DesktopFirstX="{Binding DesktopFirstX}"
+                                            DesktopFirstY="{Binding DesktopFirstY}"
+                                            DesktopSecondX="{Binding DesktopSecondX}"
+                                            DesktopSecondY="{Binding DesktopSecondY}"
+                                            RegionChosen="OnRegionChosen"
+                                            DesktopPointPicked="OnDesktopPointPicked"/>
                 </DockPanel>
             </controls:AdaptiveSplitView.PrimaryContent>
 

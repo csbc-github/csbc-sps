@@ -24,6 +24,15 @@ public sealed class LidarScanRenderer : FrameworkElement
     private double _baselineY;
     private double _absBase;
 
+    /// <summary>目前剖面基線 Y（scanner mm），供點選貼齊。</summary>
+    public double BaselineY
+    {
+        get
+        {
+            return _baselineY;
+        }
+    }
+
     private double? _angleMinDeg;
     private double? _angleMaxDeg;
     private double _angleCorrectionDeg;
@@ -46,6 +55,18 @@ public sealed class LidarScanRenderer : FrameworkElement
         }
     }
 
+    /// <summary>桌面校正第一點 X（scanner mm）。</summary>
+    public double? DesktopFirstX { get; set; }
+
+    /// <summary>桌面校正第一點 Y。</summary>
+    public double? DesktopFirstY { get; set; }
+
+    /// <summary>桌面校正第二點 X。</summary>
+    public double? DesktopSecondX { get; set; }
+
+    /// <summary>桌面校正第二點 Y。</summary>
+    public double? DesktopSecondY { get; set; }
+
     /// <summary>由 <see cref="LidarScanView"/> 套用輸入框校正。</summary>
     public void ConfigureCalibration(
         double? angleMinDeg,
@@ -61,6 +82,44 @@ public sealed class LidarScanRenderer : FrameworkElement
         _xOffsetMm = xOffsetMm;
         _zOffsetMm = zOffsetMm;
         _referenceYMm = referenceYMm;
+    }
+
+    /// <summary>在凍結輪廓上依螢幕座標貼齊最近點。</summary>
+    public ScannerPlanePoint? PickNearestSnapPoint(Point screen, IEnumerable? snaps)
+    {
+        if (snaps is null)
+        {
+            return null;
+        }
+
+        ComputeLayoutAndRanges();
+        if (_plotRect.Width <= 0 || _plotRect.Height <= 0)
+        {
+            return null;
+        }
+
+        ScannerPlanePoint? best = null;
+        double bestDist = double.MaxValue;
+        foreach (var item in snaps)
+        {
+            if (item is not ScannerPlanePoint pt)
+            {
+                continue;
+            }
+
+            double z = _absBase - Math.Abs(pt.Y) + _zOffsetMm;
+            var disp = DataToScreen(pt.X + _xOffsetMm, z);
+            double dx = disp.X - screen.X;
+            double dy = disp.Y - screen.Y;
+            double dist = dx * dx + dy * dy;
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                best = pt;
+            }
+        }
+
+        return best;
     }
 
     /// <summary>把畫面上拖出的矩形換成掃描器平面的框。太小則不採用。</summary>
@@ -391,7 +450,31 @@ public sealed class LidarScanRenderer : FrameworkElement
         }
 
         DrawSensorRegion(dc);
+        DrawDesktopMarkers(dc);
         dc.Pop();
+    }
+
+    private void DrawDesktopMarkers(DrawingContext dc)
+    {
+        if (_plotRect.Width <= 0 || _plotRect.Height <= 0)
+        {
+            return;
+        }
+
+        DrawDesktopMarker(dc, DesktopFirstX, DesktopFirstY, Brushes.Lime);
+        DrawDesktopMarker(dc, DesktopSecondX, DesktopSecondY, Brushes.DeepSkyBlue);
+    }
+
+    private void DrawDesktopMarker(DrawingContext dc, double? x, double? y, Brush fill)
+    {
+        if (!x.HasValue || !y.HasValue)
+        {
+            return;
+        }
+
+        double z = _absBase - Math.Abs(y.Value) + _zOffsetMm;
+        var p = DataToScreen(x.Value + _xOffsetMm, z);
+        dc.DrawEllipse(fill, new Pen(Brushes.White, 1.5), p, 6, 6);
     }
 
     /// <summary>畫出框選矩形，座標跟著目前剖面的換算。</summary>
