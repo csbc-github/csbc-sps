@@ -201,12 +201,8 @@ public class FeedingViewModel : ViewModelBase
     public ICommand StopScanCommand { get; }
     public ICommand BeginSelectRegionCommand { get; }
     public ICommand ClearRegionCommand { get; }
-    public ICommand CaptureProfileCommand { get; }
-    public ICommand BeginDesktopCalibrationCommand { get; }
-    public ICommand CancelDesktopCalibrationCommand { get; }
-    public ICommand SubmitTwoPointCommand { get; }
-    public ICommand RefreshScannerSettingsCommand { get; }
-    public ICommand ResumeLiveProfileCommand { get; }
+    public ICommand SetDesktopCalibrationCommand { get; }
+    public ICommand ClearDesktopCalibrationCommand { get; }
 
     /// <summary>凍結輪廓點，供兩點點選貼齊。</summary>
     public ObservableCollection<ScannerPlanePoint> ProfileSnapPoints { get; } = new();
@@ -389,22 +385,14 @@ public class FeedingViewModel : ViewModelBase
     {
         StartScanCommand = new RelayCommand(_ => _ = StartAsync(), _ => !IsScanning);
         StopScanCommand = new RelayCommand(_ => _ = StopAsync(), _ => IsScanning);
-        BeginSelectRegionCommand = new RelayCommand(_ => BeginSelectRegion());
-        ClearRegionCommand = new RelayCommand(_ => ClearRegion());
-        CaptureProfileCommand = new RelayCommand(_ => _ = CaptureProfileAsync(), _ => !IsProfileFrozen);
-        BeginDesktopCalibrationCommand = new RelayCommand(
-            _ => BeginDesktopCalibration(),
-            _ => IsProfileFrozen && ProfileSnapPoints.Count > 0);
-        CancelDesktopCalibrationCommand = new RelayCommand(
-            _ => CancelDesktopCalibration(),
-            _ => IsPickingDesktopPoints);
-        SubmitTwoPointCommand = new RelayCommand(
-            _ => _ = SubmitTwoPointAsync(),
-            _ => DesktopFirstX.HasValue && DesktopFirstY.HasValue && DesktopSecondX.HasValue && DesktopSecondY.HasValue);
-        RefreshScannerSettingsCommand = new RelayCommand(_ => _ = LoadScannerSettingsAsync());
-        ResumeLiveProfileCommand = new RelayCommand(
-            _ => ResumeLiveAfterProfile(),
-            _ => IsProfileFrozen);
+        BeginSelectRegionCommand = new RelayCommand(_ => _ = BeginSelectRegionAsync());
+        ClearRegionCommand = new RelayCommand(_ => _ = ClearRegionAsync());
+        SetDesktopCalibrationCommand = new RelayCommand(
+            _ => _ = SetDesktopCalibrationAsync(),
+            _ => !IsPickingDesktopPoints && !IsSelectingRegion);
+        ClearDesktopCalibrationCommand = new RelayCommand(
+            _ => _ = ClearDesktopCalibrationAsync(),
+            _ => !IsPickingDesktopPoints);
 
         LoadDesignTimeData();
         if (!IsInDesignMode())
@@ -450,7 +438,17 @@ public class FeedingViewModel : ViewModelBase
         DesktopSecondY = point.Y;
         _desktopPointsChosen = 2;
         IsPickingDesktopPoints = false;
-        ScanStatusText = "兩點已選定，可按「儲存兩點校正」";
+        ScanStatusText = "兩點已選定，正在儲存…";
+        _ = SubmitTwoPointAndResumeAsync();
+    }
+
+    private async Task SubmitTwoPointAndResumeAsync()
+    {
+        var saved = await SubmitTwoPointAsync().ConfigureAwait(false);
+        if (saved)
+        {
+            await ResumeLiveAfterProfileAsync().ConfigureAwait(false);
+        }
     }
 
     private void StartConnectionMonitoring()
@@ -516,12 +514,13 @@ public class FeedingViewModel : ViewModelBase
         return await TcpEndpointConnectivity.TryConnectAsync(endpoint.Ip, endpoint.Port, 2500).ConfigureAwait(false);
     }
 
-    private void BeginSelectRegion()
+    private async Task BeginSelectRegionAsync()
     {
         if (IsSelectingRegion)
         {
             IsSelectingRegion = false;
             ScanStatusText = "已取消框選";
+            await ResumeLiveAfterProfileAsync().ConfigureAwait(false);
             return;
         }
 
@@ -534,12 +533,19 @@ public class FeedingViewModel : ViewModelBase
         CancelDesktopCalibration();
         IsSelectingRegion = true;
         ScanStatusText = "在左側剖面上拖曳框選範圍";
+        await Task.CompletedTask.ConfigureAwait(false);
     }
 
-    private void BeginDesktopCalibration()
+    private async Task SetDesktopCalibrationAsync()
     {
         CancelDesktopCalibration();
         IsSelectingRegion = false;
+        await CaptureProfileAsync().ConfigureAwait(false);
+        if (!IsProfileFrozen || ProfileSnapPoints.Count == 0)
+        {
+            return;
+        }
+
         _desktopPointsChosen = 0;
         DesktopFirstX = null;
         DesktopFirstY = null;
@@ -555,14 +561,20 @@ public class FeedingViewModel : ViewModelBase
         _desktopPointsChosen = 0;
     }
 
-    private void ResumeLiveAfterProfile()
+    private Task ResumeLiveAfterProfileAsync()
     {
         IsProfileFrozen = false;
         ProfileSnapPoints.Clear();
         IsPickingDesktopPoints = false;
         _desktopPointsChosen = 0;
+        DesktopFirstX = null;
+        DesktopFirstY = null;
+        DesktopSecondX = null;
+        DesktopSecondY = null;
+        IsSelectingRegion = false;
         LiveHint = "架設預覽";
         ScanStatusText = "已恢復即時剖面";
+        return Task.CompletedTask;
     }
 
     /// <summary>套用畫面上拖出的框，並寫入掃描服務。</summary>
@@ -577,15 +589,15 @@ public class FeedingViewModel : ViewModelBase
         IsSelectingRegion = false;
         SensorRegion = region;
         ScanStatusText = "已設定掃描區域";
-        _ = SaveRegionAsync(region);
+        _ = SaveRegionAndResumeAsync(region);
     }
 
-    private void ClearRegion()
+    private async Task ClearRegionAsync()
     {
         IsSelectingRegion = false;
         SensorRegion = null;
         ScanStatusText = "已清除掃描區域";
-        _ = SaveRegionAsync(null);
+        await SaveRegionAndResumeAsync(null).ConfigureAwait(false);
     }
 
     private static readonly JsonSerializerOptions RegionJson = new()
@@ -738,14 +750,14 @@ public class FeedingViewModel : ViewModelBase
         IsProfileFrozen = true;
         CancelDesktopCalibration();
         LiveHint = "輪廓已凍結";
-        ScanStatusText = "可點「兩點校正」或設定 ROI";
+        ScanStatusText = "請在剖面上點選兩點";
     }
 
-    private async Task SubmitTwoPointAsync()
+    private async Task<bool> SubmitTwoPointAsync()
     {
         if (!DesktopFirstX.HasValue || !DesktopFirstY.HasValue || !DesktopSecondX.HasValue || !DesktopSecondY.HasValue)
         {
-            return;
+            return false;
         }
 
         try
@@ -764,7 +776,7 @@ public class FeedingViewModel : ViewModelBase
             {
                 var err = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 await RunOnUiAsync(() => ScanStatusText = "儲存兩點失敗：" + err);
-                return;
+                return false;
             }
 
             var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -773,10 +785,37 @@ public class FeedingViewModel : ViewModelBase
                 ApplyScannerSettingsJson(body);
                 ScanStatusText = "兩點桌面校正已儲存";
             });
+            return true;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             await RunOnUiAsync(() => ScanStatusText = "儲存兩點失敗：" + ex.Message);
+            return false;
+        }
+    }
+
+    private async Task ClearDesktopCalibrationAsync()
+    {
+        try
+        {
+            var scannerId = ResolveDefaultScannerId();
+            var response = await LineResultHttp.DeleteAsync(
+                ApiBase() + "/api/scanners/" + scannerId + "/calibration/two-point").ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                await RunOnUiAsync(() => ScanStatusText = "清除兩點失敗：" + err);
+                return;
+            }
+
+            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            await RunOnUiAsync(() => ApplyScannerSettingsJson(body));
+            await ResumeLiveAfterProfileAsync().ConfigureAwait(false);
+            await RunOnUiAsync(() => ScanStatusText = "兩點桌面校正已清除");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            await RunOnUiAsync(() => ScanStatusText = "清除兩點失敗：" + ex.Message);
         }
     }
 
@@ -841,7 +880,7 @@ public class FeedingViewModel : ViewModelBase
         return new LidarFrame(0, -start, resolution, distances);
     }
 
-    private async Task SaveRegionAsync(LineScanRegion? region)
+    private async Task SaveRegionAndResumeAsync(LineScanRegion? region)
     {
         try
         {
@@ -861,7 +900,12 @@ public class FeedingViewModel : ViewModelBase
             if (!response.IsSuccessStatusCode)
             {
                 await RunOnUiAsync(() => ScanStatusText = "ROI 未寫入服務，請確認掃描服務已啟動");
+                return;
             }
+
+            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            await RunOnUiAsync(() => ApplyScannerSettingsJson(body));
+            await ResumeLiveAfterProfileAsync().ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {

@@ -43,18 +43,10 @@
             <controls:AdaptiveSplitView.PrimaryContent>
                 <DockPanel Margin="12">
                     <WrapPanel DockPanel.Dock="Top" HorizontalAlignment="Right" Margin="0,0,0,8">
-                        <Button Content="擷取輪廓" Padding="12,6" Margin="0,0,6,6"
-                                Command="{Binding CaptureProfileCommand}"/>
-                        <Button Content="兩點校正" Padding="12,6" Margin="0,0,6,6"
-                                Command="{Binding BeginDesktopCalibrationCommand}"/>
-                        <Button Content="儲存兩點" Padding="12,6" Margin="0,0,6,6"
-                                Command="{Binding SubmitTwoPointCommand}"/>
-                        <Button Content="取消點選" Padding="12,6" Margin="0,0,6,6"
-                                Command="{Binding CancelDesktopCalibrationCommand}"/>
-                        <Button Content="讀取設定" Padding="12,6" Margin="0,0,6,6"
-                                Command="{Binding RefreshScannerSettingsCommand}"/>
-                        <Button Content="恢復即時" Padding="12,6" Margin="0,0,6,6"
-                                Command="{Binding ResumeLiveProfileCommand}"/>
+                        <Button Content="設定兩點校正" Padding="12,6" Margin="0,0,6,6"
+                                Command="{Binding SetDesktopCalibrationCommand}"/>
+                        <Button Content="清除兩點校正" Padding="12,6" Margin="0,0,6,6"
+                                Command="{Binding ClearDesktopCalibrationCommand}"/>
                         <Button Content="設定掃描區域" Padding="12,6" Margin="0,0,6,6"
                                 Command="{Binding BeginSelectRegionCommand}"/>
                         <Button Content="清除掃描區域" Padding="12,6" Margin="0,0,6,6"

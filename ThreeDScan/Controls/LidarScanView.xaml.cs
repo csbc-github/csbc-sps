@@ -7,6 +7,7 @@ using System.Windows.Media;
 using LMX;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Models;
+using Microsoft.Extensions.Configuration;
 
 namespace ThreeDScan.Controls;
 
@@ -21,6 +22,7 @@ public partial class LidarScanView : UserControl
     {
         InitializeComponent();
         ApplyCalibrationToRenderer();
+        ApplyFixedPlotRangeFromConfig();
     }
 
     public static readonly DependencyProperty HintProperty = DependencyProperty.Register(
@@ -324,6 +326,18 @@ public partial class LidarScanView : UserControl
             ParseDoubleLoose(ZOffsetMmText, 0),
             ParseOptionalDouble(ReferenceYMmText));
         Renderer.InvalidateVisual();
+    }
+
+    private void ApplyFixedPlotRangeFromConfig()
+    {
+        IConfiguration config = AppConfiguration.Load();
+        IConfigurationSection section = config.GetSection("LineScanProfilePlot");
+        bool useFixed = section.GetValue("UseFixedRange", true);
+        double xMin = section.GetValue("XMin", -1500.0);
+        double xMax = section.GetValue("XMax", 800.0);
+        double zMin = section.GetValue("ZMin", -500.0);
+        double zMax = section.GetValue("ZMax", 1100.0);
+        Renderer.ConfigureFixedPlotRange(useFixed, xMin, xMax, zMin, zMax);
     }
 
     private static double? ParseOptionalDouble(string? s)

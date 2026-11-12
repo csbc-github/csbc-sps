@@ -40,6 +40,11 @@ public sealed class LidarScanRenderer : FrameworkElement
     private double _zOffsetMm;
     private double? _referenceYMm;
     private LineScanRegion? _region;
+    private bool _useFixedPlotRange;
+    private double _fixedXMin;
+    private double _fixedXMax;
+    private double _fixedZMin;
+    private double _fixedZMax;
 
     /// <summary>框選範圍（掃描器平面）。只畫框線，剖面仍全部顯示。</summary>
     public LineScanRegion? SensorRegion
@@ -82,6 +87,28 @@ public sealed class LidarScanRenderer : FrameworkElement
         _xOffsetMm = xOffsetMm;
         _zOffsetMm = zOffsetMm;
         _referenceYMm = referenceYMm;
+    }
+
+    /// <summary>設定固定 X／Z 顯示範圍；啟用時座標軸不再隨每圈資料極值跳動。</summary>
+    /// <param name="useFixed">true 時採用固定範圍。</param>
+    /// <param name="xMin">X 下限（mm）。</param>
+    /// <param name="xMax">X 上限（mm）。</param>
+    /// <param name="zMin">Z 下限（mm）。</param>
+    /// <param name="zMax">Z 上限（mm）。</param>
+    public void ConfigureFixedPlotRange(bool useFixed, double xMin, double xMax, double zMin, double zMax)
+    {
+        _useFixedPlotRange = useFixed
+            && double.IsFinite(xMin)
+            && double.IsFinite(xMax)
+            && double.IsFinite(zMin)
+            && double.IsFinite(zMax)
+            && xMin < xMax
+            && zMin < zMax;
+        _fixedXMin = xMin;
+        _fixedXMax = xMax;
+        _fixedZMin = zMin;
+        _fixedZMax = zMax;
+        InvalidateVisual();
     }
 
     /// <summary>在凍結輪廓上依螢幕座標貼齊最近點。</summary>
@@ -282,11 +309,23 @@ public sealed class LidarScanRenderer : FrameworkElement
 
         if (_frame is null || _frame.Cartesian.Length == 0)
         {
-            // 無資料時：給 readout 一個合理的預設範圍（Z 以輸送帶面為 0、向上為正）
-            _xMin = -500; _xMax = 500;
-            _zMin = 0; _zMax = 50;
             _baselineY = 0;
             _absBase = 0;
+            if (_useFixedPlotRange)
+            {
+                _xMin = _fixedXMin;
+                _xMax = _fixedXMax;
+                _zMin = _fixedZMin;
+                _zMax = _fixedZMax;
+            }
+            else
+            {
+                _xMin = -500;
+                _xMax = 500;
+                _zMin = 0;
+                _zMax = 50;
+            }
+
             return;
         }
 
@@ -305,10 +344,23 @@ public sealed class LidarScanRenderer : FrameworkElement
 
         if (ys.Count == 0)
         {
-            _xMin = -500; _xMax = 500;
-            _zMin = 0; _zMax = 50;
             _baselineY = 0;
             _absBase = 0;
+            if (_useFixedPlotRange)
+            {
+                _xMin = _fixedXMin;
+                _xMax = _fixedXMax;
+                _zMin = _fixedZMin;
+                _zMax = _fixedZMax;
+            }
+            else
+            {
+                _xMin = -500;
+                _xMax = 500;
+                _zMin = 0;
+                _zMax = 50;
+            }
+
             return;
         }
 
@@ -335,6 +387,15 @@ public sealed class LidarScanRenderer : FrameworkElement
             {
                 zMin = z;
             }
+        }
+
+        if (_useFixedPlotRange)
+        {
+            _xMin = _fixedXMin;
+            _xMax = _fixedXMax;
+            _zMin = _fixedZMin;
+            _zMax = _fixedZMax;
+            return;
         }
 
         // X 範圍：使用有效資料極值，加 5% padding

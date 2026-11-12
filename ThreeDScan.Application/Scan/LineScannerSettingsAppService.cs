@@ -84,6 +84,34 @@ public sealed class LineScannerSettingsAppService
         return ToDto(scannerId, existing, traceId);
     }
 
+    /// <summary>清除兩點桌面校正。</summary>
+    public async Task<LineScannerSettingsDto?> ClearTwoPointAsync(
+        string scannerId,
+        string traceId,
+        CancellationToken ct = default)
+    {
+        if (!_lineScanners.TryGet(scannerId, out _))
+        {
+            return null;
+        }
+
+        if (await ScannerBusyAsync(scannerId, ct).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("SCANNER_BUSY");
+        }
+
+        var existing = await _settings.GetAsync(scannerId, ct).ConfigureAwait(false)
+            ?? new LineScannerSettingsRecord { ScannerId = scannerId.Trim() };
+        existing.CalibrationFirstX = null;
+        existing.CalibrationFirstY = null;
+        existing.CalibrationSecondX = null;
+        existing.CalibrationSecondY = null;
+        existing.UpdatedAt = DateTimeOffset.UtcNow;
+        existing.TraceId = traceId;
+        await _settings.SaveAsync(existing, ct).ConfigureAwait(false);
+        return ToDto(scannerId, existing, traceId);
+    }
+
     /// <summary>寫入或清除 ROI。</summary>
     public async Task<LineScannerSettingsDto?> SetRoiAsync(
         string scannerId,

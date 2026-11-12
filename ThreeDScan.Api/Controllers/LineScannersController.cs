@@ -60,6 +60,27 @@ public sealed class LineScannersController : ControllerBase
         }
     }
 
+    /// <summary>清除兩點桌面校正。</summary>
+    [HttpDelete("{scannerId}/calibration/two-point")]
+    public async Task<IActionResult> ClearTwoPoint(string scannerId, CancellationToken ct)
+    {
+        var traceId = Guid.NewGuid().ToString("N");
+        try
+        {
+            var dto = await _settings.ClearTwoPointAsync(scannerId, traceId, ct).ConfigureAwait(false);
+            if (dto is null)
+            {
+                return BadRequest(ToError("CAL_CFG_001", "未知 scannerId。"));
+            }
+
+            return Ok(dto);
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "SCANNER_BUSY")
+        {
+            return BadRequest(ToError("SCANNER_BUSY", "此掃描器仍有任務進行中，請先完成或中止，再修改校正與框選範圍。"));
+        }
+    }
+
     /// <summary>儲存或清除 ROI。</summary>
     [HttpPost("{scannerId}/roi")]
     public async Task<IActionResult> SetRoi(

@@ -138,6 +138,13 @@ public sealed class ScanAppService : IScanAppService
                 "請先設定桌面校正的 calibrationFirst 與 calibrationSecond。");
         }
 
+        if (desktop.RoiBoundsOrNull() is null)
+        {
+            return DasOperationResult<LineScanStartData>.Fail(
+                "CAL_CFG_001",
+                "請先設定掃描有效範圍（ROI）。");
+        }
+
         var baseline = await _rollerCalibration.GetAsync(scannerId, ct).ConfigureAwait(false);
         if (baseline is null)
         {
