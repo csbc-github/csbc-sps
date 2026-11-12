@@ -26,15 +26,15 @@
 
   <ItemGroup>
     <Reference Include="LjDevCommon">
-      <HintPath>..\..\LJScanTest\dll\LjDevCommon.dll</HintPath>
+      <HintPath>..\dll\LjDevCommon.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="LjDevCommunication">
-      <HintPath>..\..\LJScanTest\dll\LjDevCommunication.dll</HintPath>
+      <HintPath>..\dll\LjDevCommunication.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="LjDevMeasure">
-      <HintPath>..\..\LJScanTest\dll\LjDevMeasure.dll</HintPath>
+      <HintPath>..\dll\LjDevMeasure.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

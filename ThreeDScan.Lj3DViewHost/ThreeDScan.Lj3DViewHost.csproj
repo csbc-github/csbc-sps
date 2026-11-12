@@ -15,15 +15,15 @@
 
   <ItemGroup>
     <Reference Include="LjDev3dView">
-      <HintPath>..\..\LJScanTest\dll\LjDev3dView.dll</HintPath>
+      <HintPath>..\dll\LjDev3dView.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="LjDevCommon">
-      <HintPath>..\..\LJScanTest\dll\LjDevCommon.dll</HintPath>
+      <HintPath>..\dll\LjDevCommon.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="LjDevMeasure">
-      <HintPath>..\..\LJScanTest\dll\LjDevMeasure.dll</HintPath>
+      <HintPath>..\dll\LjDevMeasure.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>
