@@ -156,7 +156,7 @@ public sealed class SickCSharpLineScanner : ISickLineScanner
         var taskPath = Path.Combine(sessionDirectory, "task.json");
         if (File.Exists(taskPath))
         {
-            var doc = JsonSerializer.Deserialize<TaskDocument>(File.ReadAllText(taskPath), JsonOptions);
+            var doc = JsonSerializer.Deserialize<TaskDocument>(File.ReadAllText(taskPath), JsonDefaults.Options);
             if (doc is not null && !string.IsNullOrWhiteSpace(doc.ScannerId))
             {
                 return new SessionContext(

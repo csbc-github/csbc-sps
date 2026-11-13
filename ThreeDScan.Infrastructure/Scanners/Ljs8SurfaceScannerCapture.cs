@@ -288,25 +288,7 @@ public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
 
     private static void WriteAgentLog(string location, string message, string hypothesisId, object data)
     {
-        try
-        {
-            var payload = new
-            {
-                sessionId = "cd59e4",
-                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                location = location,
-                message = message,
-                hypothesisId = hypothesisId,
-                data = data,
-            };
-            var line = System.Text.Json.JsonSerializer.Serialize(payload);
-            File.AppendAllText(
-                @"D:\Project\CSBS\角鋼\Program\ThreeDScan\debug-cd59e4.log",
-                line + Environment.NewLine);
-        }
-        catch
-        {
-        }
+        Ljs8AgentDebugLog.Write(location, message, data, hypothesisId);
     }
 
     private static void DebugLog(string msg)

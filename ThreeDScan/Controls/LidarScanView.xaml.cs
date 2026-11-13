@@ -189,7 +189,7 @@ public partial class LidarScanView : UserControl
 
     public static readonly DependencyProperty ProfileSnapPointsProperty = DependencyProperty.Register(
         nameof(ProfileSnapPoints), typeof(IEnumerable), typeof(LidarScanView),
-        new PropertyMetadata(null));
+        new PropertyMetadata(null, OnProfileSnapPointsChanged));
 
     /// <summary>凍結輪廓點，供點選貼齊。</summary>
     public IEnumerable? ProfileSnapPoints
@@ -372,6 +372,14 @@ public partial class LidarScanView : UserControl
     {
         if (d is LidarScanView self)
             self.Renderer.Materials = e.NewValue as IEnumerable;
+    }
+
+    private static void OnProfileSnapPointsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is LidarScanView self)
+        {
+            self.Renderer.ProfileSnapPoints = e.NewValue as IEnumerable;
+        }
     }
 
     protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)

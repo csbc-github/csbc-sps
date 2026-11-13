@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using ThreeDScan.Domain.Abstractions;
@@ -161,12 +162,23 @@ public sealed class ScanTaskRepository : IScanTaskRepository
     /// <inheritdoc />
     public async Task<IReadOnlyList<string>> NonTerminalTaskIdsAsync(CancellationToken ct = default)
     {
-        return await _db.ScanTasks
-            .AsNoTracking()
-            .Where(x => x.Status != "Completed" && x.Status != "Failed" && x.Status != "Aborted")
-            .Select(x => x.TaskId)
-            .ToListAsync(ct)
-            .ConfigureAwait(false);
+        try
+        {
+            return await _db.ScanTasks
+                .AsNoTracking()
+                .Where(x => x.Status != "Completed" && x.Status != "Failed" && x.Status != "Aborted")
+                .Select(x => x.TaskId)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return Array.Empty<string>();
+        }
+        catch (SqlException) when (ct.IsCancellationRequested)
+        {
+            return Array.Empty<string>();
+        }
     }
 
     /// <inheritdoc />

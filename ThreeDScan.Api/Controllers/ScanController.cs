@@ -39,7 +39,14 @@ public sealed class ScanController : ControllerBase
     [HttpGet("line/live")]
     public async Task<IActionResult> GetLiveFrame(CancellationToken ct)
     {
-        return Ok(await _scan.GetLiveFrameAsync(ct).ConfigureAwait(false));
+        try
+        {
+            return Ok(await _scan.GetLiveFrameAsync(ct).ConfigureAwait(false));
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return Ok(new LineScanLiveFrame());
+        }
     }
 
     /// <summary>開始架設長連預覽（O8）。</summary>

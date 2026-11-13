@@ -34,7 +34,7 @@ public class FeedingViewModel : ViewModelBase
         ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
     })
     {
-        Timeout = TimeSpan.FromSeconds(5),
+        Timeout = TimeSpan.FromSeconds(30),
     };
 
     private LidarFrame? _currentFrame;
@@ -524,16 +524,18 @@ public class FeedingViewModel : ViewModelBase
             return;
         }
 
-        if (CurrentFrame == null)
+        CancelDesktopCalibration();
+        ScanStatusText = "正在凍結輪廓…";
+        await CaptureProfileAsync().ConfigureAwait(false);
+        if (!IsProfileFrozen || CurrentFrame == null)
         {
             ScanStatusText = "還沒有剖面，無法框選";
+            await ResumeLiveAfterProfileAsync().ConfigureAwait(false);
             return;
         }
 
-        CancelDesktopCalibration();
         IsSelectingRegion = true;
         ScanStatusText = "在左側剖面上拖曳框選範圍";
-        await Task.CompletedTask.ConfigureAwait(false);
     }
 
     private async Task SetDesktopCalibrationAsync()
@@ -561,20 +563,19 @@ public class FeedingViewModel : ViewModelBase
         _desktopPointsChosen = 0;
     }
 
-    private Task ResumeLiveAfterProfileAsync()
+    private async Task ResumeLiveAfterProfileAsync()
     {
         IsProfileFrozen = false;
         ProfileSnapPoints.Clear();
         IsPickingDesktopPoints = false;
         _desktopPointsChosen = 0;
-        DesktopFirstX = null;
-        DesktopFirstY = null;
-        DesktopSecondX = null;
-        DesktopSecondY = null;
         IsSelectingRegion = false;
         LiveHint = "架設預覽";
         ScanStatusText = "已恢復即時剖面";
-        return Task.CompletedTask;
+        if (!_userStoppedLive)
+        {
+            await StartAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>套用畫面上拖出的框，並寫入掃描服務。</summary>
@@ -679,6 +680,13 @@ public class FeedingViewModel : ViewModelBase
                 DesktopSecondX = ReadDouble(second, "x");
                 DesktopSecondY = ReadDouble(second, "y");
             }
+        }
+        else
+        {
+            DesktopFirstX = null;
+            DesktopFirstY = null;
+            DesktopSecondX = null;
+            DesktopSecondY = null;
         }
     }
 
@@ -1012,6 +1020,11 @@ public class FeedingViewModel : ViewModelBase
     private async Task RefreshLiveAsync()
     {
         if (_livePollBusy)
+        {
+            return;
+        }
+
+        if (_selectingRegion || _profileFrozen || _isPickingDesktopPoints)
         {
             return;
         }

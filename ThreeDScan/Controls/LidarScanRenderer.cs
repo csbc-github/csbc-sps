@@ -16,6 +16,7 @@ public sealed class LidarScanRenderer : FrameworkElement
 {
     private LidarFrame? _frame;
     private IEnumerable? _materials;
+    private IEnumerable? _profileSnapPoints;
 
     // 繪圖區（去掉軸標籤邊距後的內框）
     private Rect _plotRect;
@@ -232,6 +233,7 @@ public sealed class LidarScanRenderer : FrameworkElement
     {
         DashStyle = new DashStyle(new[] { 6.0, 3.0 }, 0),
     });
+    private static readonly Pen DesktopCalibrationLinePen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A)), 2.0));
     private static readonly Brush ProfileDotBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x9F, 0x12, 0x39)));
     private static readonly Brush BaselinePen = Freeze(new SolidColorBrush(Color.FromArgb(180, 0x9C, 0xA3, 0xAF)));
     private static readonly Typeface LabelTypeface = new("Segoe UI");
@@ -264,6 +266,20 @@ public sealed class LidarScanRenderer : FrameworkElement
             return _materials;
         }
         set { _materials = value; InvalidateVisual(); }
+    }
+
+    /// <summary>凍結輪廓的掃描器 XY 點；有資料時以此繪製，避免極座標分箱斷線。</summary>
+    public IEnumerable? ProfileSnapPoints
+    {
+        get
+        {
+            return _profileSnapPoints;
+        }
+        set
+        {
+            _profileSnapPoints = value;
+            InvalidateVisual();
+        }
     }
 
     /// <summary>把螢幕座標換算成資料座標 (X mm, Z mm)。</summary>
@@ -461,13 +477,25 @@ public sealed class LidarScanRenderer : FrameworkElement
 
     private void DrawProfile(DrawingContext dc)
     {
+        List<List<Point>> segments;
+        List<Point> allDots;
+        if (TryBuildSnapPointProfile(out segments, out allDots))
+        {
+            dc.PushClip(new RectangleGeometry(_plotRect));
+            DrawProfileGeometry(dc, segments, allDots);
+            DrawSensorRegion(dc);
+            DrawDesktopMarkers(dc);
+            dc.Pop();
+            return;
+        }
+
         var f = _frame!;
         int n = f.Distances.Length;
 
         // 把連續的有效點切成一段段線段；遇到無效點就「斷線」，避免畫面從 0,0 拉一條長線過去。
-        var segments = new List<List<Point>>();
+        segments = new List<List<Point>>();
         var current = new List<Point>(n);
-        var allDots = new List<Point>(n);
+        allDots = new List<Point>(n);
         for (int i = 0; i < n; i++)
         {
             if (!TryPlaneXY(f, i, out var x, out var y))
@@ -484,6 +512,14 @@ public sealed class LidarScanRenderer : FrameworkElement
         if (current.Count >= 2) segments.Add(current);
 
         dc.PushClip(new RectangleGeometry(_plotRect));
+        DrawProfileGeometry(dc, segments, allDots);
+        DrawSensorRegion(dc);
+        DrawDesktopMarkers(dc);
+        dc.Pop();
+    }
+
+    private void DrawProfileGeometry(DrawingContext dc, List<List<Point>> segments, List<Point> allDots)
+    {
         if (segments.Count > 0)
         {
             var geo = new StreamGeometry();
@@ -509,10 +545,85 @@ public sealed class LidarScanRenderer : FrameworkElement
                 }
             }
         }
+    }
 
-        DrawSensorRegion(dc);
-        DrawDesktopMarkers(dc);
-        dc.Pop();
+    /// <summary>依掃描器 XY 凍結點繪製連續剖面（角度排序；間距過大則斷線）。</summary>
+    private bool TryBuildSnapPointProfile(out List<List<Point>> segments, out List<Point> allDots)
+    {
+        segments = new List<List<Point>>();
+        allDots = new List<Point>();
+        if (_profileSnapPoints is null)
+        {
+            return false;
+        }
+
+        var ordered = new List<(double AngleDeg, Point Screen)>();
+        foreach (var item in _profileSnapPoints)
+        {
+            if (item is not ScannerPlanePoint pt)
+            {
+                continue;
+            }
+
+            var distance = Math.Sqrt(pt.X * pt.X + pt.Y * pt.Y);
+            if (distance <= 1)
+            {
+                continue;
+            }
+
+            double z = _absBase - Math.Abs(pt.Y) + _zOffsetMm;
+            var screen = DataToScreen(pt.X + _xOffsetMm, z);
+            double angleDeg = Math.Atan2(pt.Y, pt.X) * 180.0 / Math.PI;
+            ordered.Add((angleDeg, screen));
+            allDots.Add(screen);
+        }
+
+        if (ordered.Count < 2)
+        {
+            allDots.Clear();
+            return false;
+        }
+
+        ordered.Sort((left, right) => left.AngleDeg.CompareTo(right.AngleDeg));
+        var steps = new List<double>();
+        for (var i = 1; i < ordered.Count; i++)
+        {
+            var step = ordered[i].AngleDeg - ordered[i - 1].AngleDeg;
+            if (step > 0.001)
+            {
+                steps.Add(step);
+            }
+        }
+
+        double breakDeg = 1.0;
+        if (steps.Count > 0)
+        {
+            steps.Sort();
+            breakDeg = Math.Max(steps[steps.Count / 2] * 3.0, 0.5);
+        }
+
+        var current = new List<Point> { ordered[0].Screen };
+        for (var i = 1; i < ordered.Count; i++)
+        {
+            if (ordered[i].AngleDeg - ordered[i - 1].AngleDeg > breakDeg)
+            {
+                if (current.Count >= 2)
+                {
+                    segments.Add(current);
+                }
+
+                current = new List<Point>();
+            }
+
+            current.Add(ordered[i].Screen);
+        }
+
+        if (current.Count >= 2)
+        {
+            segments.Add(current);
+        }
+
+        return segments.Count > 0;
     }
 
     private void DrawDesktopMarkers(DrawingContext dc)
@@ -524,6 +635,25 @@ public sealed class LidarScanRenderer : FrameworkElement
 
         DrawDesktopMarker(dc, DesktopFirstX, DesktopFirstY, Brushes.Lime);
         DrawDesktopMarker(dc, DesktopSecondX, DesktopSecondY, Brushes.DeepSkyBlue);
+        if (DesktopFirstX.HasValue && DesktopFirstY.HasValue && DesktopSecondX.HasValue && DesktopSecondY.HasValue
+            && TryDesktopScreenPoint(DesktopFirstX.Value, DesktopFirstY.Value, out var p1)
+            && TryDesktopScreenPoint(DesktopSecondX.Value, DesktopSecondY.Value, out var p2))
+        {
+            dc.DrawLine(DesktopCalibrationLinePen, p1, p2);
+        }
+    }
+
+    private bool TryDesktopScreenPoint(double x, double y, out Point screen)
+    {
+        screen = new Point();
+        if (_plotRect.Width <= 0 || _plotRect.Height <= 0)
+        {
+            return false;
+        }
+
+        double z = _absBase - Math.Abs(y) + _zOffsetMm;
+        screen = DataToScreen(x + _xOffsetMm, z);
+        return true;
     }
 
     private void DrawDesktopMarker(DrawingContext dc, double? x, double? y, Brush fill)
@@ -533,8 +663,11 @@ public sealed class LidarScanRenderer : FrameworkElement
             return;
         }
 
-        double z = _absBase - Math.Abs(y.Value) + _zOffsetMm;
-        var p = DataToScreen(x.Value + _xOffsetMm, z);
+        if (!TryDesktopScreenPoint(x.Value, y.Value, out var p))
+        {
+            return;
+        }
+
         dc.DrawEllipse(fill, new Pen(Brushes.White, 1.5), p, 6, 6);
     }
 
