@@ -100,10 +100,19 @@ public sealed class SickCSharpLineScanner : ISickLineScanner
     }
 
     /// <inheritdoc />
-    public Task StopRecordingAsync(string sessionDirectory, CancellationToken ct = default)
+    public async Task StopRecordingAsync(string sessionDirectory, CancellationToken ct = default)
     {
         var taskId = SessionTaskId(sessionDirectory);
-        return _host.FinalizeLineAsync(taskId, ct);
+        try
+        {
+            await _host.FinalizeLineAsync(taskId, ct).ConfigureAwait(false);
+        }
+        catch (LineScanDeviceException ex)
+        {
+            // Keep infrastructure exceptions behind the domain scanner boundary,
+            // as the setup/profile facade already does.
+            throw new ScanTaskException(400, ex.Code, ex.Message);
+        }
     }
 
     /// <inheritdoc />
@@ -134,15 +143,40 @@ public sealed class SickCSharpLineScanner : ISickLineScanner
 
         var meta = JsonSerializer.Deserialize<LineScanSessionMeta>(await File.ReadAllTextAsync(metaPath, ct).ConfigureAwait(false), JsonOptions)
             ?? throw new InvalidDataException("line-scan-meta.json 無法讀取。");
-        var calibration = await _resolver.GetCalibrationAsync(meta.ScannerId, ct).ConfigureAwait(false);
-        var outputPath = Path.Combine(sessionDirectory, "line_raw_3d.ply");
-        if (!File.Exists(outputPath))
-        {
-            throw new InvalidDataException("尚未完成 3D 重建，找不到 line_raw_3d.ply。");
-        }
+        var calibration = LineScanMeasurementContext.ReadCapturedCalibration(sessionDirectory)
+            ?? await _resolver.GetCalibrationAsync(meta.ScannerId, ct).ConfigureAwait(false);
+        _ = ResolveCompletedOutputPath(sessionDirectory);
+        // Measurement needs the recorded near-table context that export height
+        // filtering omits. Its frozen capture calibration/settings take priority.
+        var context = await Task.Run(() => LineScanMeasurementContext.Load(sessionDirectory, calibration, ct), ct)
+            .ConfigureAwait(false);
+        return _measure.MeasureLine(context.Frames, context.Calibration, ct);
+    }
 
-        var cloud = await Task.Run(() => Cloud.Read(outputPath), ct).ConfigureAwait(false);
-        return _measure.MeasureLine(cloud.FullData(), calibration, ct);
+    internal static string ResolveCompletedOutputPath(string sessionDirectory)
+    {
+        string capturePath = Path.Combine(sessionDirectory, "line_raw.capture.json");
+        if (File.Exists(capturePath))
+        {
+            using var capture = JsonDocument.Parse(File.ReadAllText(capturePath));
+            if (capture.RootElement.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("錄製設定檔必須是 JSON 物件。");
+            if (capture.RootElement.TryGetProperty("output_3d", out var output)
+                && output.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(output.GetString()))
+            {
+                string recorded = output.GetString()!;
+                string resolved = Path.IsPathRooted(recorded) ? recorded : Path.Combine(sessionDirectory, recorded);
+                if (File.Exists(resolved)) return Path.GetFullPath(resolved);
+                string relocated = Path.Combine(sessionDirectory, Path.GetFileName(recorded));
+                if (File.Exists(relocated)) return Path.GetFullPath(relocated);
+            }
+        }
+        foreach (string file in new[] { "line_3d.ply", "line_raw_3d.ply" })
+        {
+            string path = Path.Combine(sessionDirectory, file);
+            if (File.Exists(path)) return Path.GetFullPath(path);
+        }
+        throw new InvalidDataException("尚未完成 3D 重建，找不到錄製設定記載的 3D PLY。");
     }
 
     private static string SessionTaskId(string sessionDirectory)

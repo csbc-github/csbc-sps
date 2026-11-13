@@ -16,26 +16,27 @@ public sealed class Recorder
     readonly string path, encoderPath, capturePath;
     readonly double[]? roi;
     readonly object? context;
+    readonly bool simulation;
     readonly DateTimeOffset started = DateTimeOffset.UtcNow;
     string? error;
     bool stopping, finished;
     public string? Error { get { lock (gate) return error; } }
 
-    public Recorder(string path, double[]? roi = null, object? context = null, int queueCapacity = 128)
+    public Recorder(string path, double[]? roi = null, object? context = null, int queueCapacity = 128, bool simulation = false)
     {
         this.path = Path.GetFullPath(path);
         encoderPath = Path.ChangeExtension(this.path, ".encoder.jsonl");
         capturePath = Path.ChangeExtension(this.path, ".capture.json");
         if (roi != null && (roi.Length != 4 || roi.Any(v => !double.IsFinite(v)) || roi[0] >= roi[1] || roi[2] >= roi[3])) throw new ArgumentException("錄製框選範圍無效");
-        this.roi = roi?.ToArray(); this.context = context;
+        this.roi = roi?.ToArray(); this.context = context; this.simulation = simulation;
         queue = Channel.CreateBounded<(Scan, double)>(queueCapacity);
         FileStream? encoder = null, capture = null; PlyWriter? writer = null;
         try
         {
             encoder = new(encoderPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
             capture = new(capturePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
-            WriteJson(encoder, new { type = "header", format = "sick_encoder_frames", version = 1, simulation = false, source = "recorded" }); encoder.Flush();
-            writer = new PlyWriter(this.path, true);
+            WriteJson(encoder, new { type = "header", format = "sick_encoder_frames", version = 1, simulation, source = simulation ? "synthetic" : "recorded" }); encoder.Flush();
+            writer = new PlyWriter(this.path, true, simulation: simulation);
             var ownedEncoder = encoder; var ownedCapture = capture; var ownedWriter = writer;
             task = Task.Run(() => Run(ownedWriter, ownedEncoder, ownedCapture));
         }
@@ -119,7 +120,8 @@ public sealed class Recorder
             if (snapshot.ValueKind == JsonValueKind.Object) foreach (var p in snapshot.EnumerateObject()) metadata[p.Name] = p.Value.Clone();
         }
         metadata["source"] = path; metadata["started_utc"] = started; metadata["completed_utc"] = DateTimeOffset.UtcNow;
-        metadata["synthetic"] = false; metadata["complete"] = Error == null; metadata["error"] = Error ?? "";
+        metadata["synthetic"] = simulation; metadata["encoder_source"] = simulation ? "synthetic" : "recorded";
+        metadata["complete"] = Error == null; metadata["error"] = Error ?? "";
         metadata["encoder_path"] = encoderPath; metadata["encoder_frames"] = frames; metadata["frames"] = frames; metadata["points"] = points;
         if (!metadata.ContainsKey("roi_xy")) metadata["roi_xy"] = roi;
         output.Write(JsonSerializer.SerializeToUtf8Bytes(metadata, ScanJson.Options));

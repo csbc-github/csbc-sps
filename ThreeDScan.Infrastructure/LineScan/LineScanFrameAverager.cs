@@ -8,6 +8,7 @@ internal sealed class LineScanFrameAverager
 {
     /// <summary>同一群裡允許的距離差 (mm)。與 Python <c>edge_mm</c> 相同。</summary>
     public const double EdgeMm = 10;
+    public const double ClusterBoundaryToleranceMm = Hank.PointMean.ClusterBoundaryToleranceMm;
 
     private int _frames;
     private readonly Dictionary<int, List<RayHit>> _rays = new();
@@ -54,7 +55,7 @@ internal sealed class LineScanFrameAverager
         var recentCount = Math.Min(_frames, Math.Max(3, (int)Math.Ceiling(_frames * 0.25)));
         var recentStart = _frames - recentCount;
         var recentMinimum = (int)Math.Ceiling(recentCount * 0.6);
-        foreach (var samples in _rays.Values)
+        foreach (var (_, samples) in _rays.OrderBy(ray => ray.Key))
         {
             if (samples.Count < minimum)
             {
@@ -67,7 +68,7 @@ internal sealed class LineScanFrameAverager
             var bestEnd = 0;
             for (var right = 0; right < samples.Count; right++)
             {
-                while (samples[right].Radius - samples[left].Radius > EdgeMm)
+                while (samples[right].Radius - samples[left].Radius > EdgeMm + ClusterBoundaryToleranceMm)
                 {
                     left++;
                 }
@@ -119,7 +120,8 @@ internal sealed class LineScanFrameAverager
 
     private static int CompareRadius(RayHit left, RayHit right)
     {
-        return left.Radius.CompareTo(right.Radius);
+        var radius = left.Radius.CompareTo(right.Radius);
+        return radius != 0 ? radius : left.Frame.CompareTo(right.Frame);
     }
 
     private struct RayHit

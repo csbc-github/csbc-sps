@@ -332,7 +332,7 @@ public sealed class ScanAppService : IScanAppService
             _taskResults.SetLatestLine(payload);
             await _callback.NotifyAsync(callbackUrl, payload, ct).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or IOException or JsonException or InvalidDataException)
+        catch (Exception ex) when (ex is ArgumentException or ScanTaskException or InvalidOperationException or TimeoutException or IOException or JsonException)
         {
             doc = await _scanTaskStore.FindAsync(taskId, ct).ConfigureAwait(false);
             if (doc is null || doc.Status == "Aborted")

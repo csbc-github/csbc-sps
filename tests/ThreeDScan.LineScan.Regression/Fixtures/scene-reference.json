@@ -1,0 +1,261 @@
+[
+  {
+    "file": "measurement_639301350082184552.json",
+    "all": 763,
+    "selected": 189,
+    "AutoCalibrationModel": "scan_order_contacts_v3",
+    "LeftMm": 64.17048917158544,
+    "RightMm": 336.6145829192003,
+    "WidthMm": 338.21895466638375,
+    "CorrectedHeightMm": 63.98879077064907,
+    "FaceChordRmsMm": [
+      0.6360581891791999,
+      0.3275427500233109
+    ],
+    "FaceChordP95Mm": [
+      1.0102844695429987,
+      0.6048608273083966
+    ],
+    "ApexFitShiftMm": 2.9503947195890485,
+    "local_points": [
+      [
+        42.64366648229706,
+        -6.088185511288202e-14
+      ],
+      [
+        47.46925828337822,
+        63.98879077064897
+      ],
+      [
+        380.8626211486807,
+        17.531896435880256
+      ]
+    ],
+    "AutoEndpointActions": [
+      "supported_steep_baseline_contact",
+      "supported_body_projection"
+    ]
+  },
+  {
+    "file": "measurement_639301350539043326.json",
+    "all": 760,
+    "selected": 189,
+    "AutoCalibrationModel": "scan_order_contacts_v3",
+    "LeftMm": 65.72392600328689,
+    "RightMm": 333.48308293127155,
+    "WidthMm": 336.5664776079904,
+    "CorrectedHeightMm": 65.40721793422088,
+    "FaceChordRmsMm": [
+      0.7483045611613941,
+      0.34764193047817615
+    ],
+    "FaceChordP95Mm": [
+      1.2228176234929227,
+      0.6347387705476586
+    ],
+    "ApexFitShiftMm": 3.0945466746008474,
+    "local_points": [
+      [
+        13.129514930943516,
+        -9.905444520175166e-14
+      ],
+      [
+        19.573914933338234,
+        65.40721793422088
+      ],
+      [
+        349.69599253893387,
+        18.180313751219224
+      ]
+    ],
+    "AutoEndpointActions": [
+      "supported_steep_baseline_contact",
+      "supported_body_projection"
+    ]
+  },
+  {
+    "file": "measurement_639301350579387571.json",
+    "all": 756,
+    "selected": 189,
+    "AutoCalibrationModel": "scan_order_contacts_v3",
+    "LeftMm": 65.53622134244549,
+    "RightMm": 337.0959562123933,
+    "WidthMm": 339.0442961132927,
+    "CorrectedHeightMm": 65.31921865620403,
+    "FaceChordRmsMm": [
+      0.5835993590889498,
+      0.28614139220363133
+    ],
+    "FaceChordP95Mm": [
+      0.9092920825008538,
+      0.5273175173971655
+    ],
+    "ApexFitShiftMm": 3.1063924632164186,
+    "local_points": [
+      [
+        13.525308021205928,
+        -8.037667753590938e-14
+      ],
+      [
+        18.85409606249783,
+        65.31921865620407
+      ],
+      [
+        352.56960413449855,
+        17.699439498860983
+      ]
+    ],
+    "AutoEndpointActions": [
+      "supported_steep_baseline_contact",
+      "supported_body_projection"
+    ]
+  },
+  {
+    "file": "measurement_639301351049221699.json",
+    "all": 758,
+    "selected": 184,
+    "AutoCalibrationModel": "scan_order_contacts_v3",
+    "LeftMm": 66.9975236172283,
+    "RightMm": 333.49761805662524,
+    "WidthMm": 336.91054099115763,
+    "CorrectedHeightMm": 66.60972907197598,
+    "FaceChordRmsMm": [
+      0.6767135098412982,
+      0.27692377669085033
+    ],
+    "FaceChordP95Mm": [
+      1.1287644182475283,
+      0.5458692422926408
+    ],
+    "ApexFitShiftMm": 2.8596019802936103,
+    "local_points": [
+      [
+        1.2061040008774095,
+        2.5968810435372802e-15
+      ],
+      [
+        8.404170671798209,
+        66.60972907197596
+      ],
+      [
+        338.1166449920349,
+        16.506380610322346
+      ]
+    ],
+    "AutoEndpointActions": [
+      "supported_steep_baseline_contact",
+      "supported_body_projection"
+    ]
+  },
+  {
+    "file": "measurement_639301351780719706.json",
+    "all": 762,
+    "selected": 184,
+    "AutoCalibrationModel": "scan_order_contacts_v3",
+    "LeftMm": 67.12470375954437,
+    "RightMm": 334.3417888521138,
+    "WidthMm": 336.48000506298735,
+    "CorrectedHeightMm": 66.85715565842881,
+    "FaceChordRmsMm": [
+      0.5335623736596492,
+      0.21965595352506562
+    ],
+    "FaceChordP95Mm": [
+      0.8648567214033314,
+      0.4541645665411179
+    ],
+    "ApexFitShiftMm": 3.0691098509788235,
+    "local_points": [
+      [
+        1.6553189021055705,
+        8.226405667777215e-14
+      ],
+      [
+        7.642521259735558,
+        66.85715565842871
+      ],
+      [
+        338.13532396509277,
+        16.271197796694388
+      ]
+    ],
+    "AutoEndpointActions": [
+      "supported_steep_baseline_contact",
+      "supported_body_projection"
+    ]
+  },
+  {
+    "file": "measurement_639301361327070367.json",
+    "all": 761,
+    "selected": 194,
+    "AutoCalibrationModel": "scan_order_contacts_v3",
+    "LeftMm": 67.07323057892106,
+    "RightMm": 332.93688899960983,
+    "WidthMm": 338.31028823405796,
+    "CorrectedHeightMm": 66.46447989266355,
+    "FaceChordRmsMm": [
+      0.3256350700784625,
+      0.22204535412903684
+    ],
+    "FaceChordP95Mm": [
+      0.5587412589557645,
+      0.45685534798419747
+    ],
+    "ApexFitShiftMm": 2.7416261937641826,
+    "local_points": [
+      [
+        -2.5180839718103614,
+        -2.3755303280026396e-14
+      ],
+      [
+        6.498077788652529,
+        66.46447989266356
+      ],
+      [
+        335.79220426224765,
+        17.348796789091715
+      ]
+    ],
+    "AutoEndpointActions": [
+      "supported_steep_baseline_contact",
+      "supported_body_projection"
+    ]
+  },
+  {
+    "file": "measurement_639301361399916562.json",
+    "all": 759,
+    "selected": 194,
+    "AutoCalibrationModel": "scan_order_contacts_v3",
+    "LeftMm": 66.85552168140616,
+    "RightMm": 336.9939397680844,
+    "WidthMm": 339.2041594180934,
+    "CorrectedHeightMm": 66.59600022102954,
+    "FaceChordRmsMm": [
+      0.5811962379995493,
+      0.23197097317581364
+    ],
+    "FaceChordP95Mm": [
+      0.8876431949181423,
+      0.48157377601703455
+    ],
+    "ApexFitShiftMm": 3.0263152879404718,
+    "local_points": [
+      [
+        -0.5003787538030869,
+        4.617443580268166e-14
+      ],
+      [
+        5.384647486886342,
+        66.59600022102966
+      ],
+      [
+        338.7037806642904,
+        16.964650266799154
+      ]
+    ],
+    "AutoEndpointActions": [
+      "supported_steep_baseline_contact",
+      "supported_body_projection"
+    ]
+  }
+]

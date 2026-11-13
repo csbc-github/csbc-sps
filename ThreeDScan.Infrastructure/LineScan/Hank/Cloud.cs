@@ -227,7 +227,9 @@ public record Cloud(List<Vertex> Points, bool Raw, int AverageScans = 1,
             while (block.Count < average && k < selected.Count)
             {
                 var a = block[^1].Points[0]; var next = selected[k]; if (next.Points.Count == 0) break; var b = next.Points[0];
-                if (b.Frame != a.Frame + 1 || ((b.Counter - a.Counter) & 65535) != 1) break;
+                // Encoder deduplication preserves source IDs, so only the device
+                // counter determines continuity between distinct encoder scans.
+                if (((b.Counter - a.Counter) & 65535) != 1 || !encoder && b.Frame != a.Frame + 1) break;
                 block.Add(selected[k++]);
             }
             var first = initial.Points[0]; double time = block.Average(b => b.Time); List<Vertex> outputFrame;
@@ -292,6 +294,7 @@ public sealed class PlyWriter : IDisposable
         var preserved = (comments ?? []).Where(c => !c.StartsWith("geometry ") && !c.StartsWith("average_scans ") && !c.StartsWith("frames_written ") && !c.StartsWith("recording_complete ") && !c.StartsWith("position_method ") && !c.StartsWith("encoder_source ") && c != "units millimeters" && !c.Contains('\n') && !c.Contains('\r'));
         string extras = string.Concat(preserved.Distinct().Select(c => "comment " + c + "\n"));
         if (encoder) extras += "comment position_method encoder_roll_travel\ncomment encoder_source " + (simulation ? "synthetic" : "recorded") + "\n";
+        else if (raw && simulation) extras += "comment encoder_source synthetic\n";
         header = $"ply\nformat binary_little_endian 1.0\ncomment units millimeters\ncomment geometry {(raw ? "2D_scan_plane_Z_equals_0" : encoder ? "3D_encoder_roll_travel" : "3D_manual_translation_estimated")}\ncomment average_scans {average}\ncomment frames_written 00000000000000000000\ncomment recording_complete 0\nelement vertex 00000000000000000000\nproperty float x\nproperty float y\nproperty float z\nproperty {(frameIdOffset == 0 ? "uint" : "int")} frame_id\nproperty uint timestamp_us\nproperty ushort scan_counter\nproperty ushort point_index\nproperty double elapsed_s\n{extras}end_header\n";
         writer.Write(Encoding.ASCII.GetBytes(header));
     }

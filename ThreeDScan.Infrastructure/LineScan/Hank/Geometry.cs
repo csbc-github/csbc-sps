@@ -53,6 +53,10 @@ public record ProfileResult(P[] Points, double LeftMm, double RightMm, double Wi
     public double DimensionScaleHeight { get; init; } = 1;
     public bool HasHeightCompensation { get; init; }
     public string[] AutoEndpointActions { get; init; } = [];
+    public double?[] TableContactOffsetsMm { get; init; } = [];
+    public double[] FaceChordRmsMm { get; init; } = [];
+    public double[] FaceChordP95Mm { get; init; } = [];
+    public double? ApexFitShiftMm { get; init; }
 
     public Dictionary<string, object?> ToPythonReport()
     {
@@ -83,6 +87,13 @@ public record ProfileResult(P[] Points, double LeftMm, double RightMm, double Wi
             result["auto_calibration"] = true; result["auto_calibration_model"] = AutoCalibrationModel;
             result["auto_face_reliable"] = AutoFaceReliable; result["auto_endpoint_actions"] = AutoEndpointActions;
             result["leg_points"] = LegPoints?.Select(Point).ToArray();
+            if (AutoCalibrationModel == Profile.SceneContactModel)
+            {
+                result["table_contact_offsets_mm"] = TableContactOffsetsMm;
+                result["face_chord_rms_mm"] = FaceChordRmsMm;
+                result["face_chord_p95_mm"] = FaceChordP95Mm;
+                result["apex_fit_shift_mm"] = ApexFitShiftMm;
+            }
         }
         if (DimensionCorrection)
         {
@@ -92,13 +103,14 @@ public record ProfileResult(P[] Points, double LeftMm, double RightMm, double Wi
         return result;
     }
 }
-public static class Profile
+public static partial class Profile
 {
     public const double TrialScaleX = 1.0295;
     public const double TrialScaleHeight = .987;
     public const double TrialHeightOffsetMm = 6.0;
     public const double AutoHeightOffsetMm = 1.9528341984012556;
     public const string AutoCalibrationModel = "bounded_face_blend_v2";
+    public const string SceneContactModel = "scan_order_contacts_v3";
 
     static double Median(IEnumerable<double> values) { var a = values.Order().ToArray(); return (a[(a.Length-1)/2]+a[a.Length/2])/2; }
     public static Line FitFace(List<P> points)
@@ -131,8 +143,10 @@ public static class Profile
                 return end+(ordered[i]-end)*Math.Min(.5,4/end.Distance(ordered[i]));
         return null;
     }
-    public static ProfileResult AutoCorrect(ProfileResult report, Calibration calibration, Line[] faces, Line?[] tables, string model = AutoCalibrationModel)
+    public static ProfileResult AutoCorrect(ProfileResult report, Calibration calibration, Line[] faces, Line?[] tables,
+        string model = AutoCalibrationModel, List<P>? nativePoints = null)
     {
+        if (model == SceneContactModel) return CorrectSceneContacts(report, calibration, faces, tables, nativePoints ?? []);
         var raw = report.Points.Select(calibration.Transform).ToArray(); var peak = raw[1]; var ends = new[] {raw[0],raw[2]};
         var lines = faces.Select(f => FitFace(f.Points)).ToArray(); var top = lines[0].Intersect(lines[1]);
         bool reliable = top is P t && t.X >= ends[0].X-2 && t.X <= ends[1].X+2 && t.Y > 0 && t.Distance(peak) <= 10 && lines.Max(l => l.Rms) <= 2;
@@ -252,8 +266,18 @@ public static class Profile
     public static List<ProfileResult> Measure(IEnumerable<P> source, Calibration calibration, double correction = 0, bool cleanTable = false, bool recoverSparse = true, bool autoCalibrate = false, string autoModel = AutoCalibrationModel)
     {
         if (autoCalibrate) { cleanTable=false; recoverSparse=true; correction=0; }
-        calibration.Validate(); if (!double.IsFinite(correction)) throw new ArgumentException("高度補償無效"); var pairs = source.Where(p => p.Finite).Select(p => (Level: calibration.Transform(p), Raw: p)).OrderBy(p => p.Level.X).ThenBy(p => p.Level.Y).ToList(); if (pairs.Count < 8) throw new ArgumentException("掃描點不足");
-        if (recoverSparse)
+        calibration.Validate(); if (!double.IsFinite(correction)) throw new ArgumentException("高度補償無效");
+        var pairs = source.Where(p => p.Finite).Select(p => (Level: calibration.Transform(p), Raw: p)).ToList();
+        bool sceneContacts = autoCalibrate && autoModel == SceneContactModel;
+        if (sceneContacts)
+        {
+            // Near-vertical faces must follow their physical ray sequence.
+            pairs = pairs.OrderBy(p => Math.Atan2(p.Raw.Y, p.Raw.X)).ToList();
+            if (pairs.Count > 1 && pairs[0].Level.X > pairs[^1].Level.X) pairs.Reverse();
+        }
+        else pairs = pairs.OrderBy(p => p.Level.X).ThenBy(p => p.Level.Y).ToList();
+        if (pairs.Count < 8) throw new ArgumentException("掃描點不足");
+        if (recoverSparse && !sceneContacts)
         {
             var groups = pairs.GroupBy(p => p.Level.X).Select(g => g.ToList()).ToList(); pairs = [];
             for (int i = 0; i < groups.Count; i++)
@@ -311,7 +335,7 @@ public static class Profile
                 EndpointSelection = upright ? "observed_face_extent" : "nearest_fitted_end", Method = a != originalA || c != originalC ? "table_cleaned" : "raw",
                 FitStatus = fitStatus, RecoveredGapsMm = gaps, Warnings = warnings.ToArray(), HasHeightCompensation = correction != 0
             }); last = c.X;
-            if (autoCalibrate) results[^1]=AutoCorrect(results[^1],calibration,[l,r],[i>0?segments[i-1]:null,i+2<segments.Count?segments[i+2]:null],autoModel);
+            if (autoCalibrate) results[^1]=AutoCorrect(results[^1],calibration,[l,r],[i>0?segments[i-1]:null,i+2<segments.Count?segments[i+2]:null],autoModel,points);
         }
         if (results.Count == 0) throw new ArgumentException("未辨識到完整角鋼截面"); return results;
     }

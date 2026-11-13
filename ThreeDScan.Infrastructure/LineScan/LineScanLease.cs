@@ -25,6 +25,9 @@ public sealed class LineScanLease : IAsyncDisposable
     TaskCompletionSource<ProfileCapture>? preview;
     int previewFrames;
     bool liveCacheEnabled;
+    int liveAverageScans = 20;
+    PointMean liveMean = new();
+    ScanPacket? livePrevious;
     double[]? liveX;
     double[]? liveY;
 
@@ -58,12 +61,19 @@ public sealed class LineScanLease : IAsyncDisposable
             if (scan.Status != 0)
             {
                 latest = null;
+                ResetLiveCacheLocked();
                 first.TrySetException(new LineScanDeviceException("SCAN_DEVICE_ERROR", $"掃描器狀態異常：{scan.Status}"));
                 preview?.TrySetException(new LineScanDeviceException("SCAN_DEVICE_ERROR", $"掃描器狀態異常：{scan.Status}"));
                 failure?.Invoke($"掃描器狀態異常：{scan.Status}");
                 return;
             }
 
+            if (latest != null && IsDuplicate(scan, latest))
+            {
+                // Keep the canonical preview frame; raw capture still validates every telegram.
+                submit?.Invoke(scan);
+                return;
+            }
             if (latest == null || latest.Counter != scan.Counter || latest.Timestamp != scan.Timestamp)
             {
                 latestAt = EncoderMonitor.Now;
@@ -82,22 +92,27 @@ public sealed class LineScanLease : IAsyncDisposable
         }
     }
 
-    /// <summary>開啟架設預覽快取（每收到新圈更新 X/Y）。</summary>
-    public void EnableLiveCache()
+    /// <summary>開啟平均預覽快取；原始錄製仍接收每一圈。</summary>
+    public void EnableLiveCache(int averageScans = 20)
     {
+        if (averageScans is < 1 or > 600) throw new ArgumentOutOfRangeException(nameof(averageScans), "平均掃描圈數須為 1～600");
         lock (gate)
         {
+            if (liveCacheEnabled && liveAverageScans == averageScans) return;
             liveCacheEnabled = true;
+            liveAverageScans = averageScans;
+            ResetLiveCacheLocked();
             UpdateLiveCacheLocked();
         }
     }
 
-    /// <summary>讀取最新一圈有效點（scanner XY）。</summary>
+    /// <summary>讀取最新完成平均的有效點（scanner XY）。</summary>
     public bool TryGetLiveSnapshot(out double[] x, out double[] y)
     {
         lock (gate)
         {
-            if (liveX is { Length: > 0 } xs && liveY is { Length: > 0 } ys && xs.Length == ys.Length)
+            if (!stopped && latest != null && Scanner.Connected && EncoderMonitor.Now - latestAt <= 1
+                && liveX is { Length: > 0 } xs && liveY is { Length: > 0 } ys && xs.Length == ys.Length)
             {
                 x = xs;
                 y = ys;
@@ -117,9 +132,24 @@ public sealed class LineScanLease : IAsyncDisposable
             return;
         }
 
+        if (livePrevious is ScanPacket previous)
+        {
+            if (IsDuplicate(latest, previous)) return;
+            if (IsDiscontinuous(latest, previous))
+            {
+                liveMean = new PointMean();
+                liveX = null;
+                liveY = null;
+            }
+        }
+        livePrevious = latest;
+        liveMean.Add(latest.Points);
+        if (liveMean.Frames < liveAverageScans) return;
+        var points = liveMean.Result();
+        liveMean = new PointMean();
         var xs = new List<double>();
         var ys = new List<double>();
-        foreach (var point in latest.Points)
+        foreach (var point in points)
         {
             if (point is P p && p.Finite)
             {
@@ -128,19 +158,38 @@ public sealed class LineScanLease : IAsyncDisposable
             }
         }
 
-        if (xs.Count == 0)
-        {
-            return;
-        }
-
         liveX = xs.ToArray();
         liveY = ys.ToArray();
+    }
+
+    void ResetLiveCacheLocked()
+    {
+        liveMean = new PointMean();
+        livePrevious = null;
+        liveX = null;
+        liveY = null;
+    }
+
+    static bool IsDuplicate(ScanPacket scan, ScanPacket previous) =>
+        scan.Counter == previous.Counter && scan.Timestamp == previous.Timestamp;
+
+    static bool IsDiscontinuous(ScanPacket scan, ScanPacket previous)
+    {
+        uint elapsed = unchecked(scan.Timestamp - previous.Timestamp);
+        bool changedAngles = scan.Angles.Length > 0 && previous.Angles.Length > 0
+            && Math.Max(Math.Abs(scan.Angles[0] - previous.Angles[0]), Math.Abs(scan.Angles[^1] - previous.Angles[^1])) > .5;
+        return ((scan.Counter - previous.Counter) & 65535) != 1 || elapsed == 0 || elapsed >= 1000000
+            || scan.Points.Length != previous.Points.Length || scan.Frequency != previous.Frequency || changedAngles;
     }
 
     void State(string state)
     {
         lock (gate)
         {
+            ResetLiveCacheLocked();
+            previewMean = new PointMean();
+            previewPrevious = null;
+            latest = null;
             if (!stopped && received && state != "已連線")
             {
                 latest = null;
@@ -159,16 +208,12 @@ public sealed class LineScanLease : IAsyncDisposable
 
         if (previewPrevious is ScanPacket previous)
         {
-            if (scan.Counter == previous.Counter && scan.Timestamp == previous.Timestamp)
+            if (IsDuplicate(scan, previous))
             {
                 return;
             }
 
-            uint elapsed = unchecked(scan.Timestamp - previous.Timestamp);
-            bool changedAngles = scan.Angles.Length > 0 && previous.Angles.Length > 0
-                && Math.Max(Math.Abs(scan.Angles[0] - previous.Angles[0]), Math.Abs(scan.Angles[^1] - previous.Angles[^1])) > .5;
-            if (((scan.Counter - previous.Counter) & 65535) != 1 || elapsed == 0 || elapsed >= 1000000
-                || scan.Points.Length != previous.Points.Length || scan.Frequency != previous.Frequency || changedAngles)
+            if (IsDiscontinuous(scan, previous))
             {
                 previewMean = new PointMean();
             }
@@ -269,6 +314,7 @@ public sealed class LineScanLease : IAsyncDisposable
             }
 
             stopped = true;
+            ResetLiveCacheLocked();
             submit = null;
             failure = null;
             watchdog?.Dispose();

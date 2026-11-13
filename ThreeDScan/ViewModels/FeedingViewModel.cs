@@ -204,7 +204,7 @@ public class FeedingViewModel : ViewModelBase
     public ICommand SetDesktopCalibrationCommand { get; }
     public ICommand ClearDesktopCalibrationCommand { get; }
 
-    /// <summary>凍結輪廓點，供兩點點選貼齊。</summary>
+    /// <summary>API 原生 double XY 輪廓；即時繪圖與凍結點選共用同一批座標。</summary>
     public ObservableCollection<ScannerPlanePoint> ProfileSnapPoints { get; } = new();
 
     /// <summary>輪廓已凍結時不再覆寫即時剖面。</summary>
@@ -527,7 +527,7 @@ public class FeedingViewModel : ViewModelBase
         CancelDesktopCalibration();
         ScanStatusText = "正在凍結輪廓…";
         await CaptureProfileAsync().ConfigureAwait(false);
-        if (!IsProfileFrozen || CurrentFrame == null)
+        if (!IsProfileFrozen || ProfileSnapPoints.Count < 2)
         {
             ScanStatusText = "還沒有剖面，無法框選";
             await ResumeLiveAfterProfileAsync().ConfigureAwait(false);
@@ -692,6 +692,7 @@ public class FeedingViewModel : ViewModelBase
 
     private async Task CaptureProfileAsync()
     {
+        await RunOnUiAsync(() => IsProfileFrozen = false);
         try
         {
             var scannerId = ResolveDefaultScannerId();
@@ -724,37 +725,20 @@ public class FeedingViewModel : ViewModelBase
             return;
         }
 
-        var xs = new List<double>();
-        var ys = new List<double>();
-        ProfileSnapPoints.Clear();
+        var native = new List<ScannerPlanePoint>();
         foreach (var node in points.EnumerateArray())
         {
             var x = ReadDouble(node, "x");
             var y = ReadDouble(node, "y");
-            if (Math.Sqrt(x * x + y * y) <= 1)
-            {
-                continue;
-            }
-
-            xs.Add(x);
-            ys.Add(y);
-            ProfileSnapPoints.Add(new ScannerPlanePoint { X = x, Y = y });
+            native.Add(new ScannerPlanePoint { X = x, Y = y });
         }
-
-        if (xs.Count < 2)
+        ApplyNativePoints(native);
+        if (ProfileSnapPoints.Count < 2)
         {
             ScanStatusText = "有效輪廓點不足";
             return;
         }
 
-        var frame = ToLidarFrameFromScannerXY(xs, ys);
-        if (frame == null)
-        {
-            ScanStatusText = "無法轉成剖面";
-            return;
-        }
-
-        CurrentFrame = frame;
         IsProfileFrozen = true;
         CancelDesktopCalibration();
         LiveHint = "輪廓已凍結";
@@ -827,65 +811,28 @@ public class FeedingViewModel : ViewModelBase
         }
     }
 
-    private static LidarFrame? ToLidarFrameFromScannerXY(IReadOnlyList<double> xs, IReadOnlyList<double> ys)
+    private void ApplyNativePoints(IEnumerable<ScannerPlanePoint> points)
     {
-        var count = Math.Min(xs.Count, ys.Count);
-        var samples = new List<(double Angle, int Distance)>();
-        for (var i = 0; i < count; i++)
+        // Keep one exact scanner-XY point per API sample; no integer range or angle bins.
+        var native = points.Where(p => double.IsFinite(p.X) && double.IsFinite(p.Y)
+            && (p.X != 0 || p.Y != 0)).ToList();
+        CurrentFrame = null;
+        ProfileSnapPoints.Clear();
+        foreach (var point in native) ProfileSnapPoints.Add(point);
+    }
+
+    private bool ApplyNativeLive(JsonElement xs, JsonElement ys)
+    {
+        if (xs.ValueKind != JsonValueKind.Array || ys.ValueKind != JsonValueKind.Array) return false;
+        int count = Math.Min(xs.GetArrayLength(), ys.GetArrayLength());
+        var points = new List<ScannerPlanePoint>(count);
+        for (int i = 0; i < count; i++)
         {
-            var x = xs[i];
-            var y = ys[i];
-            var distance = Math.Sqrt(x * x + y * y);
-            if (distance <= 1)
-            {
-                continue;
-            }
-
-            var angle = Math.Atan2(y, x) * 180.0 / Math.PI;
-            samples.Add((angle, (int)Math.Round(distance)));
+            if (xs[i].TryGetDouble(out double x) && ys[i].TryGetDouble(out double y))
+                points.Add(new ScannerPlanePoint { X = x, Y = y });
         }
-
-        if (samples.Count < 2)
-        {
-            return null;
-        }
-
-        samples.Sort((left, right) => left.Angle.CompareTo(right.Angle));
-        var steps = new List<double>();
-        for (var i = 1; i < samples.Count; i++)
-        {
-            var step = samples[i].Angle - samples[i - 1].Angle;
-            if (step > 0.001)
-            {
-                steps.Add(step);
-            }
-        }
-
-        if (steps.Count == 0)
-        {
-            return null;
-        }
-
-        steps.Sort();
-        var resolution = steps[steps.Count / 2];
-        var start = samples[0].Angle;
-        var bins = (int)Math.Round((samples[samples.Count - 1].Angle - start) / resolution) + 1;
-        if (bins < 2 || bins > 20000)
-        {
-            return null;
-        }
-
-        var distances = new int[bins];
-        foreach (var sample in samples)
-        {
-            var index = (int)Math.Round((sample.Angle - start) / resolution);
-            if (index >= 0 && index < bins)
-            {
-                distances[index] = sample.Distance;
-            }
-        }
-
-        return new LidarFrame(0, -start, resolution, distances);
+        ApplyNativePoints(points);
+        return ProfileSnapPoints.Count > 0;
     }
 
     private async Task SaveRegionAndResumeAsync(LineScanRegion? region)
@@ -1089,11 +1036,7 @@ public class FeedingViewModel : ViewModelBase
             _ = RefreshConnectionAsync();
             if (root.TryGetProperty("x", out var xs) && root.TryGetProperty("y", out var ys))
             {
-                var frame = ToRecordedFrame(xs, ys);
-                if (frame != null)
-                {
-                    CurrentFrame = frame;
-                }
+                ApplyNativeLive(xs, ys);
             }
 
             return;
@@ -1103,83 +1046,20 @@ public class FeedingViewModel : ViewModelBase
         IsScanning = !_userStoppedLive;
         if (root.TryGetProperty("x", out var setupX) && root.TryGetProperty("y", out var setupY))
         {
-            var frame = ToRecordedFrame(setupX, setupY);
-            if (frame != null)
+            if (ApplyNativeLive(setupX, setupY))
             {
-                CurrentFrame = frame;
                 LiveHint = "架設預覽";
                 ScanStatusText = "即時剖面 · API";
                 OverallStatus = SystemStatus.Normal;
             }
+            else
+            {
+                LiveHint = "等待新的有效截面";
+                ScanStatusText = "平均截面尚未就緒";
+            }
         }
 
         _ = RefreshConnectionAsync();
-    }
-
-    private static LidarFrame? ToRecordedFrame(JsonElement xs, JsonElement ys)
-    {
-        if (xs.ValueKind != JsonValueKind.Array || ys.ValueKind != JsonValueKind.Array)
-        {
-            return null;
-        }
-
-        var count = Math.Min(xs.GetArrayLength(), ys.GetArrayLength());
-        var samples = new List<(double Angle, int Distance)>();
-        for (var i = 0; i < count; i++)
-        {
-            var x = xs[i].GetDouble();
-            var y = ys[i].GetDouble();
-            var distance = Math.Sqrt(x * x + y * y);
-            if (distance <= 1)
-            {
-                continue;
-            }
-
-            var angle = Math.Atan2(y, x) * 180.0 / Math.PI;
-            samples.Add((angle, (int)Math.Round(distance)));
-        }
-
-        if (samples.Count < 2)
-        {
-            return null;
-        }
-
-        samples.Sort((left, right) => left.Angle.CompareTo(right.Angle));
-        var steps = new List<double>();
-        for (var i = 1; i < samples.Count; i++)
-        {
-            var step = samples[i].Angle - samples[i - 1].Angle;
-            if (step > 0.001)
-            {
-                steps.Add(step);
-            }
-        }
-
-        if (steps.Count == 0)
-        {
-            return null;
-        }
-
-        steps.Sort();
-        var resolution = steps[steps.Count / 2];
-        var start = samples[0].Angle;
-        var bins = (int)Math.Round((samples[samples.Count - 1].Angle - start) / resolution) + 1;
-        if (bins < 2 || bins > 20000)
-        {
-            return null;
-        }
-
-        var distances = new int[bins];
-        foreach (var sample in samples)
-        {
-            var index = (int)Math.Round((sample.Angle - start) / resolution);
-            if (index >= 0 && index < bins)
-            {
-                distances[index] = sample.Distance;
-            }
-        }
-
-        return new LidarFrame(0, -start, resolution, distances);
     }
 
     private void LoadDesignTimeData()

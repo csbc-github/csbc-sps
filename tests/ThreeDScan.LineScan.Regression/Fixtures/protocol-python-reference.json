@@ -1,0 +1,4482 @@
+[
+  {
+    "name": "captured_fixture_0",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM0AAAAAAAhkcANBAAQnEE4gAAAADwAAAAAAAAAAAAAAAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      [
+        573.576444898001,
+        819.1520564953084
+      ],
+      [
+        1144.7698146462053,
+        1639.9701798155304
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      55.0,
+      55.0833,
+      55.1666,
+      55.2499
+    ],
+    "distances": [
+      1000.0000149011612,
+      2000.0000298023224,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "captured_fixture_1",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM0AAAAA//55YANBAAQnEE4gAAAAD0FOR0wxP4AAAMcAAAD//nlgA0EABIAAg+iAAIAAAAAAAAAAAAAAAAAA",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      [
+        984.8077676869871,
+        -173.64818025448983
+      ],
+      [
+        1970.7165206989002,
+        -340.9934225959672
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -10.0,
+      -9.8167,
+      -9.8334,
+      -9.7501
+    ],
+    "distances": [
+      1000.0000149011612,
+      2000.0000298023224,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "captured_fixture_2",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAABAA8SBgAAAAFESVNUMT3MzM0AAAAAAAhkcANBAAQnEE4gAAAADwABUUxUWTE/gAAAAAAAAAAIZHADQQAEAAEAAAAAAAAAAAAAAAA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      [
+        573.576444898001,
+        819.1520564953084
+      ],
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      55.0,
+      55.0833,
+      55.1666,
+      55.2499
+    ],
+    "distances": [
+      1000.0000149011612,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_000",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM3AQAAA//kiMAJxAAQAAAAPABAD6AABUUxUWTE/gAAAAAAAAP/5IjACcQAEABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -45.0,
+      -44.9375,
+      -44.875,
+      -44.8125
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_001",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT6AAAAAAAAA//mXYAPoAAUAAAAPABAD6QXdQU5HTDE8I9cKvwAAAP/5l2AD6AAFAAEAEgAjADQARQABUUxUWTE/gAAAAAAAAP/5l2AD6AAFEAECIAA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        186.84621092795092,
+        -166.47388973009453
+      ],
+      [
+        280.61131607694466,
+        -249.1382182435386
+      ]
+    ],
+    "angles": [
+      -42.000049000000026,
+      -41.9000320000004,
+      -41.800015000000776,
+      -41.699998000001166,
+      -41.59998100000154
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      250.25,
+      375.25
+    ]
+  },
+  {
+    "name": "generated_wire_002",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT8AAABAIAAA//oMkAnEAAYAAAAPABAD6gXeCJoAAVFMVFkxP4AAAAAAAAD/+gyQCcQABgECIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        8.217385646950346,
+        -6.536403684695006
+      ],
+      [
+        395.40707469845506,
+        -311.7138034775014
+      ],
+      [
+        593.766102842665,
+        -463.90092165788354
+      ],
+      null
+    ],
+    "angles": [
+      -39.0,
+      -38.75,
+      -38.5,
+      -38.25,
+      -38.0,
+      -37.75
+    ],
+    "distances": [
+      null,
+      null,
+      10.5,
+      503.5,
+      753.5,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_003",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT+AAADAQAAA//qBwAJxAAcAAAAPABAD6wXfCJv//0FOR0wxPCPXCr8AAAD/+oHAAnEABwADABQAJQA2AEcAWABpAAFRTFRZMT+AAAAAAAAA//qBwAJxAAcCIAAQAQIg",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        10.533864686418243,
+        -7.61824748667505
+      ],
+      [
+        810.9362225708719,
+        -585.1345511269056
+      ],
+      null,
+      null,
+      [
+        53267.5055760925,
+        -38170.87729802597
+      ]
+    ],
+    "angles": [
+      -36.000047000000066,
+      -35.93753000000045,
+      -35.87501300000083,
+      -35.812496000001204,
+      -35.74997900000159,
+      -35.687462000001965,
+      -35.62494500000235
+    ],
+    "distances": [
+      null,
+      null,
+      13.0,
+      1000.0,
+      null,
+      null,
+      65532.0
+    ]
+  },
+  {
+    "name": "generated_wire_004",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMUAAAAAAAAAA//r28APoAAgAAAAPABAD7AXgCJz//wH5AAFRTFRZMT+AAAAAAAAA//r28APoAAggABABAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        26.8981313118619,
+        -17.334662729047672
+      ],
+      null,
+      null,
+      [
+        3717.6694931432003,
+        -2368.4166735927993
+      ],
+      [
+        110666.06119554912,
+        -70230.8180178971
+      ],
+      [
+        853.7144515540748,
+        -539.6958728837245
+      ]
+    ],
+    "angles": [
+      -33.0,
+      -32.9,
+      -32.8,
+      -32.7,
+      -32.6,
+      -32.5,
+      -32.4,
+      -32.3
+    ],
+    "distances": [
+      null,
+      null,
+      32.0,
+      null,
+      null,
+      4408.0,
+      131070.0,
+      1010.0
+    ]
+  },
+  {
+    "name": "generated_wire_005",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM1AIAAA//tsIAnEAAkAAAAPABAD7QXhCJ3//wH6AABBTkdMMTwj1wq/AAAA//tsIAnEAAkABQAWACcAOABJAFoAawB8AI0AAVFMVFkxP4AAAAAAAAD/+2wgCcQACQAQAQIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        133.8168469298623,
+        -74.17581926742021
+      ],
+      [
+        195.51014428534245,
+        -107.26036055761459
+      ],
+      [
+        5761.528188533353,
+        -3128.2471470753057
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -30.00004500000011,
+      -29.75002800000049,
+      -29.50001100000087,
+      -29.24999400000125,
+      -28.999977000001632,
+      -28.749960000002012,
+      -28.499943000002393,
+      -28.249926000002773,
+      -27.99990900000315
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      153.00000224262476,
+      223.00000328570604,
+      6556.00009765476,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_006",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT6AAADAQAAA//vhUAJxAAoAAAAPABAD7gXiCJ7//wH7AAAADwABUUxUWTE/gAAAAAAAAP/74VACcQAKEAECIAAQAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        221.78312660122222,
+        -112.09145710082562
+      ],
+      [
+        333.5276353640597,
+        -168.11176772748195
+      ],
+      [
+        490.0679622060539,
+        -246.34456036049545
+      ],
+      null,
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -27.0,
+      -26.9375,
+      -26.875,
+      -26.8125,
+      -26.75,
+      -26.6875,
+      -26.625,
+      -26.5625,
+      -26.5,
+      -26.4375
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      248.5,
+      373.5,
+      548.5,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_007",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT8AAAAAAAAA//xWgAPoAAsAAAAPABAD7wXjCJ///wH8AAAADwAQQU5HTDE8I9cKvwAAAP/8VoAD6AALAAcAGAApADoASwBcAG0AfgCPAKAAsQABUUxUWTE/gAAAAAAAAP/8VoAD6AALAQIgABABAiAAEAE=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        7.319676835688481,
+        -3.228363520591426
+      ],
+      [
+        461.03614400413716,
+        -202.38064117349887
+      ],
+      [
+        690.4794483503857,
+        -301.6626947531745
+      ],
+      null,
+      null,
+      [
+        233.28551412747552,
+        -100.46824820946873
+      ],
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -24.000043000000158,
+      -23.900026000000533,
+      -23.800009000000916,
+      -23.699992000001295,
+      -23.599975000001677,
+      -23.499958000002056,
+      -23.399941000002435,
+      -23.299924000002818,
+      -23.199907000003197,
+      -23.099890000003576,
+      -22.999873000003955
+    ],
+    "distances": [
+      null,
+      null,
+      8.0,
+      503.5,
+      753.5,
+      null,
+      null,
+      254.0,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_008",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT+AAABAIAAA//zLsAnEAAQAAAAPABAD8AABUUxUWTE/gAAAAAAAAP/8y7AJxAAEAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        17.328435501095356,
+        -6.478836553300147
+      ],
+      [
+        948.0423449496702,
+        -349.7512861768066
+      ]
+    ],
+    "angles": [
+      -21.0,
+      -20.75,
+      -20.5,
+      -20.25
+    ],
+    "distances": [
+      null,
+      null,
+      18.5,
+      1010.5
+    ]
+  },
+  {
+    "name": "generated_wire_009",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMUAAAADAQAAA//1A4AJxAAUAAAAPABAD8QXlQU5HTDE8I9cKvwAAAP/9QOACcQAFAAkAGgArADwATQABUUxUWTE/gAAAAAAAAP/9QOACcQAFIAAQAQI=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        27.600123177008783,
+        -8.90130330984978
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -18.000041000000202,
+      -17.937524000000582,
+      -17.875007000000963,
+      -17.81249000000134,
+      -17.74997300000172
+    ],
+    "distances": [
+      null,
+      null,
+      29.0,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_010",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM0AAAAA//22EAPoAAYAAAAPABAD8gXmCKIAAVFMVFkxP4AAAAAAAAD//bYQA+gABgAQAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        146.1240869201962,
+        -38.06247366188521
+      ],
+      [
+        213.96063171182362,
+        -55.333981720572126
+      ]
+    ],
+    "angles": [
+      -15.0,
+      -14.9,
+      -14.8,
+      -14.7,
+      -14.6,
+      -14.5
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      151.00000225007534,
+      221.00000329315662
+    ]
+  },
+  {
+    "name": "generated_wire_011",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT6AAABAIAAA//4rQAnEAAcAAAAPABAD8wXnCKP//0FOR0wxPCPXCr8AAAD//itACcQABwALABwALQA+AE8AYABxAAFRTFRZMT+AAAAAAAAA//4rQAnEAAcQAQIgABAB",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        250.34545325233626,
+        -49.79675226239477
+      ],
+      [
+        373.2637732293707,
+        -72.55493156617914
+      ],
+      [
+        545.5056664862045,
+        -103.56703303388518
+      ],
+      null
+    ],
+    "angles": [
+      -12.000039000000246,
+      -11.750022000000627,
+      -11.500005000001005,
+      -11.249988000001386,
+      -10.999971000001766,
+      -10.749954000002147,
+      -10.499937000002525
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      255.25,
+      380.25,
+      555.25,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_012",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT8AAADAQAAA//6gcAJxAAgAAAAPABAD9AXoCKT//wIBAAFRTFRZMT+AAAAAAAAA//6gcAJxAAgBAiAAEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        4.940136384305698,
+        -0.7713964638621442
+      ],
+      [
+        497.0620757432028,
+        -77.06031960651701
+      ],
+      [
+        744.2362173822238,
+        -114.54890980100727
+      ],
+      null,
+      null,
+      [
+        250.6744991190931,
+        -37.74315158266177
+      ]
+    ],
+    "angles": [
+      -9.0,
+      -8.9375,
+      -8.875,
+      -8.8125,
+      -8.75,
+      -8.6875,
+      -8.625,
+      -8.5625
+    ],
+    "distances": [
+      null,
+      null,
+      5.0,
+      503.0,
+      753.0,
+      null,
+      null,
+      253.5
+    ]
+  },
+  {
+    "name": "generated_wire_013",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT+AAAAAAAAA//8VoAPoAAkAAAAPABAD9QXpCKX//wICAABBTkdMMTwj1wq/AAAA//8VoAPoAAkADQAeAC8AQABRAGIAcwCEAJUAAVFMVFkxP4AAAAAAAAD//xWgA+gACQIgABABAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        15.918091256599833,
+        -1.6169015883967448
+      ],
+      [
+        1007.9913169545717,
+        -100.61066019159212
+      ],
+      null,
+      null,
+      [
+        65244.16034690069,
+        -6167.3142961837075
+      ],
+      [
+        511.80256281612697,
+        -47.47774947114065
+      ],
+      null
+    ],
+    "angles": [
+      -6.00003700000029,
+      -5.900020000000671,
+      -5.80000300000105,
+      -5.699986000001431,
+      -5.59996900000181,
+      -5.499952000002191,
+      -5.3999350000025705,
+      -5.29991800000295,
+      -5.19990100000333
+    ],
+    "distances": [
+      null,
+      null,
+      16.0,
+      1013.0,
+      null,
+      null,
+      65535.0,
+      514.0,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_014",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMUAAAABAIAAA//+K0AnEAAoAAAAPABAD9gXqCKb//wIDAAAADwABUUxUWTE/gAAAAAAAAP//itAJxAAKIAAQAQIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        34.46716364457409,
+        -1.504868864104092
+      ],
+      null,
+      null,
+      [
+        4428.433574202057,
+        -135.3008827761193
+      ],
+      [
+        131027.58472785873,
+        -3431.0780570837037
+      ],
+      [
+        1032.254292960006,
+        -22.523868798184356
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -3.0,
+      -2.75,
+      -2.5,
+      -2.25,
+      -2.0,
+      -1.75,
+      -1.5,
+      -1.25,
+      -1.0,
+      -0.75
+    ],
+    "distances": [
+      null,
+      null,
+      34.5,
+      null,
+      null,
+      4430.5,
+      131072.5,
+      1032.5,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_015",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM3AQAAAAAAAAAJxAAsAAAAPABAD9wXrCKf//wIEAAAADwAQQU5HTDE8I9cKvwAAAAAAAAACcQALAA8AIAAxAEIAUwBkAHUAhgCXAKgAuQABUUxUWTE/gAAAAAAAAAAAAAACcQALABABAiAAEAECIAA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        148.49858827131564,
+        0.6480369676773454
+      ],
+      [
+        218.4967523219608,
+        1.191917413697032
+      ],
+      [
+        6550.359746705092,
+        42.88027659211263
+      ],
+      null,
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -3.500000033527613e-05,
+      0.06248199999928474,
+      0.12499899999890476,
+      0.18751599999852478,
+      0.2500329999981448,
+      0.31254999999776484,
+      0.37506699999738485,
+      0.43758399999700487,
+      0.5001009999966249,
+      0.562617999996245,
+      0.625134999995865
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      148.50000225752592,
+      218.5000033006072,
+      6550.50009765476,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_016",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT6AAAAAAAAAAAB1MAPoAAQAAAAPABAD+AABUUxUWTE/gAAAAAAAAAAAdTAD6AAEEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        253.5788214199632,
+        14.621262847730089
+      ]
+    ],
+    "angles": [
+      3.0,
+      3.1,
+      3.2,
+      3.3
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      254.0
+    ]
+  },
+  {
+    "name": "generated_wire_017",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT8AAABAIAAAAADqYAnEAAUAAAAPABAD+QXtQU5HTDE8I9cKvwAAAAAA6mAJxAAFABEAIgAzAEQAVQABUUxUWTE/gAAAAAAAAAAA6mAJxAAFAQIgABA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        10.432504463858619,
+        1.1886339266443653
+      ],
+      [
+        507.4579626350326,
+        60.06176952356528
+      ],
+      [
+        755.3275647456959,
+        92.74303173466224
+      ]
+    ],
+    "angles": [
+      5.99996699999962,
+      6.24998399999924,
+      6.50000099999886,
+      6.75001799999848,
+      7.0000349999981
+    ],
+    "distances": [
+      null,
+      null,
+      10.5,
+      511.0,
+      761.0
+    ]
+  },
+  {
+    "name": "generated_wire_018",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT+AAADAQAAAAAFfkAJxAAYAAAAPABAD+gXuCKoAAVFMVFkxP4AAAAAAAAAAAV+QAnEABgIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        12.835481142678626,
+        2.0616556055610733
+      ],
+      [
+        1001.9786890784973,
+        162.0608115262174
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      9.0,
+      9.0625,
+      9.125,
+      9.1875,
+      9.25,
+      9.3125
+    ],
+    "distances": [
+      null,
+      null,
+      13.0,
+      1015.0,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_019",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMUAAAAAAAAAAAAHUwAPoAAcAAAAPABAD+wXvCKv//0FOR0wxPCPXCr8AAAAAAdTAA+gABwATACQANQBGAFcAaAB5AAFRTFRZMT+AAAAAAAAAAAHUwAPoAAcgABABAiAA",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        31.27730826307707,
+        6.7623951242478295
+      ],
+      null,
+      null,
+      [
+        4332.800774290843,
+        960.563090226076
+      ],
+      [
+        127913.37455642951,
+        28592.19315803832
+      ]
+    ],
+    "angles": [
+      11.999968999999576,
+      12.099985999999195,
+      12.200002999998814,
+      12.300019999998437,
+      12.400036999998056,
+      12.500053999997675,
+      12.600070999997294
+    ],
+    "distances": [
+      null,
+      null,
+      32.0,
+      null,
+      null,
+      4438.0,
+      131070.0
+    ]
+  },
+  {
+    "name": "generated_wire_020",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM1AIAAA//kiMAnEAAgAAAAPABAD/AXwCKz//wIJAAFRTFRZMT+AAAAAAAAA//kiMAnEAAgAEAECIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        111.13800078160935,
+        -107.32471980929996
+      ],
+      [
+        162.17071187203686,
+        -155.24468331068462
+      ],
+      [
+        4755.554447192819,
+        -4512.852665469351
+      ],
+      null
+    ],
+    "angles": [
+      -45.0,
+      -44.75,
+      -44.5,
+      -44.25,
+      -44.0,
+      -43.75,
+      -43.5,
+      -43.25
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      154.5000022649765,
+      224.50000330805779,
+      6556.00009765476,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_021",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT6AAADAQAAA//mXYAJxAAkAAAAPABAD/QXxCK3//wIKAABBTkdMMTwj1wq/AAAA//mXYAJxAAkAFQAmADcASABZAGoAewCMAJ0AAVFMVFkxP4AAAAAAAAD/+ZdgAnEACRABAiAAEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        188.00970012905614,
+        -168.17376477138873
+      ],
+      [
+        281.4503157309948,
+        -251.20366692172976
+      ],
+      [
+        412.4114337871655,
+        -367.28309487589325
+      ],
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -42.00002900000047,
+      -41.93751200000085,
+      -41.87499500000123,
+      -41.81247800000161,
+      -41.74996100000199,
+      -41.68744400000237,
+      -41.62492700000275,
+      -41.562410000003126,
+      -41.49989300000351
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      252.25,
+      377.25,
+      552.25,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_022",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT8AAAAAAAAA//oMkAPoAAoAAAAPABAD/gXyCK7//wILAAAADwABUUxUWTE/gAAAAAAAAP/6DJAD6AAKAQIgABABAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        6.234703719451793,
+        -5.012830490915683
+      ],
+      [
+        398.7999381498865,
+        -319.49899738754533
+      ],
+      [
+        594.7370795107211,
+        -474.7723730958429
+      ],
+      null,
+      null,
+      [
+        205.2190208944012,
+        -162.0722168144291
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -39.0,
+      -38.9,
+      -38.8,
+      -38.7,
+      -38.6,
+      -38.5,
+      -38.4,
+      -38.3,
+      -38.2,
+      -38.1
+    ],
+    "distances": [
+      null,
+      null,
+      8.0,
+      511.0,
+      761.0,
+      null,
+      null,
+      261.5,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_023",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT+AAABAIAAA//qBwAnEAAsAAAAPABAD/wXzCK///wIMAAAADwAQQU5HTDE8I9cKvwAAAP/6gcAJxAALABcAKAA5AEoAWwBsAH0AjgCfALAAwQABUUxUWTE/gAAAAAAAAP/6gcAJxAALAiAAEAECIAAQAQI=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        15.061138402097177,
+        -10.743002840587621
+      ],
+      [
+        837.4661627369504,
+        -591.8620415862531
+      ],
+      null,
+      null,
+      [
+        54011.218677844656,
+        -37120.77805197575
+      ],
+      [
+        435.199978711627,
+        -296.31609562998665
+      ],
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -36.000027000000514,
+      -35.75001000000089,
+      -35.499993000001275,
+      -35.24997600000165,
+      -34.999959000002036,
+      -34.74994200000241,
+      -34.4999250000028,
+      -34.249908000003174,
+      -33.99989100000355,
+      -33.749874000003935,
+      -33.49985700000431
+    ],
+    "distances": [
+      null,
+      null,
+      18.5,
+      1025.5,
+      null,
+      null,
+      65537.5,
+      526.5,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_024",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMUAAAADAQAAA//r28AJxAAQAAAAPABAEAAABUUxUWTE/gAAAAAAAAP/69vACcQAEIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        24.355846885788374,
+        -15.741433304373297
+      ],
+      null
+    ],
+    "angles": [
+      -33.0,
+      -32.9375,
+      -32.875,
+      -32.8125
+    ],
+    "distances": [
+      null,
+      null,
+      29.0,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_025",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM0AAAAA//tsIAPoAAUAAAAPABAEAQX1QU5HTDE8I9cKvwAAAP/7bCAD6AAFABkAKgA7AEwAXQABUUxUWTE/gAAAAAAAAP/7bCAD6AAFABABAiA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        132.59803525700016,
+        -75.32603626285936
+      ]
+    ],
+    "angles": [
+      -30.00002500000056,
+      -29.900008000000938,
+      -29.79999100000132,
+      -29.6999740000017,
+      -29.59995700000208
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      152.50000227242708
+    ]
+  },
+  {
+    "name": "generated_wire_026",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT6AAABAIAAA//vhUAnEAAYAAAAPABAEAgX2CLIAAVFMVFkxP4AAAAAAAAD/++FQCcQABhABAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        232.29004005696626,
+        -114.55277076672134
+      ],
+      [
+        345.13691377888017,
+        -168.33452036700572
+      ],
+      [
+        503.4903157813266,
+        -242.85489888906915
+      ]
+    ],
+    "angles": [
+      -27.0,
+      -26.75,
+      -26.5,
+      -26.25,
+      -26.0,
+      -25.75
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      259.0,
+      384.0,
+      559.0
+    ]
+  },
+  {
+    "name": "generated_wire_027",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT8AAADAQAAA//xWgAJxAAcAAAAPABAEAwX3CLP//0FOR0wxPCPXCr8AAAD//FaAAnEABwAbACwAPQBOAF8AcACBAAFRTFRZMT+AAAAAAAAA//xWgAJxAAcBAiAAEAEC",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        4.572153611343811,
+        -2.0237122706243946
+      ],
+      [
+        467.0420556646335,
+        -206.11154320065
+      ],
+      [
+        696.0946204288198,
+        -306.28831092625353
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -24.000023000000603,
+      -23.937506000000983,
+      -23.874989000001364,
+      -23.812472000001744,
+      -23.749955000002124,
+      -23.687438000002505,
+      -23.62492100000288
+    ],
+    "distances": [
+      null,
+      null,
+      5.0,
+      510.5,
+      760.5,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_028",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT+AAAAAAAAA//zLsAPoAAgAAAAPABAEBAX4CLT//wIRAAFRTFRZMT+AAAAAAAAA//zLsAPoAAgCIAAQAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        14.957210822336231,
+        -5.681711398530193
+      ],
+      [
+        961.6364636931036,
+        -363.3721394050763
+      ],
+      null,
+      null,
+      [
+        61424.77518135111,
+        -22843.669121235158
+      ],
+      [
+        496.1432464096938,
+        -183.52895968225235
+      ]
+    ],
+    "angles": [
+      -21.0,
+      -20.9,
+      -20.8,
+      -20.7,
+      -20.6,
+      -20.5,
+      -20.4,
+      -20.3
+    ],
+    "distances": [
+      null,
+      null,
+      16.0,
+      1028.0,
+      null,
+      null,
+      65535.0,
+      529.0
+    ]
+  },
+  {
+    "name": "generated_wire_029",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMUAAAABAIAAA//1A4AnEAAkAAAAPABAEBQX5CLX//wISAABBTkdMMTwj1wq/AAAA//1A4AnEAAkAHQAuAD8AUABhAHIAgwCUAKUAAVFMVFkxP4AAAAAAAAD//UDgCcQACSAAEAECIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        32.903237154678095,
+        -10.374342617390798
+      ],
+      null,
+      null,
+      [
+        4271.248490783825,
+        -1285.49468298274
+      ],
+      [
+        125674.95232625141,
+        -37226.42359997039
+      ],
+      [
+        1020.0534788235465,
+        -297.3165826858311
+      ],
+      null
+    ],
+    "angles": [
+      -18.000021000000647,
+      -17.750004000001027,
+      -17.499987000001408,
+      -17.249970000001788,
+      -16.99995300000217,
+      -16.74993600000255,
+      -16.49991900000293,
+      -16.249902000003306,
+      -15.999885000003689
+    ],
+    "distances": [
+      null,
+      null,
+      34.5,
+      null,
+      null,
+      4460.5,
+      131072.5,
+      1062.5,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_030",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM3AQAAA//22EAJxAAoAAAAPABAEBgX6CLb//wITAAAADwABUUxUWTE/gAAAAAAAAP/9thACcQAKABABAiAAEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        145.0568930418379,
+        -38.19029281129044
+      ],
+      [
+        212.81108326773193,
+        -55.78032180362905
+      ],
+      [
+        6338.257948996538,
+        -1653.9460998947966
+      ],
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -15.0,
+      -14.9375,
+      -14.875,
+      -14.8125,
+      -14.75,
+      -14.6875,
+      -14.625,
+      -14.5625,
+      -14.5,
+      -14.4375
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      150.00000227987766,
+      220.00000332295895,
+      6550.50009765476,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_031",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT6AAAAAAAAA//4rQAPoAAsAAAAPABAEBwX7CLf//wIUAAAADwAQQU5HTDE8I9cKvwAAAP/+K0AD6AALAB8AMABBAFIAYwB0AIUAlgCnALgAyQABUUxUWTE/gAAAAAAAAP/+K0AD6AALEAECIAAQAQIgABA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        252.39470862991487,
+        -52.26828441435954
+      ],
+      [
+        374.9324926032747,
+        -76.96225367214363
+      ],
+      [
+        546.5531320921849,
+        -111.19683583727857
+      ],
+      null,
+      null,
+      null,
+      null,
+      [
+        3.926510745245068,
+        -0.7632256333975042
+      ]
+    ],
+    "angles": [
+      -12.000019000000693,
+      -11.900002000001074,
+      -11.799985000001454,
+      -11.699968000001832,
+      -11.599951000002212,
+      -11.499934000002593,
+      -11.399917000002974,
+      -11.299900000003353,
+      -11.199883000003732,
+      -11.099866000004113,
+      -10.999849000004494
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      257.75,
+      382.75,
+      557.75,
+      null,
+      null,
+      null,
+      null,
+      4.0
+    ]
+  },
+  {
+    "name": "generated_wire_032",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT8AAABAIAAA//6gcAnEAAQAAAAPABAECAABUUxUWTE/gAAAAAAAAP/+oHAJxAAEAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        10.384666565300126,
+        -1.5519988168609116
+      ],
+      [
+        513.134244065999,
+        -74.40092450242648
+      ]
+    ],
+    "angles": [
+      -9.0,
+      -8.75,
+      -8.5,
+      -8.25
+    ],
+    "distances": [
+      null,
+      null,
+      10.5,
+      518.5
+    ]
+  },
+  {
+    "name": "generated_wire_033",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT+AAADAQAAA//8VoAJxAAUAAAAPABAECQX9QU5HTDE8I9cKvwAAAP//FaACcQAFACEAMgBDAFQAZQABUUxUWTE/gAAAAAAAAP//FaACcQAFAiAAEAE=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        12.93171885853552,
+        -1.3306567415365973
+      ],
+      [
+        1024.7044591308018,
+        -104.31093632716903
+      ],
+      null
+    ],
+    "angles": [
+      -6.000017000000738,
+      -5.937500000001117,
+      -5.874983000001498,
+      -5.812466000001877,
+      -5.749949000002258
+    ],
+    "distances": [
+      null,
+      null,
+      13.0,
+      1030.0,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_034",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMUAAAAAAAAAA//+K0APoAAYAAAAPABAECgX+CLoAAVFMVFkxP4AAAAAAAAD//4rQA+gABiAAEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        31.96179639492589,
+        -1.5631926334596242
+      ],
+      null,
+      null,
+      [
+        4463.747454027741,
+        -194.89142274832125
+      ]
+    ],
+    "angles": [
+      -3.0,
+      -2.9,
+      -2.8,
+      -2.7,
+      -2.6,
+      -2.5
+    ],
+    "distances": [
+      null,
+      null,
+      32.0,
+      null,
+      null,
+      4468.0
+    ]
+  },
+  {
+    "name": "generated_wire_035",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM1AIAAAAAAAAAnEAAcAAAAPABAECwX/CLv//0FOR0wxPCPXCr8AAAAAAAAACcQABwAjADQARQBWAGcAeACJAAFRTFRZMT+AAAAAAAAAAAAAAAnEAAcAEAECIAAQ",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        155.97624021286128,
+        2.722719725974677
+      ],
+      [
+        225.9462154261763,
+        4.930440135833829
+      ],
+      [
+        6553.753259565398,
+        171.6260271203962
+      ]
+    ],
+    "angles": [
+      -1.5000000782310962e-05,
+      0.2500019999988377,
+      0.5000189999984578,
+      0.7500359999980778,
+      1.0000529999976977,
+      1.2500699999973177,
+      1.5000869999969377
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      156.00000228732824,
+      226.00000333040953,
+      6556.00009765476
+    ]
+  },
+  {
+    "name": "generated_wire_036",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT6AAADAQAAAAAB1MAJxAAgAAAAPABAEDAYACLz//wIZAAFRTFRZMT+AAAAAAAAAAAB1MAJxAAgQAQIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        255.6039472086912,
+        14.234541486700703
+      ],
+      [
+        380.3872264823499,
+        21.59995206164683
+      ],
+      [
+        555.0710542890588,
+        32.12669747161575
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      3.0,
+      3.0625,
+      3.125,
+      3.1875,
+      3.25,
+      3.3125,
+      3.375,
+      3.4375
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      256.0,
+      381.0,
+      556.0,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_037",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT8AAAAAAAAAAADqYAPoAAkAAAAPABAEDQYBCL3//wIaAABBTkdMMTwj1wq/AAAAAADqYAPoAAkAJQA2AEcAWABpAHoAiwCcAK0AAVFMVFkxP4AAAAAAAAAAAOpgA+gACQECIAAQAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        7.953207395107363,
+        0.8639977606507785
+      ],
+      [
+        515.3687176677205,
+        56.89758210617922
+      ],
+      [
+        763.7105636431537,
+        85.66460751008204
+      ],
+      null,
+      null,
+      [
+        267.16284666266705,
+        31.38492254411728
+      ],
+      null
+    ],
+    "angles": [
+      5.999986999999173,
+      6.100003999998792,
+      6.200020999998413,
+      6.3000379999980325,
+      6.4000549999976535,
+      6.500071999997273,
+      6.600088999996893,
+      6.700105999996513,
+      6.800122999996133
+    ],
+    "distances": [
+      null,
+      null,
+      8.0,
+      518.5,
+      768.5,
+      null,
+      null,
+      269.0,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_038",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT+AAABAIAAAAAFfkAnEAAoAAAAPABAEDgYCCL7//wIbAAAADwABUUxUWTE/gAAAAAAAAAABX5AJxAAKAiAAEAECIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        18.246283628438782,
+        3.0533807084225364
+      ],
+      [
+        1025.47107944993,
+        176.20815875491007
+      ],
+      null,
+      null,
+      [
+        64440.06850447268,
+        11943.260751941614
+      ],
+      [
+        531.9968903683634,
+        101.0027654987298
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      9.0,
+      9.25,
+      9.5,
+      9.75,
+      10.0,
+      10.25,
+      10.5,
+      10.75,
+      11.0,
+      11.25
+    ],
+    "distances": [
+      null,
+      null,
+      18.5,
+      1040.5,
+      null,
+      null,
+      65537.5,
+      541.5,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_039",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMUAAAADAQAAAAAHUwAJxAAsAAAAPABAEDwYDCL///wIcAAAADwAQQU5HTDE8I9cKvwAAAAAB1MACcQALACcAOABJAFoAawB8AI0AngCvAMAA0QABUUxUWTE/gAAAAAAAAAAB1MACcQALIAAQAQIgABABAiA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        28.353056284389567,
+        6.091321641010036
+      ],
+      null,
+      null,
+      [
+        4372.069628876493,
+        954.2704858978731
+      ],
+      [
+        128021.7291548052,
+        28089.061095267985
+      ],
+      [
+        1051.7240154219369,
+        231.96033148958392
+      ],
+      null,
+      null,
+      [
+        28.298805506874327,
+        6.338580825713219
+      ]
+    ],
+    "angles": [
+      11.999988999999129,
+      12.062505999998749,
+      12.125022999998368,
+      12.187539999997988,
+      12.250056999997609,
+      12.312573999997229,
+      12.375090999996848,
+      12.437607999996468,
+      12.500124999996089,
+      12.562641999995709,
+      12.625158999995328
+    ],
+    "distances": [
+      null,
+      null,
+      29.0,
+      null,
+      null,
+      4475.0,
+      131067.0,
+      1077.0,
+      null,
+      null,
+      29.0
+    ]
+  },
+  {
+    "name": "generated_wire_040",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM0AAAAA//kiMAPoAAQAAAAPABAEEAABUUxUWTE/gAAAAAAAAP/5IjAD6AAEABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -45.0,
+      -44.9,
+      -44.8,
+      -44.7
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_041",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT6AAABAIAAA//mXYAnEAAUAAAAPABAEEQYFQU5HTDE8I9cKvwAAAP/5l2AJxAAFACkAOgBLAFwAbQABUUxUWTE/gAAAAAAAAP/5l2AJxAAFEAECIAA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        197.54603640887657,
+        -173.2429681087888
+      ],
+      [
+        292.6389016846518,
+        -254.38658714798765
+      ]
+    ],
+    "angles": [
+      -42.000009000000915,
+      -41.7499920000013,
+      -41.499975000001676,
+      -41.24995800000205,
+      -40.99994100000244
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      262.75,
+      387.75
+    ]
+  },
+  {
+    "name": "generated_wire_042",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT8AAADAQAAA//oMkAJxAAYAAAAPABAEEgYGCMIAAVFMVFkxP4AAAAAAAAD/+gyQAnEABgECIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        3.8925853750374673,
+        -3.138117126246951
+      ],
+      [
+        403.6262436877877,
+        -324.66883959888526
+      ],
+      [
+        598.9512830153333,
+        -480.70922663735735
+      ],
+      null
+    ],
+    "angles": [
+      -39.0,
+      -38.9375,
+      -38.875,
+      -38.8125,
+      -38.75,
+      -38.6875
+    ],
+    "distances": [
+      null,
+      null,
+      5.0,
+      518.0,
+      768.0,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_043",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT+AAAAAAAAA//qBwAPoAAcAAAAPABAEEwYHCMP//0FOR0wxPCPXCr8AAAD/+oHAA+gABwArADwATQBeAG8AgACRAAFRTFRZMT+AAAAAAAAA//qBwAPoAAcCIAAQAQIg",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        12.977025514304469,
+        -9.359316684517673
+      ],
+      [
+        847.0035859448436,
+        -608.6328329925817
+      ],
+      null,
+      null,
+      [
+        53419.46303835064,
+        -37963.103056708766
+      ]
+    ],
+    "angles": [
+      -36.00000700000096,
+      -35.89999000000134,
+      -35.79997300000172,
+      -35.6999560000021,
+      -35.599939000002486,
+      -35.49992200000286,
+      -35.39990500000324
+    ],
+    "distances": [
+      null,
+      null,
+      16.0,
+      1043.0,
+      null,
+      null,
+      65535.0
+    ]
+  },
+  {
+    "name": "generated_wire_044",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMUAAAABAIAAA//r28AnEAAgAAAAPABAEFAYICMT//wIhAAFRTFRZMT+AAAAAAAAA//r28AnEAAggABABAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        29.097004880544556,
+        -18.53683648796542
+      ],
+      null,
+      null,
+      [
+        3818.506666342575,
+        -2362.9636241587204
+      ],
+      [
+        111757.67794230176,
+        -68485.1931237312
+      ],
+      [
+        933.9912187101942,
+        -566.7597845403697
+      ]
+    ],
+    "angles": [
+      -33.0,
+      -32.75,
+      -32.5,
+      -32.25,
+      -32.0,
+      -31.75,
+      -31.5,
+      -31.25
+    ],
+    "distances": [
+      null,
+      null,
+      34.5,
+      null,
+      null,
+      4490.5,
+      131072.5,
+      1092.5
+    ]
+  },
+  {
+    "name": "generated_wire_045",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM3AQAAA//tsIAJxAAkAAAAPABAEFQYJCMX//wIiAABBTkdMMTwj1wq/AAAA//tsIAJxAAkALQA+AE8AYABxAIIAkwCkALUAAVFMVFkxP4AAAAAAAAD/+2wgAnEACQAQAQIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        131.53220505502557,
+        -75.17665682203632
+      ],
+      [
+        192.42597439552523,
+        -109.70184984723511
+      ],
+      [
+        5694.219778304965,
+        -3238.0414830164805
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -30.000005000001007,
+      -29.937488000001387,
+      -29.874971000001764,
+      -29.812454000002145,
+      -29.749937000002525,
+      -29.687420000002906,
+      -29.624903000003286,
+      -29.562386000003666,
+      -29.499869000004047
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      151.5000023022294,
+      221.5000033453107,
+      6550.50009765476,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_046",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT6AAAAAAAAA//vhUAPoAAoAAAAPABAEFgYKCMb//wIjAAAADwABUUxUWTE/gAAAAAAAAP/74VAD6AAKEAECIAAQAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        233.61661804772953,
+        -117.49691813805696
+      ],
+      [
+        345.59061253841577,
+        -173.0588874496845
+      ],
+      [
+        502.5056440395371,
+        -250.54007206115762
+      ],
+      null,
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -27.0,
+      -26.9,
+      -26.8,
+      -26.7,
+      -26.6,
+      -26.5,
+      -26.4,
+      -26.3,
+      -26.2,
+      -26.1
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      261.5,
+      386.5,
+      561.5,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_047",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT8AAABAIAAA//xWgAnEAAsAAAAPABAEFwYLCMf//wIkAAAADwAQQU5HTDE8I9cKvwAAAP/8VoAJxAALAC8AQABRAGIAcwCEAJUApgC3AMgA2QABUUxUWTE/gAAAAAAAAP/8VoAJxAALAQIgABABAiAAEAE=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        9.62913304635435,
+        -4.186860013853654
+      ],
+      [
+        483.28435048625875,
+        -207.63486358286522
+      ],
+      [
+        714.3121102564542,
+        -303.2065453465199
+      ],
+      null,
+      null,
+      [
+        255.91216132664965,
+        -104.69582458304077
+      ],
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -24.00000300000105,
+      -23.74998600000143,
+      -23.499969000001812,
+      -23.24995200000219,
+      -22.99993500000257,
+      -22.74991800000295,
+      -22.49990100000333,
+      -22.24988400000371,
+      -21.99986700000409,
+      -21.74985000000447,
+      -21.499833000004852
+    ],
+    "distances": [
+      null,
+      null,
+      10.5,
+      526.0,
+      776.0,
+      null,
+      null,
+      276.5,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_048",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT+AAADAQAAA//zLsAJxAAQAAAAPABAEGAABUUxUWTE/gAAAAAAAAP/8y7ACcQAEAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        12.146680542136341,
+        -4.632294443068833
+      ],
+      [
+        976.8118500105656,
+        -371.2998918380348
+      ]
+    ],
+    "angles": [
+      -21.0,
+      -20.9375,
+      -20.875,
+      -20.8125
+    ],
+    "distances": [
+      null,
+      null,
+      13.0,
+      1045.0
+    ]
+  },
+  {
+    "name": "generated_wire_049",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMUAAAAAAAAAA//1A4APoAAUAAAAPABAEGQYNQU5HTDE8I9cKvwAAAP/9QOAD6AAFADEAQgBTAGQAdQABUUxUWTE/gAAAAAAAAP/9QOAD6AAFIAAQAQI=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        30.468146201914465,
+        -9.782232210429541
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -18.000001000001095,
+      -17.899984000001474,
+      -17.799967000001857,
+      -17.699950000002236,
+      -17.599933000002615
+    ],
+    "distances": [
+      null,
+      null,
+      32.0,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_050",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM1AIAAA//22EAnEAAYAAAAPABAEGgYOCMoAAVFMVFkxP4AAAAAAAAD//bYQCcQABgAQAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        152.82157912954207,
+        -38.102699115709825
+      ],
+      [
+        220.98032413919503,
+        -54.073541301108435
+      ]
+    ],
+    "angles": [
+      -15.0,
+      -14.75,
+      -14.5,
+      -14.25,
+      -14.0,
+      -13.75
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      157.50000230967999,
+      227.50000335276127
+    ]
+  },
+  {
+    "name": "generated_wire_051",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT6AAADAQAAA//4rQAJxAAcAAAAPABAEGwYPCMv//0FOR0wxPCPXCr8AAAD//itAAnEABwAzAEQAVQBmAHcAiACZAAFRTFRZMT+AAAAAAAAA//4rQAJxAAcQAQIgABAB",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        254.2492579213885,
+        -53.17308855448646
+      ],
+      [
+        376.6878398946857,
+        -78.35071011468656
+      ],
+      [
+        548.144889479378,
+        -113.38978189255187
+      ],
+      null
+    ],
+    "angles": [
+      -11.99999900000114,
+      -11.93748200000152,
+      -11.8749650000019,
+      -11.81244800000228,
+      -11.74993100000266,
+      -11.68741400000304,
+      -11.62489700000342
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      259.75,
+      384.75,
+      559.75,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_052",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT8AAAAAAAAA//6gcAPoAAgAAAAPABAEHAYQCMz//wIpAAFRTFRZMT+AAAAAAAAA//6gcAPoAAgBAiAAEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        7.905827051572422,
+        -1.2238866902723047
+      ],
+      [
+        519.9477844613675,
+        -79.56319145003731
+      ],
+      [
+        767.2749516924765,
+        -116.0394265123186
+      ],
+      null,
+      null,
+      [
+        273.6038806775701,
+        -39.91448957676909
+      ]
+    ],
+    "angles": [
+      -9.0,
+      -8.9,
+      -8.8,
+      -8.7,
+      -8.6,
+      -8.5,
+      -8.4,
+      -8.3
+    ],
+    "distances": [
+      null,
+      null,
+      8.0,
+      526.0,
+      776.0,
+      null,
+      null,
+      276.5
+    ]
+  },
+  {
+    "name": "generated_wire_053",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT+AAABAIAAA//8VoAnEAAkAAAAPABAEHQYRCM3//wIqAABBTkdMMTwj1wq/AAAA//8VoAnEAAkANQBGAFcAaAB5AIoAmwCsAL0AAVFMVFkxP4AAAAAAAAD//xWgCcQACQIgABABAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        18.414830814836904,
+        -1.7731345298462686
+      ],
+      [
+        1051.072192079051,
+        -96.57896788710364
+      ],
+      null,
+      null,
+      [
+        65335.479182655814,
+        -5141.893252757061
+      ],
+      [
+        554.9698158219319,
+        -41.24019309570511
+      ],
+      null
+    ],
+    "angles": [
+      -5.999997000001184,
+      -5.749980000001565,
+      -5.499963000001944,
+      -5.249946000002325,
+      -4.999929000002704,
+      -4.749912000003085,
+      -4.499895000003464,
+      -4.249878000003845,
+      -3.9998610000042243
+    ],
+    "distances": [
+      null,
+      null,
+      18.5,
+      1055.5,
+      null,
+      null,
+      65537.5,
+      556.5,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_054",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMUAAAADAQAAA//+K0AJxAAoAAAAPABAEHgYSCM7//wIrAAAADwABUUxUWTE/gAAAAAAAAP//itACcQAKIAAQAQIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        28.963498785963488,
+        -1.454557690671508
+      ],
+      null,
+      null,
+      [
+        4500.0450776462785,
+        -211.23280794303275
+      ],
+      [
+        130929.46895366172,
+        -6002.720092768968
+      ],
+      [
+        1105.8930507352152,
+        -49.49303320224682
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -3.0,
+      -2.9375,
+      -2.875,
+      -2.8125,
+      -2.75,
+      -2.6875,
+      -2.625,
+      -2.5625,
+      -2.5,
+      -2.4375
+    ],
+    "distances": [
+      null,
+      null,
+      29.0,
+      null,
+      null,
+      4505.0,
+      131067.0,
+      1107.0,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_055",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM0AAAAAAAAAAAPoAAsAAAAPABAEHwYTCM///wIsAAAADwAQQU5HTDE8I9cKvwAAAAAAAAAD6AALADcASABZAGoAewCMAJ0ArgC/ANAA4QABUUxUWTE/gAAAAAAAAAAAAAAD6AALABABAiAAEAECIAA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        155.4962115085022,
+        1.0857841087260929
+      ],
+      [
+        225.49141391971037,
+        1.968187985281152
+      ],
+      [
+        6553.140636914088,
+        68.63907623336395
+      ],
+      null,
+      null,
+      null,
+      [
+        1.5997562507924445,
+        0.02792873689315726
+      ]
+    ],
+    "angles": [
+      4.999998770654202e-06,
+      0.10002199999839068,
+      0.2000389999980107,
+      0.3000559999976307,
+      0.40007299999725077,
+      0.5000899999968708,
+      0.6001069999964908,
+      0.7001239999961107,
+      0.8001409999957309,
+      0.9001579999953508,
+      1.000174999994971
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      155.50000231713057,
+      225.50000336021185,
+      6553.50009765476,
+      null,
+      null,
+      null,
+      1.600000023841858
+    ]
+  },
+  {
+    "name": "generated_wire_056",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT6AAABAIAAAAAB1MAnEAAQAAAAPABAEIAABUUxUWTE/gAAAAAAAAAAAdTAJxAAEEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        265.9294030430878,
+        17.429933939833127
+      ]
+    ],
+    "angles": [
+      3.0,
+      3.25,
+      3.5,
+      3.75
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      266.5
+    ]
+  },
+  {
+    "name": "generated_wire_057",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT8AAADAQAAAAADqYAJxAAUAAAAPABAEIQYVQU5HTDE8I9cKvwAAAAAA6mACcQAFADkASgBbAGwAfQABUUxUWTE/gAAAAAAAAAAA6mACcQAFAQIgABA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        4.9714570334050165,
+        0.5334931724097213
+      ],
+      [
+        522.4386435266024,
+        56.64021318889626
+      ],
+      [
+        770.8905797770348,
+        84.42727054114249
+      ]
+    ],
+    "angles": [
+      6.0000069999987256,
+      6.062523999998346,
+      6.125040999997966,
+      6.187557999997586,
+      6.250074999997206
+    ],
+    "distances": [
+      null,
+      null,
+      5.0,
+      525.5,
+      775.5
+    ]
+  },
+  {
+    "name": "generated_wire_058",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT+AAAAAAAAAAAFfkAPoAAYAAAAPABAEIgYWCNIAAVFMVFkxP4AAAAAAAAAAAV+QA+gABgIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        15.794180241167806,
+        2.5580990030693576
+      ],
+      [
+        1044.093347958402,
+        170.9768427273561
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      9.0,
+      9.1,
+      9.2,
+      9.3,
+      9.4,
+      9.5
+    ],
+    "distances": [
+      null,
+      null,
+      16.0,
+      1058.0,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_059",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMUAAAABAIAAAAAHUwAnEAAcAAAAPABAEIwYXCNP//0FOR0wxPCPXCr8AAAAAAdTACcQABwA7AEwAXQBuAH8AkAChAAFRTFRZMT+AAAAAAAAAAAHUwAnEAAcgABABAiAA",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        33.68220664158278,
+        7.467191959077855
+      ],
+      null,
+      null,
+      [
+        4400.159238028491,
+        1036.1075861089541
+      ],
+      [
+        127450.89711259032,
+        30598.51436664718
+      ]
+    ],
+    "angles": [
+      12.00000899999868,
+      12.250025999998302,
+      12.500042999997921,
+      12.750059999997541,
+      13.00007699999716,
+      13.250093999996782,
+      13.500110999996402
+    ],
+    "distances": [
+      null,
+      null,
+      34.5,
+      null,
+      null,
+      4520.5,
+      131072.5
+    ]
+  },
+  {
+    "name": "generated_wire_060",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM3AQAAA//kiMAJxAAgAAAAPABAEJAYYCNT//wIxAAFRTFRZMT+AAAAAAAAA//kiMAJxAAgAEAECIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        108.65836412124621,
+        -107.71425447830251
+      ],
+      [
+        158.54250218833332,
+        -156.82243621956576
+      ],
+      [
+        4662.119349622258,
+        -4601.488313497358
+      ],
+      null
+    ],
+    "angles": [
+      -45.0,
+      -44.9375,
+      -44.875,
+      -44.8125,
+      -44.75,
+      -44.6875,
+      -44.625,
+      -44.5625
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      153.00000232458115,
+      223.00000336766243,
+      6550.50009765476,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_061",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT6AAAAAAAAA//mXYAPoAAkAAAAPABAEJQYZCNX//wIyAABBTkdMMTwj1wq/AAAA//mXYAPoAAkAPQBOAF8AcACBAJIAowC0AMUAAVFMVFkxP4AAAAAAAAD/+ZdgA+gACRABAiAAEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        198.0459687908959,
+        -176.45213726581918
+      ],
+      [
+        291.8285620626064,
+        -259.09680211162674
+      ],
+      [
+        423.3478487331846,
+        -374.54527292836667
+      ],
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -41.999989000001364,
+      -41.89997200000174,
+      -41.79995500000212,
+      -41.699938000002504,
+      -41.59992100000289,
+      -41.49990400000326,
+      -41.399887000003645,
+      -41.29987000000402,
+      -41.1998530000044
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      265.25,
+      390.25,
+      565.25,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_062",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT8AAABAIAAA//oMkAnEAAoAAAAPABAEJgYaCNb//wIzAAAADwABUUxUWTE/gAAAAAAAAP/6DJAJxAAKAQIgABABAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        8.217385646950346,
+        -6.536403684695006
+      ],
+      [
+        418.96658262487745,
+        -330.2866219567964
+      ],
+      [
+        617.4064254508667,
+        -482.3707659176533
+      ],
+      null,
+      null,
+      [
+        226.06456871983266,
+        -171.903492604182
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -39.0,
+      -38.75,
+      -38.5,
+      -38.25,
+      -38.0,
+      -37.75,
+      -37.5,
+      -37.25,
+      -37.0,
+      -36.75
+    ],
+    "distances": [
+      null,
+      null,
+      10.5,
+      533.5,
+      783.5,
+      null,
+      null,
+      284.0,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_063",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT+AAADAQAAA//qBwAJxAAsAAAAPABAEJwYbCNf//wI0AAAADwAQQU5HTDE8I9cKvwAAAP/6gcACcQALAD8AUABhAHIAgwCUAKUAtgDHANgA6QABUUxUWTE/gAAAAAAAAP/6gcACcQALAiAAEAECIAAQAQI=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        10.533872664222402,
+        -7.618236455633814
+      ],
+      [
+        859.5930454411955,
+        -620.241724031148
+      ],
+      null,
+      null,
+      [
+        53267.54554851163,
+        -38170.82151640488
+      ],
+      [
+        456.3639211191663,
+        -326.27131577988797
+      ],
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -35.99998700000141,
+      -35.93747000000179,
+      -35.874953000002165,
+      -35.81243600000255,
+      -35.749919000002926,
+      -35.68740200000331,
+      -35.62488500000369,
+      -35.56236800000407,
+      -35.49985100000445,
+      -35.437334000004824,
+      -35.37481700000521
+    ],
+    "distances": [
+      null,
+      null,
+      13.0,
+      1060.0,
+      null,
+      null,
+      65532.0,
+      561.0,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_064",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMUAAAAAAAAAA//r28APoAAQAAAAPABAEKAABUUxUWTE/gAAAAAAAAP/69vAD6AAEIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        26.8981313118619,
+        -17.334662729047672
+      ],
+      null
+    ],
+    "angles": [
+      -33.0,
+      -32.9,
+      -32.8,
+      -32.7
+    ],
+    "distances": [
+      null,
+      null,
+      32.0,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_065",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM1AIAAA//tsIAnEAAUAAAAPABAEKQYdQU5HTDE8I9cKvwAAAP/7bCAJxAAFAEEAUgBjAHQAhQABUUxUWTE/gAAAAAAAAP/7bCAJxAAFABABAiA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        139.06464714139037,
+        -77.08452929756194
+      ]
+    ],
+    "angles": [
+      -29.999985000001452,
+      -29.749968000001832,
+      -29.499951000002213,
+      -29.249934000002593,
+      -28.999917000002974
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      159.00000233203173
+    ]
+  },
+  {
+    "name": "generated_wire_066",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT6AAADAQAAA//vhUAJxAAYAAAAPABAEKgYeCNoAAVFMVFkxP4AAAAAAAAD/++FQAnEABhABAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        235.17043806608476,
+        -118.85754103045294
+      ],
+      [
+        346.9223195152267,
+        -174.86324434304348
+      ],
+      [
+        503.4700031050344,
+        -253.08142162833033
+      ]
+    ],
+    "angles": [
+      -27.0,
+      -26.9375,
+      -26.875,
+      -26.8125,
+      -26.75,
+      -26.6875
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      263.5,
+      388.5,
+      563.5
+    ]
+  },
+  {
+    "name": "generated_wire_067",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT8AAAAAAAAA//xWgAPoAAcAAAAPABAEKwYfCNv//0FOR0wxPCPXCr8AAAD//FaAA+gABwBDAFQAZQB2AIcAmACpAAFRTFRZMT+AAAAAAAAA//xWgAPoAAcBAiAAEAEC",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        7.319680216418765,
+        -3.228355855442169
+      ],
+      [
+        488.5062480477951,
+        -214.43855907524198
+      ],
+      [
+        717.970663955164,
+        -313.6724018777886
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -23.999983000001496,
+      -23.899966000001875,
+      -23.799949000002258,
+      -23.699932000002637,
+      -23.59991500000302,
+      -23.499898000003398,
+      -23.399881000003777
+    ],
+    "distances": [
+      null,
+      null,
+      8.0,
+      533.5,
+      783.5,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_068",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT+AAABAIAAA//zLsAnEAAgAAAAPABAELAYgCNz//wI5AAFRTFRZMT+AAAAAAAAA//zLsAnEAAgCIAAQAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        17.328435501095356,
+        -6.478836553300147
+      ],
+      [
+        1004.3338251050193,
+        -370.5183096014562
+      ],
+      null,
+      null,
+      [
+        61778.36672245364,
+        -21876.867037033262
+      ],
+      [
+        539.5468751544762,
+        -188.41820376768294
+      ]
+    ],
+    "angles": [
+      -21.0,
+      -20.75,
+      -20.5,
+      -20.25,
+      -20.0,
+      -19.75,
+      -19.5,
+      -19.25
+    ],
+    "distances": [
+      null,
+      null,
+      18.5,
+      1070.5,
+      null,
+      null,
+      65537.5,
+      571.5
+    ]
+  },
+  {
+    "name": "generated_wire_069",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMUAAAADAQAAA//1A4AJxAAkAAAAPABAELQYhCN3//wI6AABBTkdMMTwj1wq/AAAA//1A4AJxAAkARQBWAGcAeACJAJoAqwC8AM0AAVFMVFkxP4AAAAAAAAD//UDgAnEACSAAEAECIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        27.600132498416468,
+        -8.901274407064138
+      ],
+      null,
+      null,
+      [
+        4320.623020948546,
+        -1377.8395083787734
+      ],
+      [
+        124914.62101111865,
+        -39684.95869531167
+      ],
+      [
+        1084.0033964897498,
+        -343.0825504141623
+      ],
+      null
+    ],
+    "angles": [
+      -17.999981000001544,
+      -17.93746400000192,
+      -17.8749470000023,
+      -17.81243000000268,
+      -17.749913000003062,
+      -17.687396000003442,
+      -17.624879000003823,
+      -17.562362000004203,
+      -17.499845000004584
+    ],
+    "distances": [
+      null,
+      null,
+      29.0,
+      null,
+      null,
+      4535.0,
+      131067.0,
+      1137.0,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_070",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM0AAAAA//22EAPoAAoAAAAPABAELgYiCN7//wI7AAAADwABUUxUWTE/gAAAAAAAAP/9thAD6AAKABABAiAAEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        151.93034202960797,
+        -39.57488983388065
+      ],
+      [
+        219.76951764065143,
+        -56.83626176728449
+      ],
+      [
+        6347.60984104324,
+        -1629.7891998206271
+      ],
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -15.0,
+      -14.9,
+      -14.8,
+      -14.7,
+      -14.6,
+      -14.5,
+      -14.4,
+      -14.3,
+      -14.2,
+      -14.1
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      157.0000023394823,
+      227.0000033825636,
+      6553.50009765476,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_071",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT6AAABAIAAA//4rQAnEAAsAAAAPABAELwYjCN///wI8AAAADwAQQU5HTDE8I9cKvwAAAP/+K0AJxAALAEcAWABpAHoAiwCcAK0AvgDPAOAA8QABUUxUWTE/gAAAAAAAAP/+K0AJxAALEAECIAAQAQIgABA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        265.0572882826375,
+        -52.722826444101045
+      ],
+      [
+        387.98826140608537,
+        -75.41665274382814
+      ],
+      [
+        560.2425360830827,
+        -106.36429505804941
+      ],
+      null,
+      null,
+      null,
+      null,
+      [
+        6.4108599862511575,
+        -1.0727880669935712
+      ]
+    ],
+    "angles": [
+      -11.999979000001588,
+      -11.749962000001966,
+      -11.499945000002347,
+      -11.249928000002727,
+      -10.999911000003108,
+      -10.749894000003486,
+      -10.499877000003867,
+      -10.249860000004247,
+      -9.999843000004628,
+      -9.749826000005006,
+      -9.499809000005387
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      270.25,
+      395.25,
+      570.25,
+      null,
+      null,
+      null,
+      null,
+      6.5
+    ]
+  },
+  {
+    "name": "generated_wire_072",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT8AAADAQAAA//6gcAJxAAQAAAAPABAEMAABUUxUWTE/gAAAAAAAAP/+oHACcQAEAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        4.940136384305698,
+        -0.7713964638621442
+      ],
+      [
+        526.7079251911075,
+        -81.65636252539477
+      ]
+    ],
+    "angles": [
+      -9.0,
+      -8.9375,
+      -8.875,
+      -8.8125
+    ],
+    "distances": [
+      null,
+      null,
+      5.0,
+      533.0
+    ]
+  },
+  {
+    "name": "generated_wire_073",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT+AAAAAAAAA//8VoAPoAAUAAAAPABAEMQYlQU5HTDE8I9cKvwAAAP//FaAD6AAFAEkAWgBrAHwAjQABUUxUWTE/gAAAAAAAAP//FaAD6AAFAiAAEAE=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        15.918092949806452,
+        -1.6168849190100472
+      ],
+      [
+        1067.6947642074247,
+        -106.56871250067611
+      ],
+      null
+    ],
+    "angles": [
+      -5.999977000001632,
+      -5.899960000002012,
+      -5.799943000002392,
+      -5.699926000002772,
+      -5.5999090000031515
+    ],
+    "distances": [
+      null,
+      null,
+      16.0,
+      1073.0,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_074",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMUAAAABAIAAA//+K0AnEAAYAAAAPABAEMgYmCOIAAVFMVFkxP4AAAAAAAAD//4rQCcQABiAAEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        34.46716364457409,
+        -1.504868864104092
+      ],
+      null,
+      null,
+      [
+        4548.377605102462,
+        -138.965504361298
+      ]
+    ],
+    "angles": [
+      -3.0,
+      -2.75,
+      -2.5,
+      -2.25,
+      -2.0,
+      -1.75
+    ],
+    "distances": [
+      null,
+      null,
+      34.5,
+      null,
+      null,
+      4550.5
+    ]
+  },
+  {
+    "name": "generated_wire_075",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM3AQAAAAAAAAAJxAAcAAAAPABAEMwYnCOP//0FOR0wxPCPXCr8AAAAAAAAAAnEABwBLAFwAbQB+AI8AoACxAAFRTFRZMT+AAAAAAAAAAAAAAAJxAAcAEAECIAAQ",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        154.49853052384015,
+        0.674382069974392
+      ],
+      [
+        224.49666185707213,
+        1.2248825036704256
+      ],
+      [
+        6550.359701797381,
+        42.887136112622
+      ]
+    ],
+    "angles": [
+      2.4999998323619365e-05,
+      0.06254199999794365,
+      0.12505899999756365,
+      0.1875759999971837,
+      0.2500929999968037,
+      0.31260999999642375,
+      0.37512699999604376
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      154.5000023469329,
+      224.50000339001417,
+      6550.50009765476
+    ]
+  },
+  {
+    "name": "generated_wire_076",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT6AAAAAAAAAAAB1MAPoAAgAAAAPABAENAYoCOT//wJBAAFRTFRZMT+AAAAAAAAAAAB1MAPoAAgQAQIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        268.5539486691736,
+        15.484723252123597
+      ],
+      [
+        393.3064922019635,
+        23.36671118892888
+      ],
+      [
+        567.9387003020423,
+        34.73661899533356
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      3.0,
+      3.1,
+      3.2,
+      3.3,
+      3.4,
+      3.5,
+      3.6,
+      3.7
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      269.0,
+      394.0,
+      569.0,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_077",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT8AAABAIAAAAADqYAnEAAkAAAAPABAENQYpCOX//wJCAABBTkdMMTwj1wq/AAAAAADqYAnEAAkATQBeAG8AgACRAKIAswDEANUAAVFMVFkxP4AAAAAAAAAAAOpgCcQACQECIAAQAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        10.432503219118388,
+        1.1886448515365968
+      ],
+      [
+        537.249948646528,
+        63.58846341360205
+      ],
+      [
+        785.1038461121964,
+        96.3999523850328
+      ],
+      null,
+      null,
+      [
+        288.83730892078836,
+        39.309782184554116
+      ],
+      null
+    ],
+    "angles": [
+      6.000026999998279,
+      6.2500439999978985,
+      6.500060999997519,
+      6.7500779999971385,
+      7.000094999996759,
+      7.2501119999963795,
+      7.500128999995999,
+      7.7501459999956195,
+      8.00016299999524
+    ],
+    "distances": [
+      null,
+      null,
+      10.5,
+      541.0,
+      791.0,
+      null,
+      null,
+      291.5,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_078",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT+AAADAQAAAAAFfkAJxAAoAAAAPABAENgYqCOb//wJDAAAADwABUUxUWTE/gAAAAAAAAAABX5ACcQAKAiAAEAECIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        12.835481142678626,
+        2.0616556055610733
+      ],
+      [
+        1061.2089564131868,
+        171.64076097604305
+      ],
+      null,
+      null,
+      [
+        64656.71083818629,
+        10674.866162494189
+      ],
+      [
+        568.2038709393786,
+        94.44766301770531
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      9.0,
+      9.0625,
+      9.125,
+      9.1875,
+      9.25,
+      9.3125,
+      9.375,
+      9.4375,
+      9.5,
+      9.5625
+    ],
+    "distances": [
+      null,
+      null,
+      13.0,
+      1075.0,
+      null,
+      null,
+      65532.0,
+      576.0,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_079",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMUAAAAAAAAAAAAHUwAPoAAsAAAAPABAENwYrCOf//wJEAAAADwAQQU5HTDE8I9cKvwAAAAAB1MAD6AALAE8AYABxAIIAkwCkALUAxgDXAOgA+QABUUxUWTE/gAAAAAAAAAAB1MAD6AALIAAQAQIgABABAiA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        31.277301181496465,
+        6.762427877764011
+      ],
+      null,
+      null,
+      [
+        4449.955237565988,
+        986.5406142977735
+      ],
+      [
+        127913.34461468538,
+        28592.327108592253
+      ],
+      [
+        1131.6194122303914,
+        255.0245201217791
+      ],
+      null,
+      null,
+      [
+        31.179817071302587,
+        7.198542032947214
+      ]
+    ],
+    "angles": [
+      12.000028999998234,
+      12.100045999997853,
+      12.200062999997474,
+      12.300079999997095,
+      12.400096999996714,
+      12.500113999996334,
+      12.600130999995955,
+      12.700147999995574,
+      12.800164999995195,
+      12.900181999994814,
+      13.000198999994435
+    ],
+    "distances": [
+      null,
+      null,
+      32.0,
+      null,
+      null,
+      4558.0,
+      131070.0,
+      1160.0,
+      null,
+      null,
+      32.0
+    ]
+  },
+  {
+    "name": "generated_wire_080",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM1AIAAA//kiMAnEAAQAAAAPABAEOAABUUxUWTE/gAAAAAAAAP/5IjAJxAAEABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -45.0,
+      -44.75,
+      -44.5,
+      -44.25
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_081",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT6AAADAQAAA//mXYAJxAAUAAAAPABAEOQYtQU5HTDE8I9cKvwAAAP/5l2ACcQAFAFEAYgBzAIQAlQABUUxUWTE/gAAAAAAAAP/5l2ACcQAFEAECIAA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        199.18984905913865,
+        -178.17397826786478
+      ],
+      [
+        292.64145667502146,
+        -261.19157784109643
+      ]
+    ],
+    "angles": [
+      -41.99996900000181,
+      -41.93745200000219,
+      -41.87493500000257,
+      -41.81241800000295,
+      -41.749901000003334
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      267.25,
+      392.25
+    ]
+  },
+  {
+    "name": "generated_wire_082",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT8AAAAAAAAA//oMkAPoAAYAAAAPABAEOgYuCOoAAVFMVFkxP4AAAAAAAAD/+gyQA+gABgECIAAQAQ==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        6.234703719451793,
+        -5.012830490915683
+      ],
+      [
+        422.21285037003634,
+        -338.2562770776165
+      ],
+      [
+        618.1826936832856,
+        -493.4887609971245
+      ],
+      null
+    ],
+    "angles": [
+      -39.0,
+      -38.9,
+      -38.8,
+      -38.7,
+      -38.6,
+      -38.5
+    ],
+    "distances": [
+      null,
+      null,
+      8.0,
+      541.0,
+      791.0,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_083",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT+AAABAIAAA//qBwAnEAAcAAAAPABAEOwYvCOv//0FOR0wxPCPXCr8AAAD/+oHACcQABwBTAGQAdQCGAJcAqAC5AAFRTFRZMT+AAAAAAAAA//qBwAnEAAcCIAAQAQIg",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        15.061149652134935,
+        -10.74298706859483
+      ],
+      [
+        886.4653266109467,
+        -626.4898041600899
+      ],
+      null,
+      null,
+      [
+        54011.25755060205,
+        -37120.72149154072
+      ]
+    ],
+    "angles": [
+      -35.99996700000185,
+      -35.74995000000224,
+      -35.49993300000261,
+      -35.249916000003,
+      -34.999899000003374,
+      -34.74988200000376,
+      -34.499865000004135
+    ],
+    "distances": [
+      null,
+      null,
+      18.5,
+      1085.5,
+      null,
+      null,
+      65537.5
+    ]
+  },
+  {
+    "name": "generated_wire_084",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMUAAAADAQAAA//r28AJxAAgAAAAPABAEPAYwCOz//wJJAAFRTFRZMT+AAAAAAAAA//r28AJxAAggABABAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        24.355846885788374,
+        -15.741433304373297
+      ],
+      null,
+      null,
+      [
+        3842.0346688896097,
+        -2465.358919721489
+      ],
+      [
+        110386.88617149253,
+        -70663.24256897606
+      ],
+      [
+        983.5532496760209,
+        -628.1019065818372
+      ]
+    ],
+    "angles": [
+      -33.0,
+      -32.9375,
+      -32.875,
+      -32.8125,
+      -32.75,
+      -32.6875,
+      -32.625,
+      -32.5625
+    ],
+    "distances": [
+      null,
+      null,
+      29.0,
+      null,
+      null,
+      4565.0,
+      131067.0,
+      1167.0
+    ]
+  },
+  {
+    "name": "generated_wire_085",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM0AAAAA//tsIAPoAAkAAAAPABAEPQYxCO3//wJKAABBTkdMMTwj1wq/AAAA//tsIAPoAAkAVQBmAHcAiACZAKoAuwDMAN0AAVFMVFkxP4AAAAAAAAD/+2wgA+gACQAQAQIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        137.81508912065166,
+        -78.28953927165645
+      ],
+      [
+        198.87651514410345,
+        -112.51836863456342
+      ],
+      [
+        5709.507488739427,
+        -3217.1241452560316
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -29.9999650000019,
+      -29.89994800000228,
+      -29.799931000002662,
+      -29.69991400000304,
+      -29.59989700000342,
+      -29.4998800000038,
+      -29.399863000004178,
+      -29.29984600000456,
+      -29.19982900000494
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      158.50000236183405,
+      228.50000340491533,
+      6553.50009765476,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_086",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT6AAABAIAAA//vhUAnEAAoAAAAPABAEPgYyCO7//wJLAAAADwABUUxUWTE/gAAAAAAAAP/74VAJxAAKEAECIAAQAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        245.74313117995658,
+        -121.18710112000636
+      ],
+      [
+        358.6188244733676,
+        -174.91008756884187
+      ],
+      [
+        517.0007893711654,
+        -249.3715777501354
+      ],
+      null,
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -27.0,
+      -26.75,
+      -26.5,
+      -26.25,
+      -26.0,
+      -25.75,
+      -25.5,
+      -25.25,
+      -25.0,
+      -24.75
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      274.0,
+      399.0,
+      574.0,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_087",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT8AAADAQAAA//xWgAJxAAsAAAAPABAEPwYzCO///wJMAAAADwAQQU5HTDE8I9cKvwAAAP/8VoACcQALAFcAaAB5AIoAmwCsAL0AzgDfAPABAQABUUxUWTE/gAAAAAAAAP/8VoACcQALAQIgABABAiAAEAE=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        4.572155730567792,
+        -2.023707482675327
+      ],
+      [
+        494.4884382915669,
+        -218.22335896041747
+      ],
+      [
+        723.5543076884924,
+        -318.36993235138664
+      ],
+      null,
+      null,
+      [
+        266.7380640049078,
+        -116.3262877036558
+      ],
+      null,
+      null,
+      null
+    ],
+    "angles": [
+      -23.999963000001944,
+      -23.937446000002325,
+      -23.874929000002705,
+      -23.812412000003086,
+      -23.749895000003466,
+      -23.687378000003843,
+      -23.624861000004223,
+      -23.562344000004604,
+      -23.499827000004984,
+      -23.437310000005365,
+      -23.374793000005745
+    ],
+    "distances": [
+      null,
+      null,
+      5.0,
+      540.5,
+      790.5,
+      null,
+      null,
+      291.0,
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_088",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT+AAAAAAAAA//zLsAPoAAQAAAAPABAEQAABUUxUWTE/gAAAAAAAAP/8y7AD6AAEAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        14.957210822336231,
+        -5.681711398530193
+      ],
+      [
+        1017.7631055428956,
+        -384.5806300318318
+      ]
+    ],
+    "angles": [
+      -21.0,
+      -20.9,
+      -20.8,
+      -20.7
+    ],
+    "distances": [
+      null,
+      null,
+      16.0,
+      1088.0
+    ]
+  },
+  {
+    "name": "generated_wire_089",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMUAAAABAIAAA//1A4AnEAAUAAAAPABAEQQY1QU5HTDE8I9cKvwAAAP/9QOAJxAAFAFkAagB7AIwAnQABUUxUWTE/gAAAAAAAAP/9QOAJxAAFIAAQAQI=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        32.903248018645996,
+        -10.374308161196508
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -17.99996100000199,
+      -17.74994400000237,
+      -17.49992700000275,
+      -17.24991000000313,
+      -16.99989300000351
+    ],
+    "distances": [
+      null,
+      null,
+      34.5,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_090",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT3MzM3AQAAA//22EAJxAAYAAAAPABAEQgY2CPIAAVFMVFkxP4AAAAAAAAD//bYQAnEABgAQAQIgAA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        150.8591687617822,
+        -39.71790452328679
+      ],
+      [
+        218.61502190112708,
+        -57.30160330705527
+      ]
+    ],
+    "angles": [
+      -15.0,
+      -14.9375,
+      -14.875,
+      -14.8125,
+      -14.75,
+      -14.6875
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      156.00000236928463,
+      226.0000034123659
+    ]
+  },
+  {
+    "name": "generated_wire_091",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT6AAAAAAAAA//4rQAPoAAcAAAAPABAEQwY3CPP//0FOR0wxPCPXCr8AAAD//itAA+gABwBbAGwAfQCOAJ8AsADBAAFRTFRZMT+AAAAAAAAA//4rQAPoAAcQAQIgABAB",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        267.0831104085443,
+        -55.30980595244679
+      ],
+      [
+        389.6262076797006,
+        -79.97800190761716
+      ],
+      [
+        561.2521256827083,
+        -114.18675017987593
+      ],
+      null
+    ],
+    "angles": [
+      -11.999959000002034,
+      -11.899942000002415,
+      -11.799925000002794,
+      -11.699908000003173,
+      -11.599891000003554,
+      -11.499874000003935,
+      -11.399857000004314
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      272.75,
+      397.75,
+      572.75,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_092",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT8AAABAIAAA//6gcAnEAAgAAAAPABAERAY4CPT//wJRAAFRTFRZMT+AAAAAAAAA//6gcAnEAAgBAiAAEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        10.384666565300126,
+        -1.5519988168609116
+      ],
+      [
+        542.8237856705891,
+        -78.70570316216185
+      ],
+      [
+        790.729052890144,
+        -111.12972111661225
+      ],
+      null,
+      null,
+      [
+        296.60947995423476,
+        -37.733491771613096
+      ]
+    ],
+    "angles": [
+      -9.0,
+      -8.75,
+      -8.5,
+      -8.25,
+      -8.0,
+      -7.75,
+      -7.5,
+      -7.25
+    ],
+    "distances": [
+      null,
+      null,
+      10.5,
+      548.5,
+      798.5,
+      null,
+      null,
+      299.0
+    ]
+  },
+  {
+    "name": "generated_wire_093",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT+AAADAQAAA//8VoAJxAAkAAAAPABAERQY5CPX//wJSAABBTkdMMTwj1wq/AAAA//8VoAJxAAkAXQBuAH8AkAChALIAwwDUAOUAAVFMVFkxP4AAAAAAAAD//xWgAnEACQIgABABAiAAEA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        12.93172025198888,
+        -1.3306431994718486
+      ],
+      [
+        1084.3960966186312,
+        -110.38616597325993
+      ],
+      null,
+      null,
+      [
+        65216.46176359133,
+        -6423.094195014575
+      ],
+      [
+        588.2171752837426,
+        -57.28485577545698
+      ],
+      null
+    ],
+    "angles": [
+      -5.9999570000020785,
+      -5.937440000002459,
+      -5.8749230000028385,
+      -5.812406000003219,
+      -5.7498890000035985,
+      -5.687372000003979,
+      -5.6248550000043585,
+      -5.562338000004739,
+      -5.499821000005118
+    ],
+    "distances": [
+      null,
+      null,
+      13.0,
+      1090.0,
+      null,
+      null,
+      65532.0,
+      591.0,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_094",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMUAAAAAAAAAA//+K0APoAAoAAAAPABAERgY6CPb//wJTAAAADwABUUxUWTE/gAAAAAAAAP//itAD6AAKIAAQAQIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        31.96179639492589,
+        -1.5631926334596242
+      ],
+      null,
+      null,
+      [
+        4583.633240617563,
+        -200.12574923216158
+      ],
+      [
+        130955.02934105736,
+        -5488.641934286195
+      ],
+      [
+        1189.0413301861906,
+        -47.75683311374608
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      -3.0,
+      -2.9,
+      -2.8,
+      -2.7,
+      -2.6,
+      -2.5,
+      -2.4,
+      -2.3,
+      -2.2,
+      -2.1
+    ],
+    "distances": [
+      null,
+      null,
+      32.0,
+      null,
+      null,
+      4588.0,
+      131070.0,
+      1190.0,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_095",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT3MzM1AIAAAAAAAAAnEAAsAAAAPABAERwY7CPf//wJUAAAADwAQQU5HTDE8I9cKvwAAAAAAAAAJxAALAF8AcACBAJIAowC0AMUA1gDnAPgBCQABUUxUWTE/gAAAAAAAAAAAAAAJxAALABABAiAAEAECIAA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      null,
+      [
+        161.9753234153503,
+        2.8276093356200436
+      ],
+      [
+        231.944782217779,
+        5.061579668635052
+      ],
+      [
+        6553.753079835454,
+        171.63289019451327
+      ],
+      null,
+      null,
+      null,
+      [
+        4.09609706118831,
+        0.17885485967042336
+      ]
+    ],
+    "angles": [
+      4.499999787658453e-05,
+      0.2500619999974966,
+      0.5000789999971166,
+      0.7500959999967366,
+      1.0001129999963567,
+      1.2501299999959767,
+      1.5001469999955968,
+      1.7501639999952168,
+      2.0001809999948366,
+      2.2501979999944566,
+      2.5002149999940766
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      null,
+      162.0000023767352,
+      232.0000034198165,
+      6556.00009765476,
+      null,
+      null,
+      null,
+      4.100000023841858
+    ]
+  },
+  {
+    "name": "generated_wire_096",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT6AAADAQAAAAAB1MAJxAAQAAAAPABAESAABUUxUWTE/gAAAAAAAAAAAdTACcQAEEAECIA==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      null,
+      [
+        270.58074099045047,
+        15.068596651937073
+      ]
+    ],
+    "angles": [
+      3.0,
+      3.0625,
+      3.125,
+      3.1875
+    ],
+    "distances": [
+      null,
+      null,
+      null,
+      271.0
+    ]
+  },
+  {
+    "name": "generated_wire_097",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMT8AAAAAAAAAAADqYAPoAAUAAAAPABAESQY9QU5HTDE8I9cKvwAAAAAA6mAD6AAFAGEAcgCDAJQApQABUUxUWTE/gAAAAAAAAAAA6mAD6AAFAQIgABA=",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        7.953206490326683,
+        0.864006089229427
+      ],
+      [
+        545.187481117281,
+        60.19020213452034
+      ],
+      [
+        793.5235047977533,
+        89.00953507063194
+      ]
+    ],
+    "angles": [
+      6.000046999997832,
+      6.1000639999974515,
+      6.2000809999970725,
+      6.300097999996692,
+      6.400114999996313
+    ],
+    "distances": [
+      null,
+      null,
+      8.0,
+      548.5,
+      798.5
+    ]
+  },
+  {
+    "name": "generated_wire_098",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAFESVNUMT+AAABAIAAAAAFfkAnEAAYAAAAPABAESgY+CPoAAVFMVFkxP4AAAAAAAAAAAV+QCcQABgIgABABAg==",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        18.246283628438782,
+        3.0533807084225364
+      ],
+      [
+        1084.6044429934145,
+        186.36912898585155
+      ],
+      null,
+      null
+    ],
+    "angles": [
+      9.0,
+      9.25,
+      9.5,
+      9.75,
+      10.0,
+      10.25
+    ],
+    "distances": [
+      null,
+      null,
+      18.5,
+      1100.5,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "generated_wire_099",
+    "payload_base64": "c1NOIExNRHNjYW5kYXRhIAABAAEAvGFOAAAAAQABAAHiQAAB4mwAAAAAAAAAAOpgAAAhwAAAAAJESVNUMUAAAADAQAAAAAHUwAJxAAcAAAAPABAESwY/CPv//0FOR0wxPCPXCr8AAAAAAdTAAnEABwBjAHQAhQCWAKcAuADJAAFRTFRZMT+AAAAAAAAAAAHUwAJxAAcgABABAiAA",
+    "counter": 1,
+    "timestamp": 123456,
+    "frequency": 600.0,
+    "xy": [
+      null,
+      null,
+      [
+        28.35304990555706,
+        6.091351332257141
+      ],
+      null,
+      null,
+      [
+        4489.3084587370795,
+        979.8645632492851
+      ],
+      [
+        128021.69973993968,
+        28089.195159290855
+      ]
+    ],
+    "angles": [
+      12.000048999997787,
+      12.062565999997407,
+      12.125082999997026,
+      12.187599999996648,
+      12.250116999996267,
+      12.312633999995887,
+      12.375150999995506
+    ],
+    "distances": [
+      null,
+      null,
+      29.0,
+      null,
+      null,
+      4595.0,
+      131067.0
+    ]
+  }
+]

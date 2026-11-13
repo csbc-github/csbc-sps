@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Specialized;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -362,9 +363,9 @@ public partial class LidarScanView : UserControl
     {
         if (d is LidarScanView self)
         {
-            self.EmptyHint.Visibility = e.NewValue is null ? Visibility.Visible : Visibility.Collapsed;
             self.Renderer.Frame = e.NewValue as LidarFrame;
             self.ApplyCalibrationToRenderer();
+            self.UpdateEmptyHint();
         }
     }
 
@@ -378,8 +379,26 @@ public partial class LidarScanView : UserControl
     {
         if (d is LidarScanView self)
         {
+            if (e.OldValue is INotifyCollectionChanged previous)
+                CollectionChangedEventManager.RemoveHandler(previous, self.OnNativePointsChanged);
+            if (e.NewValue is INotifyCollectionChanged current)
+                CollectionChangedEventManager.AddHandler(current, self.OnNativePointsChanged);
             self.Renderer.ProfileSnapPoints = e.NewValue as IEnumerable;
+            self.UpdateEmptyHint();
         }
+    }
+
+    private void OnNativePointsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        Renderer.InvalidateVisual();
+        UpdateEmptyHint();
+    }
+
+    private void UpdateEmptyHint()
+    {
+        bool native = ProfileSnapPoints?.OfType<ScannerPlanePoint>().Any(p => double.IsFinite(p.X)
+            && double.IsFinite(p.Y) && (p.X != 0 || p.Y != 0)) == true;
+        EmptyHint.Visibility = Frame == null && !native ? Visibility.Visible : Visibility.Collapsed;
     }
 
     protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)

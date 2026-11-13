@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ThreeDScan.Infrastructure.Configuration;
 using ThreeDScan.Infrastructure.LineScan.Hank;
 using ThreeDScan.Infrastructure.LineScan.Models;
@@ -13,11 +15,17 @@ public sealed class LineScanDeviceHost
     readonly Dictionary<string, string> _endpoints = new(StringComparer.OrdinalIgnoreCase);
     readonly object _gate = new();
     readonly LineScanOptionsResolver _resolver;
+    readonly LineScanEncoderSimulationPolicy _encoderSimulation;
+    readonly ILogger<LineScanDeviceHost>? _logger;
 
     /// <summary>建立裝置宿主。</summary>
-    public LineScanDeviceHost(LineScanOptionsResolver resolver)
+    public LineScanDeviceHost(LineScanOptionsResolver resolver,
+        LineScanEncoderSimulationPolicy? encoderSimulation = null,
+        ILogger<LineScanDeviceHost>? logger = null)
     {
         _resolver = resolver;
+        _encoderSimulation = encoderSimulation ?? new(Options.Create(new LineScanEncoderSimulationOptions()));
+        _logger = logger;
     }
 
     /// <summary>滾輪清空檢查並回傳 Z 距離。</summary>
@@ -110,13 +118,15 @@ public sealed class LineScanDeviceHost
         {
             lease = await OpenAsync(endpoint, ct).ConfigureAwait(false);
             var first = await lease.First.ConfigureAwait(false);
-            if (first.Encoders.Count < reconstruction.EncoderChannel)
+            if (!_encoderSimulation.Enabled && first.Encoders.Count < reconstruction.EncoderChannel)
             {
                 throw new LineScanDeviceException("SCAN_ENCODER_UNAVAILABLE", "有效掃描封包未包含設定的 Encoder 通道。");
             }
 
             Directory.CreateDirectory(sessionDirectory);
-            session = EncoderScanSession.Start(
+            _logger?.LogInformation("Line scan {ScannerId}: Encoder mode {EncoderMode}, simulated forward speed {SpeedMmPerSec} mm/s.",
+                scannerId, _encoderSimulation.Enabled ? "simulation" : "real", _encoderSimulation.ForwardSpeedMmPerSec);
+            session = _encoderSimulation.StartSession(
                 Path.Combine(sessionDirectory, "line_raw.ply"),
                 calibration,
                 reconstruction,
@@ -136,7 +146,7 @@ public sealed class LineScanDeviceHost
             }
 
             lease.Attach(session);
-            lease.EnableLiveCache();
+            lease.EnableLiveCache(endpoint.AverageScans);
             if (session.Recorder.Error is string error)
             {
                 throw new LineScanDeviceException("SCAN_ENCODER_UNAVAILABLE", error);
@@ -183,19 +193,23 @@ public sealed class LineScanDeviceHost
     /// <summary>開始架設長連預覽（O8）；同一 scanner 重複呼叫為 no-op。</summary>
     public async Task StartSetupPreviewAsync(string scannerId, CancellationToken ct = default)
     {
-        if (_setupPreviews.ContainsKey(scannerId))
+        var endpoint = _resolver.RequireEndpoint(scannerId);
+        if (endpoint.AverageScans is < 1 or > 600)
         {
+            throw new LineScanDeviceException("SCAN_PROFILE_CONFIG", "Average scans must be between 1 and 600.");
+        }
+        if (_setupPreviews.TryGetValue(scannerId, out var existing))
+        {
+            existing.Lease.EnableLiveCache(endpoint.AverageScans);
             return;
         }
-
-        var endpoint = _resolver.RequireEndpoint(scannerId);
         string ownerId = "setup-" + scannerId.Trim();
         string endpointKey = Claim(endpoint, ownerId);
         LineScanLease? lease = null;
         try
         {
             lease = await OpenAsync(endpoint, ct).ConfigureAwait(false);
-            lease.EnableLiveCache();
+            lease.EnableLiveCache(endpoint.AverageScans);
             var setup = new SetupPreview(scannerId.Trim(), endpointKey, lease);
             if (!_setupPreviews.TryAdd(scannerId.Trim(), setup))
             {

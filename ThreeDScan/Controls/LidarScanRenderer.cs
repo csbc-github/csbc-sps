@@ -135,8 +135,9 @@ public sealed class LidarScanRenderer : FrameworkElement
                 continue;
             }
 
-            double z = _absBase - Math.Abs(pt.Y) + _zOffsetMm;
-            var disp = DataToScreen(pt.X + _xOffsetMm, z);
+            if (!TryNativePlaneXY(pt, out double x, out double y)) continue;
+            double z = _absBase - Math.Abs(y) + _zOffsetMm;
+            var disp = DataToScreen(x, z);
             double dx = disp.X - screen.X;
             double dy = disp.Y - screen.Y;
             double dist = dx * dx + dy * dy;
@@ -191,6 +192,12 @@ public sealed class LidarScanRenderer : FrameworkElement
         var absoluteY = _absBase - (data.Value.Z - _zOffsetMm);
         var sign = _baselineY < 0 ? -1.0 : 1.0;
         sensorY = sign * absoluteY;
+        if (_angleCorrectionDeg != 0)
+        {
+            double radians = _angleCorrectionDeg * (Math.PI / 180);
+            double cosine = Math.Cos(radians), sine = Math.Sin(radians);
+            (sensorX, sensorY) = (sensorX * cosine + sensorY * sine, -sensorX * sine + sensorY * cosine);
+        }
         return true;
     }
 
@@ -217,6 +224,32 @@ public sealed class LidarScanRenderer : FrameworkElement
         yPlane = d * Math.Sin(rad);
         return true;
     }
+
+    private bool TryNativePlaneXY(ScannerPlanePoint point, out double xDisp, out double yPlane)
+    {
+        xDisp = 0;
+        yPlane = 0;
+        if (!double.IsFinite(point.X) || !double.IsFinite(point.Y) || point.X == 0 && point.Y == 0) return false;
+        double angle = Math.Atan2(point.Y, point.X) * (180 / Math.PI) + _angleCorrectionDeg;
+        double? lo = _angleMinDeg, hi = _angleMaxDeg;
+        if (lo is double a && hi is double b && a > b) { lo = b; hi = a; }
+        if (lo is double min && angle < min || hi is double max && angle > max) return false;
+        if (_angleCorrectionDeg == 0)
+        {
+            xDisp = point.X + _xOffsetMm;
+            yPlane = point.Y;
+        }
+        else
+        {
+            double radians = _angleCorrectionDeg * (Math.PI / 180);
+            double cosine = Math.Cos(radians), sine = Math.Sin(radians);
+            xDisp = point.X * cosine - point.Y * sine + _xOffsetMm;
+            yPlane = point.X * sine + point.Y * cosine;
+        }
+        return true;
+    }
+
+    private bool HasNativePoints => _profileSnapPoints?.OfType<ScannerPlanePoint>().Any() == true;
 
     private const double MarginRight = 8;
     private const double MarginTop = 8;
@@ -268,7 +301,7 @@ public sealed class LidarScanRenderer : FrameworkElement
         set { _materials = value; InvalidateVisual(); }
     }
 
-    /// <summary>凍結輪廓的掃描器 XY 點；有資料時以此繪製，避免極座標分箱斷線。</summary>
+    /// <summary>即時或凍結輪廓的原生 double XY 點，不經極座標分箱或整數距離換算。</summary>
     public IEnumerable? ProfileSnapPoints
     {
         get
@@ -310,7 +343,7 @@ public sealed class LidarScanRenderer : FrameworkElement
         DrawGrid(dc);
         DrawBaseline(dc);
 
-        if (_frame is not null && _frame.Cartesian.Length >= 2)
+        if (HasNativePoints || _frame is not null && _frame.Cartesian.Length >= 2)
         {
             DrawProfile(dc);
         }
@@ -318,113 +351,45 @@ public sealed class LidarScanRenderer : FrameworkElement
 
     private void ComputeLayoutAndRanges()
     {
-        _plotRect = new Rect(
-            MarginLeft, MarginTop,
+        _plotRect = new Rect(MarginLeft, MarginTop,
             Math.Max(0, ActualWidth - MarginLeft - MarginRight),
             Math.Max(0, ActualHeight - MarginTop - MarginBottom));
-
-        if (_frame is null || _frame.Cartesian.Length == 0)
+        var points = new List<(double X, double Y)>();
+        if (HasNativePoints)
         {
-            _baselineY = 0;
-            _absBase = 0;
-            if (_useFixedPlotRange)
-            {
-                _xMin = _fixedXMin;
-                _xMax = _fixedXMax;
-                _zMin = _fixedZMin;
-                _zMax = _fixedZMax;
-            }
-            else
-            {
-                _xMin = -500;
-                _xMax = 500;
-                _zMin = 0;
-                _zMax = 50;
-            }
-
+            foreach (var point in _profileSnapPoints!.OfType<ScannerPlanePoint>())
+                if (TryNativePlaneXY(point, out double x, out double y)) points.Add((x, y));
+        }
+        else if (_frame is LidarFrame frame)
+        {
+            for (int i = 0; i < frame.Distances.Length; i++)
+                if (TryPlaneXY(frame, i, out double x, out double y)) points.Add((x, y));
+        }
+        if (points.Count == 0)
+        {
+            _baselineY = _absBase = 0;
+            _xMin = _useFixedPlotRange ? _fixedXMin : -500;
+            _xMax = _useFixedPlotRange ? _fixedXMax : 500;
+            _zMin = _useFixedPlotRange ? _fixedZMin : 0;
+            _zMax = _useFixedPlotRange ? _fixedZMax : 50;
             return;
         }
-
-        var f = _frame;
-        int n = f.Distances.Length;
-
-        var ys = new List<double>(n);
-        double xmin = double.MaxValue, xmax = double.MinValue;
-        for (int i = 0; i < n; i++)
-        {
-            if (!TryPlaneXY(f, i, out var x, out var y)) continue;
-            if (x < xmin) xmin = x;
-            if (x > xmax) xmax = x;
-            ys.Add(y);
-        }
-
-        if (ys.Count == 0)
-        {
-            _baselineY = 0;
-            _absBase = 0;
-            if (_useFixedPlotRange)
-            {
-                _xMin = _fixedXMin;
-                _xMax = _fixedXMax;
-                _zMin = _fixedZMin;
-                _zMax = _fixedZMax;
-            }
-            else
-            {
-                _xMin = -500;
-                _xMax = 500;
-                _zMin = 0;
-                _zMax = 50;
-            }
-
-            return;
-        }
-
-        ys.Sort();
-        _baselineY = _referenceYMm ?? ys[ys.Count / 2];
+        var ys = points.Select(p => p.Y).Order().ToArray();
+        _baselineY = _referenceYMm ?? ys[ys.Length / 2];
         _absBase = Math.Abs(_baselineY);
-
-        double zMax = 0;
-        double zMin = 0;
-        for (int i = 0; i < n; i++)
-        {
-            if (!TryPlaneXY(f, i, out _, out var y))
-            {
-                continue;
-            }
-
-            double z = _absBase - Math.Abs(y) + _zOffsetMm;
-            if (z > zMax)
-            {
-                zMax = z;
-            }
-
-            if (z < zMin)
-            {
-                zMin = z;
-            }
-        }
-
         if (_useFixedPlotRange)
         {
-            _xMin = _fixedXMin;
-            _xMax = _fixedXMax;
-            _zMin = _fixedZMin;
-            _zMax = _fixedZMax;
+            _xMin = _fixedXMin; _xMax = _fixedXMax;
+            _zMin = _fixedZMin; _zMax = _fixedZMax;
             return;
         }
-
-        // X 範圍：使用有效資料極值，加 5% padding
-        double xPad = (xmax - xmin) * 0.05;
-        _xMin = xmin - xPad;
-        _xMax = xmax + xPad;
-
-        // 參考面以下也留在圖內，底邊再留至少 8 mm，避免較低的剖面貼著框線被切掉。
-        double floor = Math.Min(0, zMin);
-        double padDown = Math.Max(-floor * 0.12, 8);
-        double padUp = Math.Max(Math.Abs(zMax) * 0.12, 8);
-        _zMin = floor - padDown;
-        _zMax = Math.Max(zMax + padUp, _zMin + 50);
+        double xmin = points.Min(p => p.X), xmax = points.Max(p => p.X);
+        double xPad = Math.Max((xmax - xmin) * .05, 1);
+        _xMin = xmin - xPad; _xMax = xmax + xPad;
+        double zMin = Math.Min(0, points.Min(p => _absBase - Math.Abs(p.Y) + _zOffsetMm));
+        double zMax = Math.Max(0, points.Max(p => _absBase - Math.Abs(p.Y) + _zOffsetMm));
+        _zMin = zMin - Math.Max(-zMin * .12, 8);
+        _zMax = Math.Max(zMax + Math.Max(Math.Abs(zMax) * .12, 8), _zMin + 50);
     }
 
     private Point DataToScreen(double x, double z)
@@ -489,7 +454,7 @@ public sealed class LidarScanRenderer : FrameworkElement
             return;
         }
 
-        var f = _frame!;
+        if (_frame is not LidarFrame f) return;
         int n = f.Distances.Length;
 
         // 把連續的有效點切成一段段線段；遇到無效點就「斷線」，避免畫面從 0,0 拉一條長線過去。
@@ -535,15 +500,12 @@ public sealed class LidarScanRenderer : FrameworkElement
             geo.Freeze();
             dc.DrawGeometry(null, ProfilePen, geo);
 
-            if (allDots.Count <= 1200)
-            {
-                foreach (var p in allDots)
-                {
-                    if (p.X < _plotRect.Left - 2 || p.X > _plotRect.Right + 2) continue;
-                    if (p.Y < _plotRect.Top - 2 || p.Y > _plotRect.Bottom + 2) continue;
-                    dc.DrawEllipse(ProfileDotBrush, null, p, 1.0, 1.0);
-                }
-            }
+        }
+        foreach (var p in allDots)
+        {
+            if (p.X < _plotRect.Left - 2 || p.X > _plotRect.Right + 2) continue;
+            if (p.Y < _plotRect.Top - 2 || p.Y > _plotRect.Bottom + 2) continue;
+            dc.DrawEllipse(ProfileDotBrush, null, p, 1.0, 1.0);
         }
     }
 
@@ -565,24 +527,16 @@ public sealed class LidarScanRenderer : FrameworkElement
                 continue;
             }
 
-            var distance = Math.Sqrt(pt.X * pt.X + pt.Y * pt.Y);
-            if (distance <= 1)
-            {
-                continue;
-            }
-
-            double z = _absBase - Math.Abs(pt.Y) + _zOffsetMm;
-            var screen = DataToScreen(pt.X + _xOffsetMm, z);
-            double angleDeg = Math.Atan2(pt.Y, pt.X) * 180.0 / Math.PI;
+            if (!TryNativePlaneXY(pt, out double x, out double y)) continue;
+            double z = _absBase - Math.Abs(y) + _zOffsetMm;
+            var screen = DataToScreen(x, z);
+            double angleDeg = Math.Atan2(y, x - _xOffsetMm) * 180.0 / Math.PI;
             ordered.Add((angleDeg, screen));
             allDots.Add(screen);
         }
 
-        if (ordered.Count < 2)
-        {
-            allDots.Clear();
-            return false;
-        }
+        if (ordered.Count == 0) return false;
+        if (ordered.Count == 1) return true;
 
         ordered.Sort((left, right) => left.AngleDeg.CompareTo(right.AngleDeg));
         var steps = new List<double>();
@@ -623,7 +577,7 @@ public sealed class LidarScanRenderer : FrameworkElement
             segments.Add(current);
         }
 
-        return segments.Count > 0;
+        return allDots.Count > 0;
     }
 
     private void DrawDesktopMarkers(DrawingContext dc)
@@ -651,8 +605,9 @@ public sealed class LidarScanRenderer : FrameworkElement
             return false;
         }
 
-        double z = _absBase - Math.Abs(y) + _zOffsetMm;
-        screen = DataToScreen(x + _xOffsetMm, z);
+        if (!TryNativePlaneXY(new ScannerPlanePoint { X = x, Y = y }, out double displayX, out double planeY)) return false;
+        double z = _absBase - Math.Abs(planeY) + _zOffsetMm;
+        screen = DataToScreen(displayX, z);
         return true;
     }
 
@@ -679,16 +634,26 @@ public sealed class LidarScanRenderer : FrameworkElement
             return;
         }
 
-        var top = DataToScreen(_region.XMin + _xOffsetMm, _absBase - Math.Abs(_region.YMax) + _zOffsetMm);
-        var bottom = DataToScreen(_region.XMax + _xOffsetMm, _absBase - Math.Abs(_region.YMin) + _zOffsetMm);
-        var rect = new Rect(top, bottom);
-        rect.Intersect(_plotRect);
-        if (rect.Width <= 0 || rect.Height <= 0)
+        var corners = new[]
         {
-            return;
+            new ScannerPlanePoint { X = _region.XMin, Y = _region.YMin },
+            new ScannerPlanePoint { X = _region.XMax, Y = _region.YMin },
+            new ScannerPlanePoint { X = _region.XMax, Y = _region.YMax },
+            new ScannerPlanePoint { X = _region.XMin, Y = _region.YMax }
+        };
+        var polygon = new List<Point>();
+        foreach (var corner in corners)
+        {
+            if (!TryNativePlaneXY(corner, out double x, out double y)) return;
+            polygon.Add(DataToScreen(x, _absBase - Math.Abs(y) + _zOffsetMm));
         }
-
-        dc.DrawRectangle(null, RegionPen, rect);
+        var geometry = new StreamGeometry();
+        using (var path = geometry.Open())
+        {
+            path.BeginFigure(polygon[0], false, true);
+            path.PolyLineTo(polygon.Skip(1).ToList(), true, false);
+        }
+        dc.DrawGeometry(null, RegionPen, geometry);
     }
 
     private FormattedText MakeLabel(string text)

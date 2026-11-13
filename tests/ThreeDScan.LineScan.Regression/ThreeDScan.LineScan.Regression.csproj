@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../ThreeDScan.Infrastructure/ThreeDScan.Infrastructure.csproj" />
+    <ProjectReference Include="../../ThreeDScan.Application/ThreeDScan.Application.csproj" />
+    <ProjectReference Include="../../ThreeDScan.Api/ThreeDScan.Api.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <None Update="Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

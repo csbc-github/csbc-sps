@@ -55,9 +55,11 @@ public static class Protocol
 }
 public sealed class PointMean
 {
+    // Match Python: absorb hypot/sqrt rounding at the 10 mm cluster boundary only.
+    public const double ClusterBoundaryToleranceMm = 1e-9;
     readonly Dictionary<int, List<(double Radius, int Frame, P Point)>> samples = []; public int Frames { get; private set; }
     public void Add(P?[] points) { Frames++; for (int i = 0; i < points.Length; i++) if (points[i] is P p) { if (!samples.TryGetValue(i, out var v)) samples[i] = v = []; v.Add((p.Length, Frames, p)); } }
-    public P?[] Result() { if (samples.Count == 0) return []; var output = new P?[samples.Keys.Max() + 1]; int minimum = (int)Math.Ceiling(Frames * .6), recent = Math.Min(Frames, Math.Max(3, (int)Math.Ceiling(Frames * .25))); foreach (var (i, values) in samples) { var v = values.OrderBy(p => p.Radius).ToArray(); int left = 0, bs = 0, be = 0; for (int right = 0; right < v.Length; right++) { while (v[right].Radius - v[left].Radius > 10) left++; if (right + 1 - left > be - bs) { bs = left; be = right + 1; } } var cluster = v[bs..be]; if (cluster.Length < minimum || cluster.Count(p => p.Frame > Frames - recent) < Math.Ceiling(recent * .6)) continue; output[i] = new(cluster.Average(p => p.Point.X), cluster.Average(p => p.Point.Y)); } return output; }
+    public P?[] Result() { if (samples.Count == 0) return []; var output = new P?[samples.Keys.Max() + 1]; int minimum = (int)Math.Ceiling(Frames * .6), recent = Math.Min(Frames, Math.Max(3, (int)Math.Ceiling(Frames * .25))); foreach (var (i, values) in samples) { var v = values.OrderBy(p => p.Radius).ToArray(); int left = 0, bs = 0, be = 0; for (int right = 0; right < v.Length; right++) { while (v[right].Radius - v[left].Radius > 10 + ClusterBoundaryToleranceMm) left++; if (right + 1 - left > be - bs) { bs = left; be = right + 1; } } var cluster = v[bs..be]; if (cluster.Length < minimum || cluster.Count(p => p.Frame > Frames - recent) < Math.Ceiling(recent * .6)) continue; output[i] = new(cluster.Average(p => p.Point.X), cluster.Average(p => p.Point.Y)); } return output; }
 }
 public sealed class Scanner : IAsyncDisposable
 {
@@ -92,7 +94,7 @@ public sealed class Scanner : IAsyncDisposable
                 await stream.WriteAsync(Protocol.Subscription(true), cancel.Token);
                 if (connectedBefore) Interlocked.Increment(ref Reconnections);
                 connectedBefore = true; Connected = true; State?.Invoke("已連線");
-                var decoder = new Protocol.Decoder(); var bytes = new byte[65536]; ushort? previous = null;
+                var decoder = new Protocol.Decoder(); var bytes = new byte[65536]; ushort? previous = null; uint previousTimestamp = 0;
                 try
                 {
                     while (!cancel.IsCancellationRequested)
@@ -115,10 +117,12 @@ public sealed class Scanner : IAsyncDisposable
                             if (previous is ushort old)
                             {
                                 int delta = (scan.Counter - old) & 65535;
-                                if (delta == 0) Interlocked.Increment(ref Duplicates);
-                                else Interlocked.Add(ref Gaps, Math.Max(0, delta - 1));
+                                if (delta == 0 && scan.Timestamp == previousTimestamp) Interlocked.Increment(ref Duplicates);
+                                else if (delta > 0 && delta < 32768) Interlocked.Add(ref Gaps, delta - 1);
                             }
                             previous = scan.Counter;
+                            previousTimestamp = scan.Timestamp;
+                            // Preserve full raw delivery so the recorder can reject conflicting encoder duplicates.
                             Received?.Invoke(scan);
                         }
                     }

@@ -33,3 +33,7 @@ Infrastructure 慣例：資料庫在 `Repositories/`（表對應型別在 `Repos
 身分驗證見 [docs/說明/身分驗證測試說明.md](docs/說明/身分驗證測試說明.md)。
 
 其他說明都在 [docs/](docs/)。
+
+線掃描的光束排序、桌面接點與原始小數點預覽修正，見 [線掃描取點修正](docs/說明/線掃描取點修正.md)。可重現的離線與 HTTP 回歸工具見 [測試說明](tests/ThreeDScan.LineScan.Regression/README.md)。
+
+Encoder 來源只由 JSON 的 `LineScan:EncoderSimulation:Enabled` 切換：`true` 以設定速度模擬往前，`false` 使用真實 Encoder；變更後重啟 API。Development.json 預設開啟，appsettings.json 預設關閉。

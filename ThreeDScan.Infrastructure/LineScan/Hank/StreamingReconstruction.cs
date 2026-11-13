@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace ThreeDScan.Infrastructure.LineScan.Hank;
 
 // Keeps only the current raw frame, a <=600-frame averaging window and a <=12000-point preview.
-public static class StreamingReconstruction
+public static partial class StreamingReconstruction
 {
     sealed record RawHeader(long Vertices, long? Frames, string[] Comments);
 
@@ -180,7 +180,10 @@ public static class StreamingReconstruction
             }
             if (settings.AverageScans == 1) { yield return frame; continue; }
             var vertex = frame.Points[0];
-            if (previous != null && (vertex.Frame != previous.Frame + 1 || ((vertex.Counter - previous.Counter) & 65535) != 1))
+            // EncoderFrames skips duplicate telegrams but preserves raw frame IDs.
+            // The device counter still detects a missing distinct scan.
+            if (previous != null && (((vertex.Counter - previous.Counter) & 65535) != 1
+                || settings.PositionSource != "encoder" && vertex.Frame != previous.Frame + 1))
             { if (times.Count > 0) yield return Result(); Reset(); }
             previous = vertex; first ??= vertex;
             var rays = new P?[frame.Points.Max(v => (int)v.Ray) + 1]; foreach (var p in frame.Points) rays[p.Ray] = p.XY;

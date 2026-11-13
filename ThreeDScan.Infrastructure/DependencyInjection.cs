@@ -27,6 +27,8 @@ public static class DependencyInjection
     {
         services.Configure<ScannerRegistryOptions>(configuration.GetSection("Scanners"));
         services.Configure<LineScannerRegistryOptions>(configuration.GetSection("LineScanners"));
+        services.Configure<LineScanEncoderSimulationOptions>(
+            configuration.GetSection(LineScanEncoderSimulationOptions.SectionName));
         services.Configure<SurfaceScanOrchestratorOptions>(
             configuration.GetSection(SurfaceScanOrchestratorOptions.SectionName));
         services.AddSingleton<IOptions<LjCalibrationParameters>>(
@@ -42,6 +44,7 @@ public static class DependencyInjection
         // v1 legacy：ExportRoot/line-roi.json；v2 ROI 改 LineScannerSettingsRepository
         // services.AddSingleton<ILineScanRegionStore, LineScanRegionStore>();
         services.AddSingleton<LineScanOptionsResolver>();
+        services.AddSingleton<LineScanEncoderSimulationPolicy>();
         services.AddSingleton<LineScanDeviceHost>();
         services.AddSingleton<ILineScanDeviceFacade, LineScanDeviceFacade>();
         services.AddSingleton<LineScanMeasureService>();

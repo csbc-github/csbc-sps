@@ -9,6 +9,7 @@ public sealed class EncoderScanSession
     readonly Calibration calibration;
     readonly ReconstructionOptions settings;
     readonly EncoderTracker tracker;
+    readonly ForwardEncoderSimulation? encoderSimulation;
     Task<Cloud>? completion;
     EncoderScanProgress progress = new(0, 0, "等待移動", 0);
     double minimum, maximum;
@@ -17,12 +18,15 @@ public sealed class EncoderScanSession
     public Recorder Recorder { get; }
     public EncoderScanProgress Progress { get { lock (gate) return progress; } }
 
-    EncoderScanSession(string path, Calibration calibration, ReconstructionOptions settings, object? captureContext)
+    EncoderScanSession(string path, Calibration calibration, ReconstructionOptions settings, object? captureContext,
+        double? simulatedForwardSpeedMmPerSec)
     {
         if (settings.PositionSource != "encoder") throw new ArgumentException("開始／停止掃描須使用 Encoder 滾輪位移");
         this.calibration = calibration;
         this.settings = settings with { StartS = 0, EndS = null, RoiXY = settings.RoiXY?.ToArray() };
         StreamingReconstruction.Validate(calibration, this.settings);
+        if (simulatedForwardSpeedMmPerSec is double speed)
+            encoderSimulation = new ForwardEncoderSimulation(this.settings, speed);
         RawPath = Path.GetFullPath(path);
         if (!Path.GetExtension(RawPath).Equals(".ply", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("掃描檔案請使用 .ply 副檔名");
         string stem = Path.GetFileNameWithoutExtension(RawPath);
@@ -47,11 +51,20 @@ public sealed class EncoderScanSession
         context["reconstruction_settings"] = this.settings;
         context["workflow"] = "encoder_start_stop_3d";
         context["output_3d"] = OutputPath;
-        Recorder = new(RawPath, context: context);
+        if (encoderSimulation != null)
+            context["encoder_simulation"] = new
+            {
+                enabled = true,
+                forward_speed_mm_per_sec = simulatedForwardSpeedMmPerSec!.Value,
+                time_source = "device_timestamp_us"
+            };
+        else context.Remove("encoder_simulation");
+        Recorder = new(RawPath, context: context, simulation: encoderSimulation != null);
     }
 
-    public static EncoderScanSession Start(string rawPath, Calibration calibration, ReconstructionOptions options, object? captureContext = null)
-        => new(rawPath, calibration, options, captureContext);
+    public static EncoderScanSession Start(string rawPath, Calibration calibration, ReconstructionOptions options,
+        object? captureContext = null, double? simulatedForwardSpeedMmPerSec = null)
+        => new(rawPath, calibration, options, captureContext, simulatedForwardSpeedMmPerSec);
 
     public void Submit(Scan scan)
     {
@@ -60,8 +73,11 @@ public sealed class EncoderScanSession
             if (completion != null || Recorder.Error != null) return;
             try
             {
+                if (encoderSimulation != null) scan = encoderSimulation.Apply(scan);
+                bool duplicate = tracker.Latest is TrackedEncoder previous
+                    && previous.Counter == scan.Counter && previous.TimestampUs == scan.Timestamp;
                 var reading = tracker.Update(scan);
-                if (reading.Rebased && progress.Samples > 0) throw new ArgumentException("Encoder 計數或設備時間中斷，請重新開始掃描");
+                if (reading.Rebased && progress.Samples > 0 && !duplicate) throw new ArgumentException("Encoder 計數或設備時間中斷，請重新開始掃描");
                 double position = settings.Direction * reading.TravelMm!.Value;
                 minimum = Math.Min(minimum, position); maximum = Math.Max(maximum, position);
                 long delta = settings.Direction * reading.Delta;

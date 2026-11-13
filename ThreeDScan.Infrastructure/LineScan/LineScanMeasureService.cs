@@ -8,6 +8,12 @@ public sealed class LineScanMeasureService
 {
     /// <summary>從重建點雲偵測角鋼並轉成契約型別。</summary>
     public IReadOnlyList<MeasuredAngleIron> MeasureLine(Cloud cloud, Calibration calibration, CancellationToken cancellationToken)
+        => MeasureLine(cloud.Points.GroupBy(point => point.Frame).OrderBy(group => group.Key)
+            .Select(group => (IReadOnlyList<Vertex>)group.ToArray()), calibration, cancellationToken);
+
+    /// <summary>逐圈讀取保留桌面背景的量測資料，不需把整份錄製載入記憶體。</summary>
+    public IReadOnlyList<MeasuredAngleIron> MeasureLine(IEnumerable<IReadOnlyList<Vertex>> frames,
+        Calibration calibration, CancellationToken cancellationToken)
     {
         var d = (calibration.Second - calibration.First) * (1 / calibration.First.Distance(calibration.Second));
         double flip = calibration.First.X * d.Y - calibration.First.Y * d.X >= 0 ? 1 : -1;
@@ -18,7 +24,7 @@ public sealed class LineScanMeasureService
         }
 
         var tracks = new List<FeatureTrack>();
-        foreach (var frame in cloud.Points.GroupBy(point => point.Frame).OrderBy(group => group.Key))
+        foreach (var frame in frames)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var points = frame.OrderBy(point => point.Ray).ToArray();
@@ -30,7 +36,8 @@ public sealed class LineScanMeasureService
             List<ProfileResult> profiles;
             try
             {
-                profiles = Profile.Measure(points.Select(Raw), calibration, recoverSparse: true, autoCalibrate: false);
+                profiles = Profile.Measure(points.Select(Raw), calibration, recoverSparse: true,
+                    autoCalibrate: true, autoModel: Profile.SceneContactModel);
             }
             catch (ArgumentException)
             {
@@ -38,7 +45,7 @@ public sealed class LineScanMeasureService
             }
 
             var assigned = new HashSet<FeatureTrack>();
-            foreach (var profile in profiles.OrderBy(profile => calibration.Transform(profile.Points[1]).X))
+            foreach (var profile in profiles.OrderBy(profile => calibration.Transform((profile.LegPoints ?? profile.Points)[1]).X))
             {
                 Vertex Feature(P raw)
                 {
@@ -46,10 +53,11 @@ public sealed class LineScanMeasureService
                     return points[0] with { X = level.X, Z = level.Y };
                 }
 
+                var fitted = profile.LegPoints ?? profile.Points;
                 var feature = new Features(
-                    Feature(profile.Points[0]),
-                    Feature(profile.Points[1]),
-                    Feature(profile.Points[2]));
+                    Feature(fitted[0]),
+                    Feature(fitted[1]),
+                    Feature(fitted[2]));
                 if (feature.Width <= 0)
                 {
                     continue;
@@ -97,6 +105,8 @@ public sealed class LineScanMeasureService
         {
             var head = ordered[i].Head;
             var tail = ordered[i].Tail;
+            // Keep the public DAS dimensions defined by the returned corners:
+            // width is their chord, and height is measured above that chord.
             double width = Distance(head.Left, head.Right);
             var baseline = head.Right.X - head.Left.X;
             double atApex = head.Left.Z + (head.Right.Z - head.Left.Z) * (head.Apex.X - head.Left.X) / baseline;
@@ -171,6 +181,7 @@ public sealed class LineScanMeasureService
             firstY = first.Y;
             CenterX = first.CenterX;
             Width = first.Width;
+            Samples = 1;
         }
 
         public Features Head
