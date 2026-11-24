@@ -2,8 +2,10 @@ namespace ThreeDScan.Infrastructure.LineScan.Hank;
 
 public static partial class Profile
 {
-    static ProfileResult CorrectSceneContacts(ProfileResult report, Calibration calibration, Line[] faces, Line?[] tables, List<P> nativePoints)
+    static ProfileResult CorrectSceneContacts(ProfileResult report, Calibration calibration, Line[] faces, Line?[] tables,
+        List<P> nativePoints, string model)
     {
+        bool recoverSceneSampling = model == SceneContactModel;
         var raw = report.Points.Select(calibration.Transform).ToArray();
         var peak = raw[1];
         P[] ends = [raw[0], raw[2]];
@@ -14,6 +16,7 @@ public static partial class Profile
         string[] actions = ["raw", "raw"];
         double?[] offsets = [null, null];
         bool[] rejectedTableContacts = [false, false];
+        bool[] displacedTables = [false, false];
         if (reliable)
         {
             peak = top!.Value;
@@ -25,6 +28,15 @@ public static partial class Profile
                 {
                     ends[i] = landed;
                     actions[i] = "supported_steep_baseline_contact";
+                    continue;
+                }
+                if (recoverSceneSampling && SupportedSceneTableContact(nativePoints, lines[i], observed) is { } local
+                    && ChordSupported(lines[i], peak, local.Point))
+                {
+                    ends[i] = local.Point;
+                    offsets[i] = local.TableHeight;
+                    displacedTables[i] = Math.Abs(local.TableHeight) > 4;
+                    actions[i] = displacedTables[i] ? "supported_observed_table_contact" : "supported_local_baseline_contact";
                     continue;
                 }
                 var contact = SupportedTransitionContact(nativePoints, lines[i], observed, i);
@@ -50,10 +62,18 @@ public static partial class Profile
         for (int i = 0; i < 2; i++) if (actions[i] == "raw")
             warnings.Add($"{(i == 0 ? "左" : "右")}端缺少接觸桌面的連續掃描支持，保留可見端點");
         if (rejectedTableContacts.Any(rejected => rejected)) warnings.Add("桌面接點超出斜面支持，保留可見斜邊");
+        if (recoverSceneSampling)
+            for (int i = 0; i < 2; i++)
+            {
+                string side = i == 0 ? "左" : "右";
+                if (displacedTables[i]) warnings.Add($"{side}端附近桌面偏離校正基準 {offsets[i]!.Value:F2} mm，保留實際桌面高度，請重新校正");
+                else if ((actions[i] is "raw" or "supported_body_projection") && ends[i].Y > 4)
+                    warnings.Add($"{side}端僅保留可見斜邊，端點仍高於校正基準 {ends[i].Y:F2} mm");
+            }
         var chordErrors = Enumerable.Range(0, 2).Select(i => ChordErrors(lines[i], peak, ends[i])).ToArray();
         return report with
         {
-            AutoCalibration = true, AutoCalibrationModel = SceneContactModel, AutoFaceReliable = reliable,
+            AutoCalibration = true, AutoCalibrationModel = model, AutoFaceReliable = reliable,
             RawLeftMm = report.LeftMm, RawRightMm = report.RightMm, RawWidthMm = report.WidthMm, RawMeasuredWidthMm = report.WidthMm, RawHeightMm = report.HeightMm,
             AutoEndpointActions = actions, TableContactOffsetsMm = offsets,
             FaceChordRmsMm = chordErrors.Select(e => e.Rms).ToArray(), FaceChordP95Mm = chordErrors.Select(e => e.P95).ToArray(),
@@ -63,6 +83,65 @@ public static partial class Profile
             CorrectedHeightMm = peak.Y, HeightCompensationMm = peak.Y - report.HeightMm,
             Warnings = warnings.ToArray()
         };
+    }
+
+    // Extend only steep, straight sampling gaps backed by an actual nearby table.
+    internal static bool SceneSparseEdgeBridge(List<P> points, int index, double gap = 12)
+    {
+        if (SparseEdgeBridge(points, index, gap)) return true;
+        double distance = points[index - 1].Distance(points[index]);
+        if (distance <= gap || distance > 40) return false;
+        // Mirror both five-sample windows: a gap may approach either side of a
+        // near-vertical face, so neither table nor face gets a preferred side.
+        foreach (int before in new[] { 2, 3 })
+        {
+            int start = index - before;
+            if (start < 0 || start + 5 > points.Count) continue;
+            var support = points.GetRange(start, 5);
+            var line = Line.Fit(support);
+            if (Math.Abs(line.Direction.Y) < .85 || line.Rms > 1
+                || support.Max(p => Math.Abs(line.Direction.Cross(p - line.Center))) > 2) continue;
+            var steps = Enumerable.Range(0, 4).Select(i => support[i + 1] - support[i]).ToArray();
+            if (steps.Any(step => step.Length > 40)) continue;
+            var projections = steps.Select(step => step.Dot(line.Direction)).ToArray();
+            if ((projections.Min() < -.5 && projections.Max() > .5)
+                || Math.Abs(projections[before - 1]) / distance < .98) continue;
+            var lower = points[index - 1].Y <= points[index].Y ? points[index - 1] : points[index];
+            if (FindSceneTable(points, line, lower) is { } table
+                && table.Contact.Y <= support.Min(p => p.Y) + 4) return true;
+        }
+        return false;
+    }
+
+    static (Line Table, P Contact)? FindSceneTable(List<P> points, Line face, P observed)
+    {
+        if (points.Count < 6) return null;
+        int at = Enumerable.Range(0, points.Count).MinBy(i => points[i].Distance(observed));
+        (Line Table, P Contact)? best = null;
+        double bestScore = double.PositiveInfinity;
+        for (int start = Math.Max(0, at - 16); start <= Math.Min(points.Count - 6, at + 11); start++)
+        {
+            var support = points.GetRange(start, 6);
+            if (Enumerable.Range(0, 5).Any(i => support[i].Distance(support[i + 1]) > 12)) continue;
+            var table = Line.Fit(support);
+            if (Math.Abs(table.Direction.Y) >= .1 || table.Rms >= 1 || table.Start.Distance(table.End) < 6) continue;
+            if (face.Intersect(table) is not P contact || !contact.Finite || contact.Distance(observed) > 48) continue;
+            double nearest = support.Min(p => p.Distance(contact));
+            if (nearest > 12) continue;
+            double score = nearest + table.Rms;
+            if (score < bestScore) { best = (table, contact); bestScore = score; }
+        }
+        return best;
+    }
+
+    static (P Point, double TableHeight)? SupportedSceneTableContact(List<P> points, Line face, P observed)
+    {
+        if (Math.Abs(face.Direction.Y) < .1 || FindSceneTable(points, face, observed) is not { } table
+            || Math.Abs(observed.Y - table.Contact.Y) > 4) return null;
+        var contact = Math.Abs(table.Contact.Y) <= 4
+            ? new P(face.Center.X - face.Center.Y * face.Direction.X / face.Direction.Y, 0)
+            : table.Contact;
+        return observed.Distance(contact) <= 10 ? (contact, table.Contact.Y) : null;
     }
 
     static (double Rms, double P95) ChordErrors(Line face, P peak, P end)

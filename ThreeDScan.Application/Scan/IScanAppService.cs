@@ -47,7 +47,7 @@ public interface IScanAppService
         LineScanProfileRequest request,
         CancellationToken ct = default);
 
-    /// <summary>背景停止錄製、整理角鋼並 POST callback。</summary>
+    /// <summary>背景停止錄製、整理角鋼並保存終態；回呼由獨立背景服務傳送。</summary>
     Task RunLineCompleteJobAsync(string taskId, string callbackUrl, CancellationToken ct = default);
 
     /// <summary>Watchdog：中斷錄製並刪除任務，之後查詢視為不存在。</summary>

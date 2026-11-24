@@ -86,9 +86,25 @@ public sealed class LineScanMeasureService
             }
         }
 
-        if (tracks.Count == 0 || tracks.Any(track => track.Samples < 2 || Math.Abs(track.Tail.Y - track.Head.Y) <= 0))
+        if (tracks.Count == 0)
         {
-            throw new InvalidDataException("缺少至少兩個可對應的完整角鋼截面或有效 Encoder 行程。");
+            throw new InvalidDataException("掃描範圍內未找到完整角鋼截面，請確認框選包含兩側斜面與桌面接點。");
+        }
+
+        var incomplete = tracks.Where(track => track.Samples < 2).OrderBy(track => track.CenterX).ToArray();
+        if (incomplete.Length > 0)
+        {
+            var locations = string.Join("；", incomplete.Take(5).Select(track =>
+                FormattableString.Invariant($"X={track.CenterX:F1} mm、寬={track.Width:F1} mm（{track.Samples} 個截面）")));
+            throw new InvalidDataException($"角鋼特徵只出現於單一截面，無法對應頭尾：{locations}。請檢查框選內是否包含背景或遮擋。");
+        }
+
+        var stationary = tracks.Where(track => Math.Abs(track.Tail.Y - track.Head.Y) <= 0).OrderBy(track => track.CenterX).ToArray();
+        if (stationary.Length > 0)
+        {
+            var locations = string.Join("；", stationary.Take(5).Select(track =>
+                FormattableString.Invariant($"X={track.CenterX:F1} mm（{track.Samples} 個截面）")));
+            throw new InvalidDataException($"角鋼頭尾截面沒有有效 Encoder 行程：{locations}。請確認錄製期間 Encoder 有位移。");
         }
 
         var ordered = tracks.OrderBy(track => track.CenterX).ToArray();
