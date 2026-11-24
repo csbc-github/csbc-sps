@@ -431,10 +431,7 @@ public sealed class ScanOrchestrator : IScanOrchestrator
         ValidateCallback(callbackUrl);
         ValidateNavigator(navigatorScanNo);
         ValidateRoi(roi);
-        if (cameraPosition is not null)
-        {
-            Validate(cameraPosition);
-        }
+        Validate(cameraPosition);
 
         if (holeType is not (null or "Circle" or "Slot" or "EdgeNotch"))
         {
@@ -565,17 +562,13 @@ public sealed class ScanOrchestrator : IScanOrchestrator
         }
 
         var pose = requestPose;
-        if (pose is null && _registry.TryGetFixedCameraPosition(d.ScannerId, out var fixedPose))
+        if (pose is null)
         {
-            pose = fixedPose;
+            throw new ScanTaskException(400, "INVALID_REQUEST", "cameraPosition 為必填，無法換算研磨用的實際座標。");
         }
 
         var coordinates = d.CoordinatesSnapshot;
-        double[][]? matrix = null;
-        if (pose is not null)
-        {
-            matrix = RigidTransforms.FromPose(pose, coordinates);
-        }
+        var matrix = RigidTransforms.FromPose(pose, coordinates);
 
         var warnings = analysis.Warnings.ToList();
         if (analysis.Features.Length == 0)
@@ -588,11 +581,7 @@ public sealed class ScanOrchestrator : IScanOrchestrator
             warnings.Add("明確選取的孔緣不完整，不能當成完整孔或 EdgeNotch 的認證結果。");
         }
 
-        if (pose is null)
-        {
-            warnings.Add("沒有提供拍攝姿態；featureBoundary 使用掃描器原始座標，不是工廠絕對座標。");
-        }
-        else if (!coordinates.IsCalibrated)
+        if (!coordinates.IsCalibrated)
         {
             warnings.Add("掃描器外參尚未驗證，絕對座標僅依目前設定換算。");
         }
@@ -602,8 +591,8 @@ public sealed class ScanOrchestrator : IScanOrchestrator
             .Select(p => MapHolePoint(p, matrix))
             .ToArray();
         var boundarySelection = featureId is null ? analysis.BoundarySelection : "ExplicitFeatureId";
-        var coordinateFrame = pose is null ? "Scanner" : "ConfiguredAbsolute";
-        var absoluteCoordinatesCalibrated = pose is not null && coordinates.IsCalibrated;
+        var coordinateFrame = "ConfiguredAbsolute";
+        var absoluteCoordinatesCalibrated = coordinates.IsCalibrated;
 
         var resultPayload = new
         {
