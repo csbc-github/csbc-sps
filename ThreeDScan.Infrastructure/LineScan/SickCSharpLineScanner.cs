@@ -127,10 +127,14 @@ public sealed class SickCSharpLineScanner : ISickLineScanner
     /// <inheritdoc />
     public async Task<IReadOnlyList<MeasuredAngleIron>> MeasureAsync(
         string sessionDirectory,
+        RollerBaselineRecord baseline,
+        double rollerSpeedMmPerSec,
         double gapMm,
         double minHeightMm,
         CancellationToken ct = default)
     {
+        _ = baseline;
+        _ = rollerSpeedMmPerSec;
         _ = gapMm;
         _ = minHeightMm;
         var metaPath = Path.Combine(sessionDirectory, "line-scan-meta.json");

@@ -70,6 +70,9 @@ public sealed class TaskDocument
     /// <summary>公稱對接間隙（mm）。</summary>
     public double NominalGapMm { get; set; }
 
+    /// <summary>線掃描滾輪速度。</summary>
+    public double? RollerSpeed { get; set; }
+
     /// <summary>線掃描工作階段。</summary>
     public string? LineSessionId { get; set; }
 

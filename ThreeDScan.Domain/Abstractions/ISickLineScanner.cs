@@ -6,14 +6,14 @@ namespace ThreeDScan.Domain.Abstractions;
 public interface ISickLineScanner
 {
     // 舊版 POST /api/calibration/roller 已停用。
-    // /// <summary>取一段空滾輪截面並擬合平面距離。</summary>
-    // Task<RollerSampleResult> SampleRollerAsync(
-    //     string ip,
-    //     int port,
-    //     double toleranceMm,
-    //     double rangeDeviationMm,
-    //     int frames,
-    //     CancellationToken ct = default);
+    /// <summary>取一段空滾輪截面並擬合平面距離。</summary>
+    //Task<RollerSampleResult> SampleRollerAsync(
+    //    string ip,
+    //    int port,
+    //    double toleranceMm,
+    //    double rangeDeviationMm,
+    //    int frames,
+    //    CancellationToken ct = default);
 
     /// <summary>開始把每一圈寫進工作目錄，直到呼叫停止。</summary>
     Task StartRecordingAsync(string sessionDirectory, string ip, int port, CancellationToken ct = default);
@@ -27,6 +27,8 @@ public interface ISickLineScanner
     /// <summary>依 Encoder 錄製與桌面兩點校正，把錄製整理成各支角鋼。不再讀取滾輪 ZDistance。</summary>
     Task<IReadOnlyList<MeasuredAngleIron>> MeasureAsync(
         string sessionDirectory,
+        RollerBaselineRecord baseline,
+        double rollerSpeedMmPerSec,
         double gapMm,
         double minHeightMm,
         CancellationToken ct = default);

@@ -40,9 +40,9 @@ public sealed class MeasuredAngleIron
     public double RightWidth { get; init; }
 
     // 左右沿邊長度暫不回傳。
-    // /// <summary>頭端左角點到尾端左角點的三維距離 (mm)。</summary>
-    // public double LeftLength { get; init; }
-    //
-    // /// <summary>頭端右角點到尾端右角點的三維距離 (mm)。</summary>
-    // public double RightLength { get; init; }
+    /// <summary>頭端左角點到尾端左角點的三維距離 (mm)。</summary>
+    public double LeftLength { get; init; }
+
+    /// <summary>頭端右角點到尾端右角點的三維距離 (mm)。</summary>
+    public double RightLength { get; init; }
 }

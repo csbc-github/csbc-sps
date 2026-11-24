@@ -42,6 +42,7 @@ public sealed class ScanAppService : IScanAppService
     private readonly ISickLineScanner _lineScanner;
     // private readonly ICSharpLineMeasure _csharpMeasure; // v1 legacy（frames.jsonl 量測），v2 改 LineScanMeasureService + PLY
     // private readonly ILineScanRegionStore _lineRegion; // v1 legacy（line-roi.json），v2 改 DB LineScannerSettings
+    private readonly IRollerCalibrationRepository _rollerCalibration;
     private readonly LineScanSettings _lineScan;
     private readonly IScanOrchestrator _orchestrator;
     private readonly ILogger<ScanAppService> _logger;
@@ -53,7 +54,7 @@ public sealed class ScanAppService : IScanAppService
     /// <param name="captureFactory">依 scannerId 取得擷取實作。</param>
     /// <param name="pipeline">高度圖 → Pipeline 匯出。</param>
     /// <param name="taskService">面掃描任務（seq／附件路徑）暫存。</param>
-    /// <param name="storage">匯出根目錄（面掃管線寫檔；點雲下載 URL 由 <c>/api/files</c> 提供）。</param>
+    /// <param name="storage">匯出根目錄，用來把絕對路徑轉成 <c>/scan-files/</c> URL。</param>
     /// <param name="jobThickness">工單厚度：寫入與依 jobId 讀出。</param>
     /// <param name="scanCallLog">掃描 API 呼叫紀錄。</param>
     /// <param name="taskResults">指南任務結果快取。</param>
@@ -85,6 +86,7 @@ public sealed class ScanAppService : IScanAppService
         ISickLineScanner lineScanner,
         // ICSharpLineMeasure csharpMeasure,
         // ILineScanRegionStore lineRegion,
+        IRollerCalibrationRepository rollerCalibration,
         IOptions<LineScanSettings> lineScan,
         IScanOrchestrator orchestrator,
         ILogger<ScanAppService> logger)
@@ -110,6 +112,7 @@ public sealed class ScanAppService : IScanAppService
         _lineScanner = lineScanner;
         // _csharpMeasure = csharpMeasure;
         // _lineRegion = lineRegion;
+        _rollerCalibration = rollerCalibration;
         _lineScan = lineScan.Value ?? new LineScanSettings();
         _orchestrator = orchestrator;
         _logger = logger;
@@ -142,6 +145,12 @@ public sealed class ScanAppService : IScanAppService
                 "請先設定掃描有效範圍（ROI）。");
         }
 
+        var baseline = await _rollerCalibration.GetAsync(scannerId, ct).ConfigureAwait(false);
+        if (baseline is null)
+        {
+            return DasOperationResult<LineScanStartData>.Fail("SCAN_LINE_003", "尚未完成滾輪校正，無法提供絕對高度。");
+        }
+
         if (await FindActiveLineTaskIdForScannerAsync(scannerId, ct).ConfigureAwait(false) is not null)
         {
             return DasOperationResult<LineScanStartData>.Fail("SCAN_LINE_004", "此光達已有進行中的線掃描。");
@@ -162,6 +171,7 @@ public sealed class ScanAppService : IScanAppService
             TraceId = traceId,
             Status = "Processing",
             Phase = "LineAcquiring",
+            RollerSpeed = request.RollerSpeed,
             CreatedAt = startedAt,
             UpdatedAt = startedAt,
         };
@@ -287,6 +297,8 @@ public sealed class ScanAppService : IScanAppService
 
             var parts = await _lineScanner.MeasureAsync(
                 sessionDir,
+                baseline,
+                doc.RollerSpeed ?? 0,
                 0,
                 0,
                 ct).ConfigureAwait(false);
@@ -1012,8 +1024,22 @@ public sealed class ScanAppService : IScanAppService
         return GetScanTaskResultAsync(taskId, ct);
     }
 
-    // 舊 /scan-files 靜態 URL 已停用；指南面掃請用 ScanOrchestrator 的 /api/files/...。
-    // private string ToScanFileUrl(string fullPath) { ... }
+    /// <summary>
+    /// 把匯出根目錄下的絕對路徑轉成 API 靜態檔 URL（<c>/scan-files/...</c>）。
+    /// 若檔案不在 ExportRoot 內，則回傳原絕對路徑。
+    /// </summary>
+    /// <param name="fullPath">點雲或其他匯出檔的絕對路徑。</param>
+    /// <returns>可供台船下載的相對 URL 或原始路徑。</returns>
+    private string ToScanFileUrl(string fullPath)
+    {
+        var relative = Path.GetRelativePath(_storage.ExportRoot, fullPath);
+        if (string.IsNullOrWhiteSpace(relative) || relative.StartsWith("..", StringComparison.Ordinal))
+        {
+            return fullPath;
+        }
+
+        return "/scan-files/" + relative.Replace('\\', '/');
+    }
 
     /// <summary>
     /// 指南 complete：不再拍攝，把已掃段落標記完成；兩段以上才拼接。
@@ -1037,7 +1063,7 @@ public sealed class ScanAppService : IScanAppService
 
             var existing = new SurfaceScanCompleteResult
             {
-                PointCloudUrl = task.PointCloudPath ?? "",
+                PointCloudUrl = ToScanFileUrl(task.PointCloudPath),
             };
             RememberCompleted(task.TaskId, existing, traceId);
             return DasOperationResult<SurfaceScanCompleteResult>.Ok(existing);
@@ -1088,7 +1114,7 @@ public sealed class ScanAppService : IScanAppService
 
             var complete = new SurfaceScanCompleteResult
             {
-                PointCloudUrl = resultPly ?? "",
+                PointCloudUrl = ToScanFileUrl(resultPly),
             };
             RememberCompleted(task.TaskId, complete, traceId);
             return DasOperationResult<SurfaceScanCompleteResult>.Ok(complete);
@@ -1432,8 +1458,8 @@ public sealed class ScanAppService : IScanAppService
             },
             Width = part.Width,
             Height = part.Height,
-            // LeftLength = part.LeftLength,
-            // RightLength = part.RightLength,
+            LeftLength = part.LeftLength,
+            RightLength = part.RightLength,
             Length = part.Length,
             LeftWidth = part.LeftWidth,
             RightWidth = part.RightWidth,
@@ -1616,7 +1642,7 @@ public sealed class ScanAppService : IScanAppService
             TaskId = task.TaskId,
             Seq = seq,
             Status = request.Final ? SurfaceScanData.StatusFinal : SurfaceScanData.StatusContinue,
-            PointCloudUrl = resultPly ?? "",
+            PointCloudUrl = ToScanFileUrl(resultPly),
             ThicknessLeft = HasInnerSurfaces(request) ? processed.ThicknessA : null,
             ThicknessRight = HasInnerSurfaces(request) ? processed.ThicknessB : null,
             SegmentZDelta = zDelta,
@@ -1974,7 +2000,25 @@ public sealed class ScanAppService : IScanAppService
                 return DasOperationResult<TaskResultData>.Fail("TASK_NOT_FOUND", "找不到對應的任務。");
             }
 
-            return DasOperationResult<TaskResultData>.Ok(TaskResultDataMapper.FromDocument(doc));
+            object? result = null;
+            TaskErrorDto? error = null;
+            if (doc.Status == "Completed")
+            {
+                result = doc.Result;
+            }
+            else if (doc.Status == "Failed" && doc.Error is not null)
+            {
+                error = new TaskErrorDto { Code = doc.Error.Code, Message = doc.Error.Message };
+            }
+
+            return DasOperationResult<TaskResultData>.Ok(new TaskResultData
+            {
+                TaskId = doc.TaskId,
+                Status = doc.Status,
+                Result = result,
+                Error = error,
+                TraceId = doc.TraceId,
+            });
         }
         catch (Exception ex)
         {

@@ -21,11 +21,11 @@ public sealed class LineScanAngleIronDto
     public double Height { get; init; }
 
     // 左右沿邊長度暫不回傳。
-    // /// <summary>左邊長度（頭端左角點至尾端左角點之三維距離）。</summary>
-    // public double LeftLength { get; init; }
-    //
-    // /// <summary>右邊長度（頭端右角點至尾端右角點之三維距離）。</summary>
-    // public double RightLength { get; init; }
+    /// <summary>左邊長度（頭端左角點至尾端左角點之三維距離）。</summary>
+    public double LeftLength { get; init; }
+
+    /// <summary>右邊長度（頭端右角點至尾端右角點之三維距離）。</summary>
+    public double RightLength { get; init; }
 
     /// <summary>整支角鋼沿滾輪的長度 (mm)。</summary>
     public double Length { get; init; }
