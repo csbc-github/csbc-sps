@@ -37,27 +37,4 @@ public sealed class RollerCalibrationRepository : IRollerCalibrationRepository
             TraceId = row.TraceId,
         };
     }
-
-    // 舊版 POST /api/calibration/roller 已停用。
-    // /// <inheritdoc />
-    // public async Task SaveAsync(RollerBaselineRecord record, CancellationToken ct = default)
-    // {
-    //     var id = record.ScannerId.Trim();
-    //     var row = await _db.RollerCalibrations
-    //         .FirstOrDefaultAsync(x => x.ScannerId == id, ct)
-    //         .ConfigureAwait(false);
-    //     if (row is null)
-    //     {
-    //         row = new RollerCalibrationEntity
-    //         {
-    //             ScannerId = id,
-    //         };
-    //         _db.RollerCalibrations.Add(row);
-    //     }
-    //
-    //     row.ZDistance = record.ZDistance;
-    //     row.CalibratedAt = record.CalibratedAt;
-    //     row.TraceId = record.TraceId;
-    //     await _db.SaveChangesAsync(ct).ConfigureAwait(false);
-    // }
 }

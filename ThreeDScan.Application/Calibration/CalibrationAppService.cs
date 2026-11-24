@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using ThreeDScan.Application.Calibration.Models;
@@ -31,12 +31,6 @@ public sealed class CalibrationAppService : ICalibrationAppService
     private readonly IAcceptedWorkQueue _workQueue;
     private readonly ICallbackNotifier _callback;
     private readonly IServiceScopeFactory _scopeFactory;
-    // 舊版 POST /api/calibration/roller 已停用。
-    // private readonly ILineScannerRegistry _lineScanners;
-    // private readonly IRollerCalibrationRepository _rollerCalibration;
-    // private readonly ISickLineScanner _lineScanner;
-    // private readonly LineScanSettings _lineScan;
-    // private readonly ILineScannerSettingsRepository _lineScannerSettings;
 
     /// <summary>建立校正應用服務（依賴注入）。</summary>
     public CalibrationAppService(
@@ -55,11 +49,6 @@ public sealed class CalibrationAppService : ICalibrationAppService
         IAcceptedWorkQueue workQueue,
         ICallbackNotifier callback,
         IServiceScopeFactory scopeFactory,
-        // ILineScannerRegistry lineScanners,
-        // IRollerCalibrationRepository rollerCalibration,
-        // ISickLineScanner lineScanner,
-        // IOptions<LineScanSettings> lineScan,
-        // ILineScannerSettingsRepository lineScannerSettings,
         InstrumentCalibrationService? instrumentCalibration = null)
     {
         _registry = registry;
@@ -77,11 +66,6 @@ public sealed class CalibrationAppService : ICalibrationAppService
         _workQueue = workQueue;
         _callback = callback;
         _scopeFactory = scopeFactory;
-        // _lineScanners = lineScanners;
-        // _rollerCalibration = rollerCalibration;
-        // _lineScanner = lineScanner;
-        // _lineScan = lineScan.Value ?? new LineScanSettings();
-        // _lineScannerSettings = lineScannerSettings;
         _instrumentCalibration = instrumentCalibration ?? new InstrumentCalibrationService();
     }
 
@@ -1161,72 +1145,6 @@ public sealed class CalibrationAppService : ICalibrationAppService
         });
     }
 
-    // 舊版 POST /api/calibration/roller 已停用。
-    // /// <inheritdoc />
-    // public async Task<ApiResponse<RollerCalibrationData>> CalibrateRollerAsync(
-    //     RollerCalibrationRequest request,
-    //     CancellationToken ct = default)
-    // {
-    //     var traceId = Guid.NewGuid().ToString("N");
-    //     if (!_lineScanners.TryGet(request.ScannerId, out var endpoint))
-    //     {
-    //         return ApiResponse<RollerCalibrationData>.Fail("CAL_CFG_001", "未知的線掃描 scannerId。");
-    //     }
-    //
-    //     if (endpoint.Port <= 0 || endpoint.Port > 65535)
-    //     {
-    //         return ApiResponse<RollerCalibrationData>.Fail("CAL_SYS_001", "線掃描埠無效。");
-    //     }
-    //
-    //     var scannerId = request.ScannerId.Trim();
-    //     var desktop = await _lineScannerSettings.GetAsync(scannerId, ct).ConfigureAwait(false);
-    //     if (desktop is null || !desktop.HasCalibration)
-    //     {
-    //         return ApiResponse<RollerCalibrationData>.Fail(
-    //             "CAL_CFG_001",
-    //             "請先設定桌面校正的 calibrationFirst 與 calibrationSecond。");
-    //     }
-    //
-    //     var tolerance = endpoint.RollerClearanceToleranceMm;
-    //     if (!double.IsFinite(tolerance) || tolerance <= 0)
-    //     {
-    //         return ApiResponse<RollerCalibrationData>.Fail("CAL_CFG_001", "滾輪清空容許值設定無效。");
-    //     }
-    //
-    //     var sample = await _lineScanner.SampleRollerAsync(
-    //         endpoint.Ip,
-    //         endpoint.Port,
-    //         tolerance,
-    //         _lineScan.RollerRangeDeviationMm,
-    //         _lineScan.CalibrationFrames,
-    //         ct).ConfigureAwait(false);
-    //     if (!sample.Clear)
-    //     {
-    //         var code = string.IsNullOrWhiteSpace(sample.Code) ? "CAL_LINE_004" : sample.Code;
-    //         var message = string.IsNullOrWhiteSpace(sample.Message)
-    //             ? "輪廓變異超過容許值，判定滾輪尚未清空"
-    //             : sample.Message;
-    //         return ApiResponse<RollerCalibrationData>.Fail(code, message);
-    //     }
-    //
-    //     var calibratedAt = DateTimeOffset.Now;
-    //     await _rollerCalibration.SaveAsync(
-    //         new RollerBaselineRecord
-    //         {
-    //             ScannerId = scannerId,
-    //             ZDistance = sample.ZDistance,
-    //             CalibratedAt = calibratedAt,
-    //             TraceId = traceId,
-    //         },
-    //         ct).ConfigureAwait(false);
-    //     return ApiResponse<RollerCalibrationData>.Ok(new RollerCalibrationData
-    //     {
-    //         ScannerId = request.ScannerId.Trim(),
-    //         ZDistance = sample.ZDistance,
-    //         CalibratedAt = calibratedAt.ToString("o"),
-    //         TraceId = traceId,
-    //     });
-    // }
 
     /// <summary>從第一次拍攝 FrameJson 讀各球位置殘差；沒有則為 0。</summary>
     /// <param name="frameJson">第一次拍攝存下的 JSON。</param>

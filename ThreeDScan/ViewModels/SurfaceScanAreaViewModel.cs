@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -47,7 +47,6 @@ public class SurfaceScanAreaViewModel : ViewModelBase
     private ImageSource? _preview2dTop;
     private ImageSource? _preview2dFront;
     private ImageSource? _preview2dSide;
-    // private CancellationTokenSource? _scanCts;
     private FileSystemWatcher? _glbWatch;
     private int _glbWatchVersion;
 
@@ -242,16 +241,10 @@ public class SurfaceScanAreaViewModel : ViewModelBase
         }
     }
 
-    // 本機開始／停止掃描僅測試用；正式走 API。
-    // public ICommand StartScanCommand { get; }
-    // public ICommand StopScanCommand { get; }
-
     public SurfaceScanAreaViewModel(IConfiguration config, string machineArea)
     {
         _config = config;
         _machineArea = string.IsNullOrWhiteSpace(machineArea) ? "printing" : machineArea.Trim();
-        // StartScanCommand = new RelayCommand(_ => _ = StartAsync(), _ => !IsScanning);
-        // StopScanCommand = new RelayCommand(_ => _ = StopAsync(), _ => IsScanning);
         try
         {
             StartWatchingApiGlb();
@@ -352,220 +345,6 @@ public class SurfaceScanAreaViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsGlbMode));
     }
 
-    // 本機擷取僅測試用；正式走 API surface / surface-from-file。
-#if false
-    private async Task StartAsync()
-    {
-        if (IsScanning) return;
-
-        _scanCts = new CancellationTokenSource();
-        var ct = _scanCts.Token;
-
-        ScanStatusText = "掃描中（面掃描／C# Pipeline）…";
-        OverallStatus = SystemStatus.Warning;
-        IsScanning = true;
-
-        try
-        {
-            var scannerId = ResolveAreaScannerId();
-            var programNo = ResolveDefaultProgramNo(scannerId);
-
-            using var scope = WpfServiceProviderFactory.CreateScope(_config);
-            var captureFactory = scope.ServiceProvider.GetRequiredService<IScannerCaptureFactory>();
-            var capture = captureFactory.GetCapture(scannerId);
-            var result = await capture.CaptureWithAngleSteelAsync(programNo, ct);
-
-            if (ct.IsCancellationRequested)
-            {
-                ScanStatusText = "已停止";
-                OverallStatus = SystemStatus.Normal;
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(result.PlyPath) || !File.Exists(result.PlyPath))
-            {
-                ScanStatusText = "掃描完成但沒有角鋼 PLY";
-                OverallStatus = SystemStatus.Error;
-                return;
-            }
-
-            LastPlyPath = result.PlyPath;
-            OverallStatus = SystemStatus.Normal;
-            if (!string.IsNullOrWhiteSpace(result.GlbPath) && File.Exists(result.GlbPath))
-            {
-                SetPreviewMode(PreviewMode.Glb);
-                GlbPath = result.GlbPath;
-                ScanStatusText = "掃描完成，載入 GLB…";
-            }
-            else
-            {
-                Is3DMode = true;
-                ScanStatusText = "掃描完成，載入點雲中…";
-            }
-
-            PointCloudVertices = await LoadPointCloudAsync(LastPlyPath, ct);
-
-            var summary = !string.IsNullOrWhiteSpace(result.GlbPath) && File.Exists(result.GlbPath)
-                ? $"掃描完成：{Path.GetFileName(result.GlbPath)}（前緣三點標註）"
-                : PointCloudVertices.Count > 0
-                    ? $"掃描完成：{Path.GetFileName(LastPlyPath)}（顯示 {PointCloudVertices.Count:N0} 點）"
-                    : $"掃描完成但無可顯示點雲：{Path.GetFileName(LastPlyPath)}";
-            if (result.AngleDegrees is { } ang)
-            {
-                summary += $" · 夾角 {ang:F2}°";
-            }
-
-            ScanStatusText = summary;
-        }
-        catch (OperationCanceledException)
-        {
-            ScanStatusText = "已停止";
-            OverallStatus = SystemStatus.Normal;
-        }
-        catch (Exception ex)
-        {
-            ScanStatusText = "掃描異常：" + ex.GetBaseException().Message;
-            OverallStatus = SystemStatus.Error;
-        }
-        finally
-        {
-            _scanCts?.Dispose();
-            _scanCts = null;
-            IsScanning = false;
-        }
-    }
-
-    private async Task StopAsync()
-    {
-        if (!IsScanning) return;
-        ScanStatusText = "停止中…";
-        _scanCts?.Cancel();
-        await Task.CompletedTask;
-    }
-
-    private string ResolveAreaScannerId()
-    {
-        var section = _config.GetSection("Scanners");
-        foreach (var child in section.GetChildren())
-        {
-            if (string.IsNullOrWhiteSpace(child.Key)) continue;
-            var area = child["MachineArea"];
-            if (string.Equals(area, _machineArea, StringComparison.OrdinalIgnoreCase))
-            {
-                return child.Key;
-            }
-        }
-
-        throw new InvalidOperationException(
-            "appsettings 的 Scanners 沒有 MachineArea=" + _machineArea + " 的掃描器。");
-    }
-
-    private byte ResolveDefaultProgramNo(string scannerId)
-    {
-        var navScan = _config.GetValue<int?>($"Scanners:{scannerId}:NavigatorScanNo") ?? 1;
-        return (byte)Math.Clamp(navScan - 1, 0, 15);
-    }
-
-    /// <summary>
-    /// 座標 flatten／voxel／抽樣後著色；依 X/Y/Z 中範圍最大的軸上色。
-    /// </summary>
-    private static async Task<IReadOnlyList<PointCloudRenderVertex>> LoadPointCloudAsync(string plyPath, CancellationToken token)
-    {
-        return await Task.Run(() =>
-        {
-            if (!File.Exists(plyPath))
-            {
-                return (IReadOnlyList<PointCloudRenderVertex>)Array.Empty<PointCloudRenderVertex>();
-            }
-
-            if (!TryParseAsciiPlyPoints(plyPath, token, out var raw) || raw.Count == 0)
-            {
-                return (IReadOnlyList<PointCloudRenderVertex>)Array.Empty<PointCloudRenderVertex>();
-            }
-
-            // 對齊 point_cloud_viewer.prepare_point_cloud：flatten_z → voxel(0) → max_points 隨機抽樣 → 依 Z 著色
-            PreparePointCloudInPlace(raw, flattenZ: true, voxelSize: 0, maxPoints: MaxDisplayPoints, token);
-
-            ComputeBounds(raw, out var minX, out var maxX, out var minY, out var maxY, out var minZ, out var maxZ);
-
-            var result = new List<PointCloudRenderVertex>(raw.Count);
-            foreach (var p in raw)
-            {
-                // 仍以 Z 為主；若去底後高度差極小（看起來像灰階）則改用最長軸著色
-                var c = RainbowColorForVertex(p.X, p.Y, p.Z, minX, maxX, minY, maxY, minZ, maxZ);
-                result.Add(new PointCloudRenderVertex(new Point3D(p.X, p.Y, p.Z), c));
-            }
-
-            return result;
-        }, token);
-    }
-
-    private static void PreparePointCloudInPlace(
-        List<(double X, double Y, double Z)> pts,
-        bool flattenZ,
-        double voxelSize,
-        int maxPoints,
-        CancellationToken token)
-    {
-        if (pts.Count == 0) return;
-
-        if (flattenZ)
-        {
-            double zMin = double.MaxValue;
-            foreach (var p in pts)
-            {
-                if (p.Z < zMin) zMin = p.Z;
-            }
-            for (int i = 0; i < pts.Count; i++)
-            {
-                var p = pts[i];
-                pts[i] = (p.X, p.Y, p.Z - zMin);
-            }
-        }
-
-        if (voxelSize > 0)
-        {
-            VoxelDownsampleInPlace(pts, voxelSize, token);
-        }
-
-        int n = pts.Count;
-        if (maxPoints > 0 && n > maxPoints)
-        {
-            var indices = new int[n];
-            for (int i = 0; i < n; i++) indices[i] = i;
-            Random.Shared.Shuffle(indices.AsSpan());
-            var picked = new List<(double, double, double)>(maxPoints);
-            for (int i = 0; i < maxPoints; i++)
-            {
-                token.ThrowIfCancellationRequested();
-                picked.Add(pts[indices[i]]);
-            }
-            pts.Clear();
-            pts.AddRange(picked);
-        }
-    }
-
-    private static void VoxelDownsampleInPlace(List<(double X, double Y, double Z)> pts, double voxelSize, CancellationToken token)
-    {
-        if (voxelSize <= 0 || pts.Count == 0) return;
-        var inv = 1.0 / voxelSize;
-        var seen = new HashSet<(long, long, long)>();
-        var kept = new List<(double, double, double)>();
-        foreach (var p in pts)
-        {
-            token.ThrowIfCancellationRequested();
-            var kx = (long)Math.Floor(p.X * inv);
-            var ky = (long)Math.Floor(p.Y * inv);
-            var kz = (long)Math.Floor(p.Z * inv);
-            if (seen.Add((kx, ky, kz)))
-            {
-                kept.Add(p);
-            }
-        }
-        pts.Clear();
-        pts.AddRange(kept);
-    }
-#endif
 
     /// <summary>
     /// 顯示用點雲：不 flatten／不 voxel；超過上限時等距跳點。

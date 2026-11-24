@@ -70,19 +70,6 @@ if (!string.IsNullOrWhiteSpace(contentsRoot))
     });
 }
 
-// 舊靜態點雲前綴 /scan-files 已停用；現行 pointCloudUrl 走 GET /api/files/{taskId}/{artifactId}。
-// var exportRoot = app.Services.GetRequiredService<IStorageSettings>().ExportRoot;
-// if (!string.IsNullOrWhiteSpace(exportRoot))
-// {
-//     Directory.CreateDirectory(exportRoot);
-//     app.UseStaticFiles(new StaticFileOptions
-//     {
-//         RequestPath = "/scan-files",
-//         FileProvider = new PhysicalFileProvider(exportRoot),
-//         ServeUnknownFileTypes = true,
-//     });
-// }
-
 app.UseCors();
 app.UseHttpsRedirection();
 // IdP：啟用時掛 Authentication／Authorization 中介軟體

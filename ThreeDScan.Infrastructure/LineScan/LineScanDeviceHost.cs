@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ThreeDScan.Infrastructure.Configuration;
@@ -28,71 +28,6 @@ public sealed class LineScanDeviceHost
         _logger = logger;
     }
 
-#if false // 舊版 POST /api/calibration/roller 已停用。
-    /// <summary>滾輪清空檢查並回傳 Z 距離。</summary>
-    public async Task<double> CalibrateRollerAsync(string scannerId, CancellationToken ct = default)
-    {
-        await StopSetupPreviewAsync(scannerId).ConfigureAwait(false);
-        var endpoint = _resolver.RequireEndpoint(scannerId);
-        var calibration = await _resolver.GetCalibrationAsync(scannerId, ct).ConfigureAwait(false);
-        var db = await _resolver.RequireDbSettingsAsync(scannerId, ct).ConfigureAwait(false);
-        double tolerance = endpoint.RollerClearanceToleranceMm;
-        if (!double.IsFinite(tolerance) || tolerance <= 0
-            || !double.IsFinite(endpoint.Xmin) || !double.IsFinite(endpoint.Xmax) || endpoint.Xmin >= endpoint.Xmax)
-        {
-            throw new LineScanDeviceException("CAL_CFG_001", "滾輪清空容許值或 X 範圍設定無效。");
-        }
-
-        var roi = db.RoiBoundsOrNull();
-        string taskId = "roller-" + Guid.NewGuid().ToString("N");
-        string endpointKey = Claim(endpoint, taskId);
-        try
-        {
-            await using var lease = await OpenAsync(endpoint, ct).ConfigureAwait(false);
-            var scan = await lease.First.ConfigureAwait(false);
-            var candidates = scan.Points
-                .Where(point => point is P p && p.Finite && Inside(p, roi))
-                .Select(point => point!.Value)
-                .Where(point =>
-                {
-                    double x = calibration.Transform(point).X;
-                    return x >= endpoint.Xmin && x <= endpoint.Xmax;
-                })
-                .ToList();
-            if (candidates.Count < 8 || candidates.Any(point => calibration.Transform(point).Y > tolerance))
-            {
-                throw new LineScanDeviceException(
-                    "CAL_LINE_004",
-                    "滾輪尚未清空，或有效平面資料不足；請清空台面並確認框選範圍。");
-            }
-
-            var support = candidates
-                .Where(point => Math.Abs(calibration.Transform(point).Y) <= tolerance)
-                .OrderBy(point => calibration.Transform(point).X)
-                .ToList();
-            if (support.Count < 8 || support[0].Distance(support[^1]) < 10)
-            {
-                throw new LineScanDeviceException("CAL_LINE_004", "清空台面的可見支撐點不足，無法計算有效 Z 距離。");
-            }
-
-            var plane = Line.Fit(support);
-            var referenceDirection = (calibration.Second - calibration.First)
-                * (1 / calibration.First.Distance(calibration.Second));
-            double zDistance = Math.Abs(plane.Direction.Cross(plane.Center));
-            if (!double.IsFinite(zDistance) || zDistance <= 0 || plane.Rms > tolerance
-                || Math.Abs(plane.Direction.Dot(referenceDirection)) < .99)
-            {
-                throw new LineScanDeviceException("CAL_LINE_004", "目前量測平面與桌面校正不一致，無法確認滾輪已清空。");
-            }
-
-            return zDistance;
-        }
-        finally
-        {
-            Release(endpointKey, taskId);
-        }
-    }
-#endif
 
     /// <summary>開始線掃描錄製；taskId 為工作目錄資料夾名稱。</summary>
     public async Task StartLineAsync(
@@ -438,17 +373,6 @@ public sealed class LineScanDeviceHost
         }
     }
 
-#if false // 舊版 POST /api/calibration/roller 已停用。
-    static bool Inside(P point, double[]? roi)
-    {
-        if (roi == null)
-        {
-            return true;
-        }
-
-        return point.X >= roi[0] && point.X <= roi[1] && point.Y >= roi[2] && point.Y <= roi[3];
-    }
-#endif
 
     sealed class SetupPreview
     {

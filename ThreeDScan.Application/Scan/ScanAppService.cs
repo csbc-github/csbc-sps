@@ -34,14 +34,11 @@ public sealed class ScanAppService : IScanAppService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly SurfaceScanSettings _surfaceScan;
     private readonly ILineScannerRegistry _lineScanners;
-    // private readonly ILineScanTaskService _lineTasks; // v1 legacy（ExportRoot/line-tasks），v2 改 IScanTaskRepository
     private readonly IScanTaskRepository _scanTaskStore;
     private readonly ILineScannerSettingsRepository _lineScannerSettings;
     private readonly IDeviceCoordinator _devices;
     private readonly ILineScanDeviceFacade _lineDevice;
     private readonly ISickLineScanner _lineScanner;
-    // private readonly ICSharpLineMeasure _csharpMeasure; // v1 legacy（frames.jsonl 量測），v2 改 LineScanMeasureService + PLY
-    // private readonly ILineScanRegionStore _lineRegion; // v1 legacy（line-roi.json），v2 改 DB LineScannerSettings
     private readonly IRollerCalibrationRepository _rollerCalibration;
     private readonly LineScanSettings _lineScan;
     private readonly IScanOrchestrator _orchestrator;
@@ -78,14 +75,11 @@ public sealed class ScanAppService : IScanAppService
         IServiceScopeFactory scopeFactory,
         IOptions<SurfaceScanSettings> surfaceScan,
         ILineScannerRegistry lineScanners,
-        // ILineScanTaskService lineTasks,
         IScanTaskRepository scanTaskStore,
         ILineScannerSettingsRepository lineScannerSettings,
         IDeviceCoordinator devices,
         ILineScanDeviceFacade lineDevice,
         ISickLineScanner lineScanner,
-        // ICSharpLineMeasure csharpMeasure,
-        // ILineScanRegionStore lineRegion,
         IRollerCalibrationRepository rollerCalibration,
         IOptions<LineScanSettings> lineScan,
         IScanOrchestrator orchestrator,
@@ -104,14 +98,11 @@ public sealed class ScanAppService : IScanAppService
         _scopeFactory = scopeFactory;
         _surfaceScan = surfaceScan.Value ?? new SurfaceScanSettings();
         _lineScanners = lineScanners;
-        // _lineTasks = lineTasks;
         _scanTaskStore = scanTaskStore;
         _lineScannerSettings = lineScannerSettings;
         _devices = devices;
         _lineDevice = lineDevice;
         _lineScanner = lineScanner;
-        // _csharpMeasure = csharpMeasure;
-        // _lineRegion = lineRegion;
         _rollerCalibration = rollerCalibration;
         _lineScan = lineScan.Value ?? new LineScanSettings();
         _orchestrator = orchestrator;
@@ -1234,10 +1225,6 @@ public sealed class ScanAppService : IScanAppService
         };
     }
 
-    // v1 legacy line/region（見 IScanAppService 註解）
-    // public LineScanRegion? GetLineRegion() { return _lineRegion.Get(); }
-    // public void SetLineRegion(LineScanRegion? region) { _lineRegion.Save(region); }
-
     /// <inheritdoc />
     public async Task<LineScanLiveFrame> GetLiveFrameAsync(CancellationToken ct = default)
     {
@@ -1458,8 +1445,6 @@ public sealed class ScanAppService : IScanAppService
             },
             Width = part.Width,
             Height = part.Height,
-            LeftLength = part.LeftLength,
-            RightLength = part.RightLength,
             Length = part.Length,
             LeftWidth = part.LeftWidth,
             RightWidth = part.RightWidth,

@@ -6,8 +6,6 @@ public sealed class PlyProcessorOptions
     /// <summary>設定區段名稱。</summary>
     public const string SectionName = "PlyProcessor";
 
-    // 舊固定高度門檻（mm）。ScanProcessor 改自動空隙，已不讀、不傳入。
-    // public float ZThresh { get; set; } = 12f;
     /// <summary>雜訊體素大小 (mm)。</summary>
     public float NoiseVoxel { get; set; } = 3f;
 

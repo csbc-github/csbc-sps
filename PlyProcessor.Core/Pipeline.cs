@@ -49,28 +49,6 @@ public record PipelineResult(
 /// </summary>
 public static class Pipeline
 {
-    // 目前沒有呼叫：舊入口 Pipeline.Run（raw 串流一次濾點+匯出）。
-    // 現場／API 改走 RawPlyScanPipeline → ScanProcessor.Process → Pipeline.Export。
-#if false
-    /// <summary>
-    /// 從原始掃描 PLY 串流跑完整管線：濾地／去雜訊、分群合併、匯出 ZIP（PLY／JSON／STEP／GLB／PNG）。
-    /// </summary>
-    public static PipelineResult Run(
-        Stream rawScanStream,
-        string baseName,
-        PipelineOptions? opts = null)
-    {
-        opts ??= new();
-
-        // 1. Parse the raw scan
-        var (rawPts, _) = PlyReader.Parse(rawScanStream);
-
-        // 2. Ground-plane removal + denoise  (replaces Python backend)
-        var outPts = ScanProcessor.Process(rawPts, opts.MinNoiseSize, opts.NoiseVoxel);
-        return BuildExports(rawPts, outPts, baseName, opts);
-    }
-#endif
-
     /// <summary>
     /// 對已解析的原始點與濾點後點做分群與匯出。
     /// </summary>
@@ -92,23 +70,6 @@ public static class Pipeline
         opts ??= new();
         return BuildExports(rawPts, processedPts, baseName, opts);
     }
-
-    // 目前沒有呼叫：舊入口 Pipeline.RunProcessed（已濾點 PLY 直接匯出）。
-#if false
-    /// <summary>
-    /// 從「已經濾點」的 PLY 匯出（對齊舊網頁 /process 之後的流程）。
-    /// raw 與 processed 使用同一批點。
-    /// </summary>
-    public static PipelineResult RunProcessed(
-        Stream processedPlyStream,
-        string baseName,
-        PipelineOptions? opts = null)
-    {
-        opts ??= new();
-        var (outPts, _) = PlyReader.Parse(processedPlyStream);
-        return BuildExports(outPts, outPts, baseName, opts);
-    }
-#endif
 
     /// <summary>
     /// 分群、合併相鄰物件後，寫 PLY／JSON／正交圖，並依選項組網格。

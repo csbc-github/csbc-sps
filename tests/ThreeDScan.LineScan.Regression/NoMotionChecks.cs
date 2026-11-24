@@ -133,7 +133,7 @@ internal static class NoMotionChecks
             registry: null!, captureFactory: null!, pipeline: null!, taskService: null!, storage: null!, jobThickness: null!, scanCallLog: null!,
             taskResults: cache, workQueue: queue, callback: callback, scopeFactory: scope.GetRequiredService<IServiceScopeFactory>(),
             surfaceScan: Options.Create(new SurfaceScanSettings()), lineScanners: null!, scanTaskStore: repository,
-            lineScannerSettings: null!, devices: devices, lineDevice: null!, lineScanner: scanner,
+            lineScannerSettings: null!, devices: devices, lineDevice: null!, lineScanner: scanner, rollerCalibration: null!,
             lineScan: Options.Create(new LineScanSettings()), orchestrator: orchestrator, logger: NullLogger<ScanAppService>.Instance));
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();

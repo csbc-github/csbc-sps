@@ -1,4 +1,4 @@
-namespace ThreeDScan.Infrastructure.Measure;
+﻿namespace ThreeDScan.Infrastructure.Measure;
 
 using Keyence.LjDevCommon;
 using Keyence.LjDevMeasure;
@@ -218,15 +218,6 @@ internal sealed class LjDeveloperMeasureCore
             sphereCandidates.Add((i, x, y, z, d, pmScore, deltaSrc, info));
         }
 
-        // 原作法：依 |D−24.9| 排序後取球（假球徑較準時會擠掉真球）。
-        // sphereCandidates.Sort((a, b) =>
-        // {
-        //     var da = Math.Abs(a.D - BallSettings.ExpectedBallDiameter);
-        //     var db = Math.Abs(b.D - BallSettings.ExpectedBallDiameter);
-        //     var cmp = da.CompareTo(db);
-        //     return cmp != 0 ? cmp : b.PmScore.CompareTo(a.PmScore);
-        // });
-
         var minSepSq = BallSettings.MinSphereCenterSeparationMm * BallSettings.MinSphereCenterSeparationMm;
         var keptCenters = new List<(double X, double Y)>();
         var keepCount = 0;
@@ -360,135 +351,6 @@ internal sealed class LjDeveloperMeasureCore
         return true;
     }
 
-#if false
-    private bool TryFitSphereCandidateByDelta(
-        int candidateIndex,
-        double pmScore,
-        LHeightImage inputHeightImage,
-        LEachPatternMatchResult[] eachResults,
-        Dictionary<LSphereResultType, string> sphereResultTypeList,
-        Dictionary<LUnitType, string> unitDic,
-        out double x,
-        out double y,
-        out double z,
-        out double d,
-        out string deltaSrc,
-        out LSphereToolInfo info,
-        out string logLine)
-    {
-        x = y = z = d = 0;
-        deltaSrc = "";
-        info = null;
-        logLine = "";
-
-        var pmCenter = eachResults[candidateIndex].AbsolutePosition.CenterPosition;
-        var maxCenterDriftMm = Math.Max(BallSettings.ExpectedBallDiameter * 1.2, BallSettings.SphereRadius * 2.5);
-        var maxCenterDriftSq = maxCenterDriftMm * maxCenterDriftMm;
-
-        var deltas = BuildSphereDeltaCandidates(candidateIndex, eachResults);
-        var bestAnyError = double.MaxValue;
-        var bestAny = (
-            X: 0.0, Y: 0.0, Z: 0.0, D: 0.0, Src: "", Info: (LSphereToolInfo)null);
-
-        foreach (var (delta, src) in deltas)
-        {
-            _spheres[candidateIndex].Execute(inputHeightImage, delta);
-            var candidateInfo = new LSphereToolInfo(_spheres[candidateIndex], sphereResultTypeList, unitDic, 2 + candidateIndex);
-            var sv = candidateInfo.ToolMeasureValues().Values;
-            if (sv == null || sv.Length < 4) continue;
-
-            var cx = sv[0].Value;
-            var cy = sv[1].Value;
-            var cz = sv[2].Value;
-            var cd = sv[3].Value;
-            if (double.IsNaN(cd) || double.IsInfinity(cd)) continue;
-
-            var dx = cx - pmCenter.X;
-            var dy = cy - pmCenter.Y;
-            if (dx * dx + dy * dy > maxCenterDriftSq) continue;
-
-            var err = Math.Abs(cd - BallSettings.ExpectedBallDiameter);
-            if (err < bestAnyError)
-            {
-                bestAnyError = err;
-                bestAny = (cx, cy, cz, cd, src, candidateInfo);
-            }
-
-            if (!BallSettings.IsAcceptableSphereDiameter(cd)) continue;
-
-            x = cx;
-            y = cy;
-            z = cz;
-            d = cd;
-            deltaSrc = src;
-            info = candidateInfo;
-            logLine =
-                $"  [{candidateIndex}] delta={deltaSrc}, X={x:F2}, Y={y:F2}, Z={z:F2}, D={d:F3}, score={pmScore:F1} -> 候選保留";
-            return true;
-        }
-
-        if (bestAny.Info != null)
-        {
-            logLine =
-                $"  [{candidateIndex}] 全部 delta 皆不合格；最佳 delta={bestAny.Src}, X={bestAny.X:F2}, Y={bestAny.Y:F2}, Z={bestAny.Z:F2}, D={bestAny.D:F3} -> 丟棄(超過 MaxDiameterError)";
-            return false;
-        }
-
-        logLine = $"  [{candidateIndex}] 無法取得球擬合結果";
-        return false;
-    }
-
-    private List<(LDeltaPosition Delta, string Source)> BuildSphereDeltaCandidates(
-        int candidateIndex,
-        LEachPatternMatchResult[] eachResults)
-    {
-        var deltas = new List<(LDeltaPosition, string)>();
-        var seen = new HashSet<string>();
-
-        void Add(LDeltaPosition? delta, string source)
-        {
-            if (!delta.HasValue) return;
-            var d = delta.Value;
-            var key = $"{d.X:F3},{d.Y:F3},{d.Theta:F3},{d.Center.X:F3},{d.Center.Y:F3}";
-            if (!seen.Add(key)) return;
-            deltas.Add((d, source));
-        }
-
-        if (eachResults != null && candidateIndex < eachResults.Length)
-        {
-            var rel = eachResults[candidateIndex].RegionRelatedPosition;
-            Add(
-                new LDeltaPosition
-                {
-                    Enable = true,
-                    X = rel.CenterPosition.X,
-                    Y = rel.CenterPosition.Y,
-                    Theta = rel.Angle,
-                    Center = new LDPoint2D { X = _activeRefPatternX, Y = _activeRefPatternY },
-                },
-                $"RegionRelated[{candidateIndex}]");
-
-            var abs = eachResults[candidateIndex].AbsolutePosition;
-            Add(
-                new LDeltaPosition
-                {
-                    Enable = true,
-                    X = abs.CenterPosition.X - _activeRefPatternX,
-                    Y = abs.CenterPosition.Y - _activeRefPatternY,
-                    Theta = abs.Angle,
-                    Center = new LDPoint2D { X = _activeRefPatternX, Y = _activeRefPatternY },
-                },
-                $"Each[{candidateIndex}]→Ref");
-        }
-
-        Add(CreateZeroDeltaAt(_activeRefPatternX, _activeRefPatternY), "Zero@Ref");
-
-        if (candidateIndex == 0 && _patternMatch.Result != null)
-            Add(_patternMatch.Result.DeltaPosition, "Result.DeltaPosition");
-
-        return deltas;
-    }
-#endif
 
     #endregion
 

@@ -1369,8 +1369,6 @@ public class FeedingViewModel : ViewModelBase
                         Length = ReadDouble(iron, "length"),
                         LeftWidth = ReadDouble(iron, "leftWidth"),
                         RightWidth = ReadDouble(iron, "rightWidth"),
-                        // LeftLength = ReadDouble(iron, "leftLength"),
-                        // RightLength = ReadDouble(iron, "rightLength"),
                         LeftCorner = ReadPoint(head, "leftCorner"),
                         RightCorner = ReadPoint(head, "rightCorner"),
                         TopPoint = ReadPoint(head, "apex"),

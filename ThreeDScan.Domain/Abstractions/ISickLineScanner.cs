@@ -5,16 +5,6 @@ namespace ThreeDScan.Domain.Abstractions;
 /// <summary>SICK 光達錄製與截面整理。計算由 Python 工作程序執行。</summary>
 public interface ISickLineScanner
 {
-    // 舊版 POST /api/calibration/roller 已停用。
-    /// <summary>取一段空滾輪截面並擬合平面距離。</summary>
-    //Task<RollerSampleResult> SampleRollerAsync(
-    //    string ip,
-    //    int port,
-    //    double toleranceMm,
-    //    double rangeDeviationMm,
-    //    int frames,
-    //    CancellationToken ct = default);
-
     /// <summary>開始把每一圈寫進工作目錄，直到呼叫停止。</summary>
     Task StartRecordingAsync(string sessionDirectory, string ip, int port, CancellationToken ct = default);
 

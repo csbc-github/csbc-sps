@@ -38,11 +38,4 @@ public sealed class MeasuredAngleIron
 
     /// <summary>右邊翼寬，頂點到右翼尖的距離，取中段截面的中位數 (mm)。</summary>
     public double RightWidth { get; init; }
-
-    // 左右沿邊長度暫不回傳。
-    /// <summary>頭端左角點到尾端左角點的三維距離 (mm)。</summary>
-    public double LeftLength { get; init; }
-
-    /// <summary>頭端右角點到尾端右角點的三維距離 (mm)。</summary>
-    public double RightLength { get; init; }
 }

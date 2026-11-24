@@ -89,11 +89,6 @@ public sealed class ScanController : ControllerBase
         });
     }
 
-    // 舊 line/region 已廢止；請用 POST /api/scanners/{scannerId}/roi、GET .../settings。
-    // [HttpPut("line/region")] ...
-    // [HttpDelete("line/region")] ...
-    // [HttpGet("line/region")] ...
-
     /// <summary>最近一次線掃描 complete 的結果，供進料區顯示。</summary>
     [HttpGet("line/latest")]
     public IActionResult GetLatestLineScan()
@@ -108,21 +103,6 @@ public sealed class ScanController : ControllerBase
         var result = await _scan.AbortLineScanAsync(request, ct);
         return DasApiActionResult.From(result);
     }
-
-    // 舊入口已退場：正式路徑請用 surface/start、surface/segment。
-    // [HttpPost("surface")]
-    // public async Task<IActionResult> ScanSurface([FromBody] SurfaceScanRequest request, CancellationToken ct)
-    // {
-    //     var result = await _scan.ScanSurfaceAsync(request, ct);
-    //     return SpecApiActionResult.From(result);
-    // }
-    //
-    // [HttpPost("surface-from-file")]
-    // public async Task<IActionResult> ScanSurfaceFromFile([FromBody] SurfaceFromFileRequest request, CancellationToken ct)
-    // {
-    //     var result = await _scan.ScanSurfaceFromFileAsync(request, ct);
-    //     return SpecApiActionResult.From(result);
-    // }
 
     /// <summary>開始面掃描第一段（指南 v1.1）。</summary>
     [HttpPost("surface/start")]

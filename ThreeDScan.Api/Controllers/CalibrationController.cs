@@ -18,16 +18,6 @@ public sealed class CalibrationController : ControllerBase
         _calibration = calibration;
     }
 
-    // 舊版 POST /api/calibration/instrument（final + 單 URL 兩次）已停用；台船請用 instrument/start + instrument/complete。
-    // [HttpPost("instrument")]
-    // public async Task<IActionResult> CalibrateInstrument(
-    //     [FromBody] InstrumentCalibrationRequest request,
-    //     CancellationToken ct)
-    // {
-    //     var result = await _calibration.CalibrateInstrumentAsync(request, ct);
-    //     return SpecApiActionResult.From(result);
-    // }
-
     /// <summary>儀器校正第一次拍攝（指南 v1.1）。</summary>
     [HttpPost("instrument/start")]
     public async Task<IActionResult> StartInstrumentCalibration(
@@ -61,14 +51,4 @@ public sealed class CalibrationController : ControllerBase
         var result = await _calibration.SetupReferenceAsync(request, ct);
         return SpecApiActionResult.From(result);
     }
-
-    // 舊版 POST /api/calibration/roller 已停用；現場改由 WPF 兩點校正，不再列入 DAS 契約。
-    // [HttpPost("roller")]
-    // public async Task<IActionResult> CalibrateRoller(
-    //     [FromBody] RollerCalibrationRequest request,
-    //     CancellationToken ct)
-    // {
-    //     var result = await _calibration.CalibrateRollerAsync(request, ct);
-    //     return SpecApiActionResult.From(result);
-    // }
 }

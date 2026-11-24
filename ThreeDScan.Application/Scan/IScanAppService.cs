@@ -25,10 +25,6 @@ public interface IScanAppService
     /// <summary>最近一次線掃描 complete 的結果；尚無結果時狀態為 None。</summary>
     TaskResultData GetLatestLineScanResult();
 
-    // v1 legacy line/region（API 已 DEPRECATED；ROI 改 api/scanners/{id}/roi）
-    // LineScanRegion? GetLineRegion();
-    // void SetLineRegion(LineScanRegion? region);
-
     /// <summary>進行中的錄製與最新一圈截面；未錄製時讀架設預覽快取（O8）。</summary>
     Task<LineScanLiveFrame> GetLiveFrameAsync(CancellationToken ct = default);
 

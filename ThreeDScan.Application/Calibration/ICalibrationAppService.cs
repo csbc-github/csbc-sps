@@ -7,8 +7,6 @@ namespace ThreeDScan.Application.Calibration;
 /// <summary>校正應用服務：UC-01 儀器校正與 Ref 建立。</summary>
 public interface ICalibrationAppService
 {
-    // 舊版 POST /api/calibration/instrument 已停用；UC-01 請用 StartInstrumentCalibrationAsync + CompleteInstrumentCalibrationAsync。
-
     /// <summary>指南 POST /api/calibration/instrument/start。</summary>
     Task<DasOperationResult<InstrumentCalibrationStartData>> StartInstrumentCalibrationAsync(
         InstrumentCalibrationStartRequest request,
@@ -34,10 +32,4 @@ public interface ICalibrationAppService
     Task<ApiResponse<ReferenceSetupData>> SetupReferenceAsync(
         ReferenceSetupRequest request,
         CancellationToken ct = default);
-
-    // 舊版 POST /api/calibration/roller 已停用。
-    // /// <summary>無校正物時掃描滾輪台，取得掃描器到滾輪的 Z 距離。</summary>
-    // Task<ApiResponse<RollerCalibrationData>> CalibrateRollerAsync(
-    //     RollerCalibrationRequest request,
-    //     CancellationToken ct = default);
 }

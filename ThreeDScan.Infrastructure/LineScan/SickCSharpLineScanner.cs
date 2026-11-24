@@ -36,45 +36,6 @@ public sealed class SickCSharpLineScanner : ISickLineScanner
         _registry = registry.Value;
     }
 
-    // 舊版 POST /api/calibration/roller 已停用。
-    // /// <inheritdoc />
-    // public async Task<RollerSampleResult> SampleRollerAsync(
-    //     string ip,
-    //     int port,
-    //     double toleranceMm,
-    //     double rangeDeviationMm,
-    //     int frames,
-    //     CancellationToken ct = default)
-    // {
-    //     _ = toleranceMm;
-    //     _ = rangeDeviationMm;
-    //     _ = frames;
-    //     var scannerId = ResolveScannerId(ip, port);
-    //     if (scannerId is null)
-    //     {
-    //         return Failed("CAL_CFG_001", "無法由 IP／埠對應線掃描 scannerId。");
-    //     }
-    //
-    //     try
-    //     {
-    //         var zDistance = await _host.CalibrateRollerAsync(scannerId, ct).ConfigureAwait(false);
-    //         return new RollerSampleResult
-    //         {
-    //             Clear = true,
-    //             ZDistance = zDistance,
-    //         };
-    //     }
-    //     catch (LineScanDeviceException ex)
-    //     {
-    //         return new RollerSampleResult
-    //         {
-    //             Clear = false,
-    //             Code = ex.Code,
-    //             Message = ex.Message,
-    //         };
-    //     }
-    // }
-
     /// <inheritdoc />
     public async Task StartRecordingAsync(string sessionDirectory, string ip, int port, CancellationToken ct = default)
     {
@@ -223,17 +184,6 @@ public sealed class SickCSharpLineScanner : ISickLineScanner
 
         return null;
     }
-
-    // 舊版 POST /api/calibration/roller 已停用。
-    // private static RollerSampleResult Failed(string code, string message)
-    // {
-    //     return new RollerSampleResult
-    //     {
-    //         Clear = false,
-    //         Code = code,
-    //         Message = message,
-    //     };
-    // }
 
     private sealed class LineScanSessionMeta
     {

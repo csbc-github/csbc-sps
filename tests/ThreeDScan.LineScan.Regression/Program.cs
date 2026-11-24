@@ -228,8 +228,6 @@ internal static class Program
         Near(iron.LeftWidth, expected.GetProperty("LeftMm").GetDouble(), name + " left wing width");
         Near(iron.RightWidth, expected.GetProperty("RightMm").GetDouble(), name + " right wing width");
         Near(iron.Length, 120, name + " encoder apex travel");
-        // Near(iron.LeftLength, 120, name + " left encoder travel");
-        // Near(iron.RightLength, 120, name + " right encoder travel");
         var mapper = typeof(ScanAppService).GetMethod("ToAngleIron", BindingFlags.Static | BindingFlags.NonPublic)!;
         var dto = (LineScanAngleIronDto)mapper.Invoke(null, [iron])!;
         Near(dto.LeftWidth, iron.LeftWidth, name + " application maps left wing");

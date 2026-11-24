@@ -57,28 +57,6 @@ public static class ScanProcessor
 
             float? heightThresh = TryFindHeightThreshold(heights, minObjectCount);
 
-            // 舊做法：固定 zThresh（呼叫端預設 12 mm）切高度。
-            // int aboveCount = 0;
-            // for (int i = 0; i < heights.Length; i++)
-            // {
-            //     if (heights[i] > zThresh)
-            //     {
-            //         aboveCount++;
-            //     }
-            // }
-            //
-            // if (aboveCount >= minObjectCount)
-            // {
-            //     filtered.Capacity = aboveCount;
-            //     for (int i = 0; i < rawPts.Length; i++)
-            //     {
-            //         if (heights[i] > zThresh)
-            //         {
-            //             filtered.Add(rawPts[i]);
-            //         }
-            //     }
-            // }
-
             if (heightThresh.HasValue)
             {
                 float t = heightThresh.Value;

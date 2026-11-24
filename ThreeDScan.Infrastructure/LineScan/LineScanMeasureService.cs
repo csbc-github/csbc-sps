@@ -126,8 +126,6 @@ public sealed class LineScanMeasureService
             double width = Distance(head.Left, head.Right);
             var baseline = head.Right.X - head.Left.X;
             double atApex = head.Left.Z + (head.Right.Z - head.Left.Z) * (head.Apex.X - head.Left.X) / baseline;
-            // double leftLength = Distance(head.Left, tail.Left);
-            // double rightLength = Distance(head.Right, tail.Right);
             irons.Add(new MeasuredAngleIron
             {
                 Index = i + 1,
@@ -142,8 +140,6 @@ public sealed class LineScanMeasureService
                 Length = Distance(head.Apex, tail.Apex),
                 LeftWidth = Distance(head.Apex, head.Left),
                 RightWidth = Distance(head.Apex, head.Right),
-                // LeftLength = leftLength,
-                // RightLength = rightLength,
             });
         }
 
