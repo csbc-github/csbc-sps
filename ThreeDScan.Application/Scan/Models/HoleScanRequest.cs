@@ -22,7 +22,8 @@ public sealed class HoleScanRequest
     [Required, StringLength(2048, MinimumLength = 1)]
     public string CallbackUrl { get; set; } = "";
 
-    /// <summary>規格 v1.1 未列，由 Hank 搬入。相機位姿；省略則結果為掃描器座標。</summary>
+    /// <summary>拍攝時掃描器絕對位置與姿態。必填，孔緣依此換算成實際座標。</summary>
+    [Required]
     public CameraPoseDto? CameraPosition { get; set; }
 
     /// <summary>規格 v1.1 未列，由 Hank 搬入。掃描器 ROI。</summary>
