@@ -551,8 +551,8 @@ public sealed class CSharpLineMeasureService : ICSharpLineMeasure
             Length = tail.Y - head.Y,
             LeftWidth = Median(middle, profile => profile.LeftLeg),
             RightWidth = Median(middle, profile => profile.RightLeg),
-            LeftLength = Distance(head.Left, tail.Left),
-            RightLength = Distance(head.Right, tail.Right),
+            // LeftLength = Distance(head.Left, tail.Left),
+            // RightLength = Distance(head.Right, tail.Right),
         };
     }
 

@@ -1,3 +1,4 @@
+// 舊版 POST /api/calibration/roller 已停用；型別保留供對照。
 namespace ThreeDScan.Application.Calibration.Models;
 
 /// <summary>滾輪校正結果：掃描器到滾輪台的 Z 距離。</summary>

@@ -63,7 +63,7 @@ internal static class EncoderSimulationHostChecks
         if (!enabled)
         {
             bool rejected = false;
-            try { await host.StartLineAsync(directory, "regression", 100, "regression", deadline.Token); }
+            try { await host.StartLineAsync(directory, "regression", "regression", deadline.Token); }
             catch (LineScanDeviceException error) when (error.Code == "SCAN_ENCODER_UNAVAILABLE") { rejected = true; }
             Program.Check(rejected, "actual JSON-disabled Host rejects missing physical encoder channel");
             Program.Check(!Directory.Exists(directory) || !Directory.EnumerateFiles(directory).Any(),
@@ -71,7 +71,7 @@ internal static class EncoderSimulationHostChecks
             return;
         }
 
-        await host.StartLineAsync(directory, "regression", 100, "regression", deadline.Token);
+        await host.StartLineAsync(directory, "regression", "regression", deadline.Token);
         string taskId = Path.GetFileName(directory);
         var captures = (System.Collections.IDictionary)typeof(LineScanDeviceHost)
             .GetField("_captures", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host)!;

@@ -18,8 +18,8 @@ public class MaterialItem : ViewModelBase
     private double _length;
     private double _leftWidth;
     private double _rightWidth;
-    private double _leftLength;
-    private double _rightLength;
+    // private double _leftLength;
+    // private double _rightLength;
 
     public string Name { get
     {
@@ -133,21 +133,22 @@ public class MaterialItem : ViewModelBase
         SetProperty(ref _height, value);
     } }
 
-    /// <summary>左邊長度 (mm)。</summary>
-    public double LeftLength { get
-    {
-        return _leftLength;
-    } set
-    {
-        SetProperty(ref _leftLength, value);
-    } }
-
-    /// <summary>右邊長度 (mm)。</summary>
-    public double RightLength { get
-    {
-        return _rightLength;
-    } set
-    {
-        SetProperty(ref _rightLength, value);
-    } }
+    // 左右沿邊長度暫不回傳。
+    // /// <summary>左邊長度 (mm)。</summary>
+    // public double LeftLength { get
+    // {
+    //     return _leftLength;
+    // } set
+    // {
+    //     SetProperty(ref _leftLength, value);
+    // } }
+    //
+    // /// <summary>右邊長度 (mm)。</summary>
+    // public double RightLength { get
+    // {
+    //     return _rightLength;
+    // } set
+    // {
+    //     SetProperty(ref _rightLength, value);
+    // } }
 }

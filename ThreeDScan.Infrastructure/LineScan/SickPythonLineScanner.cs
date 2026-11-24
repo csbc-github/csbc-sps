@@ -215,24 +215,11 @@ public sealed class SickPythonLineScanner : ISickLineScanner
     /// <inheritdoc />
     public async Task<IReadOnlyList<MeasuredAngleIron>> MeasureAsync(
         string sessionDirectory,
-        RollerBaselineRecord baseline,
-        double rollerSpeedMmPerSec,
         double gapMm,
         double minHeightMm,
         CancellationToken ct = default)
     {
-        var baselinePath = Path.Combine(sessionDirectory, "baseline.json");
         var output = Path.Combine(sessionDirectory, "parts.json");
-        await File.WriteAllTextAsync(
-            baselinePath,
-            JsonSerializer.Serialize(new
-            {
-                lineA = 0.0,
-                lineB = 1.0,
-                lineC = -baseline.ZDistance,
-                zDistance = baseline.ZDistance,
-            }, JsonOptions),
-            ct).ConfigureAwait(false);
         var culture = System.Globalization.CultureInfo.InvariantCulture;
         var exit = await RunAsync(
             new[]
@@ -243,10 +230,8 @@ public sealed class SickPythonLineScanner : ISickLineScanner
                 "measure",
                 "--session",
                 sessionDirectory,
-                "--baseline",
-                baselinePath,
                 "--speed",
-                rollerSpeedMmPerSec.ToString(culture),
+                "0",
                 "--gap",
                 gapMm.ToString(culture),
                 "--min-height",
@@ -283,8 +268,8 @@ public sealed class SickPythonLineScanner : ISickLineScanner
                 Width = part.Width,
                 Height = part.Height,
                 Length = part.LeftLength,
-                LeftLength = part.LeftLength,
-                RightLength = part.RightLength,
+                // LeftLength = part.LeftLength,
+                // RightLength = part.RightLength,
             });
         }
 

@@ -41,13 +41,14 @@ JSON 為 camelCase；`Content-Type: application/json`。改設定後須重啟 Ap
 
 | 方法 | 路徑 | 狀態 |
 |---|---|---|
-| POST | `/api/calibration/instrument` | 可測（TestMode） |
+<!-- | POST | `/api/calibration/instrument` | 已停用；請用 instrument/start + complete | -->
 | POST | `/api/calibration/roller` | 待補充 |
 | POST | `/api/scan/surface` | 可測（連掃描器） |
 | GET | `/api/scan/surface/{taskId}/attachments` | 可測 |
 | POST | `/api/scan/hole` | 待補充 |
 
-### 2.1 POST `/api/calibration/instrument`
+<!--
+### 2.1 POST `/api/calibration/instrument`（已停用）
 
 儀器校正，兩次拍攝。JSON 欄位名是 **`final`**（不是 `isFinal`）。
 
@@ -158,6 +159,7 @@ Production 第一次 `data` 只有：`taskId`、`seq`、`status`、`traceId`。
 ```
 
 Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`zDeviation`、`calibratedAt`、`traceId`。
+-->
 
 ### 2.2 POST `/api/calibration/roller`
 
@@ -228,7 +230,7 @@ WPF 噴印「開始掃描」不經此 API，模型仍用假定 `MeshThickness`�
 | `headFeatures` | 前緣左下／頂點／右下（公開絕對座標） |
 | `traceId` | 本次追溯 ID |
 
-點雲靜態檔路徑前綴：`/scan-files/`（對應 `Storage:ExportRoot`）。`POST /api/scan/surface-from-file` 同樣必填 `cameraPosition`。
+<!-- 點雲下載：`pointCloudUrl` → `GET /api/files/{taskId}/{artifactId}`（舊 `/scan-files/` 已停用）。 -->
 
 部署須執行：
 

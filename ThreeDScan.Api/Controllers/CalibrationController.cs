@@ -5,7 +5,7 @@ using ThreeDScan.Application.Calibration.Models;
 
 namespace ThreeDScan.Api.Controllers;
 
-/// <summary>儀器／基準／滾輪校正。</summary>
+/// <summary>儀器／基準校正。</summary>
 [ApiController]
 [Route("api/calibration")]
 public sealed class CalibrationController : ControllerBase
@@ -18,15 +18,15 @@ public sealed class CalibrationController : ControllerBase
         _calibration = calibration;
     }
 
-    /// <summary>SD UC-01 — 儀器校正（LJScanWinform 量測按鈕）。成功回校正欄位，失敗回 error.code。推送 WPF 監看預覽。</summary>
-    [HttpPost("instrument")]
-    public async Task<IActionResult> CalibrateInstrument(
-        [FromBody] InstrumentCalibrationRequest request,
-        CancellationToken ct)
-    {
-        var result = await _calibration.CalibrateInstrumentAsync(request, ct);
-        return SpecApiActionResult.From(result);
-    }
+    // 舊版 POST /api/calibration/instrument（final + 單 URL 兩次）已停用；台船請用 instrument/start + instrument/complete。
+    // [HttpPost("instrument")]
+    // public async Task<IActionResult> CalibrateInstrument(
+    //     [FromBody] InstrumentCalibrationRequest request,
+    //     CancellationToken ct)
+    // {
+    //     var result = await _calibration.CalibrateInstrumentAsync(request, ct);
+    //     return SpecApiActionResult.From(result);
+    // }
 
     /// <summary>儀器校正第一次拍攝（指南 v1.1）。</summary>
     [HttpPost("instrument/start")]
@@ -62,13 +62,13 @@ public sealed class CalibrationController : ControllerBase
         return SpecApiActionResult.From(result);
     }
 
-    /// <summary>無校正物時掃描滾輪台。成功回 Z 距離欄位，失敗回 error.code。</summary>
-    [HttpPost("roller")]
-    public async Task<IActionResult> CalibrateRoller(
-        [FromBody] RollerCalibrationRequest request,
-        CancellationToken ct)
-    {
-        var result = await _calibration.CalibrateRollerAsync(request, ct);
-        return SpecApiActionResult.From(result);
-    }
+    // 舊版 POST /api/calibration/roller 已停用；現場改由 WPF 兩點校正，不再列入 DAS 契約。
+    // [HttpPost("roller")]
+    // public async Task<IActionResult> CalibrateRoller(
+    //     [FromBody] RollerCalibrationRequest request,
+    //     CancellationToken ct)
+    // {
+    //     var result = await _calibration.CalibrateRollerAsync(request, ct);
+    //     return SpecApiActionResult.From(result);
+    // }
 }

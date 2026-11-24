@@ -4,16 +4,20 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using ThreeDScan.Api.Auth;
+using ThreeDScan.Api.Common;
 using ThreeDScan.Application.Common;
 using ThreeDScan.Application.Common.Models;
+using ThreeDScan.Application.Scan;
+using ThreeDScan.Application.Scan.Models;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Domain.Repositories;
 
 namespace ThreeDScan.Api.Services;
 
 /// <summary>
-/// 終態任務 POST callbackUrl。對應 Hank <c>Scan3D.Service.CallbackWorker</c>。
+/// 終態任務 POST callbackUrl。本體為指南 <see cref="TaskResultData"/> 五欄（與 GET /api/tasks/&#123;taskId&#125;/result 相同）。
 /// </summary>
+/// <remarks>對應 Hank <c>Scan3D.Service.CallbackWorker</c>；序列化對齊 <see cref="DasApiJson"/>。</remarks>
 /// <remarks>憑證已設定但換不到 token 時當次失敗並重試，不帶空 Authorization 送出。</remarks>
 public sealed class ScanCallbackWorker : BackgroundService
 {
@@ -156,8 +160,8 @@ public sealed class ScanCallbackWorker : BackgroundService
 
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, _settings.TimeoutSec)));
-            var envelope = store.Envelope(task);
-            var json = JsonSerializer.Serialize(envelope, JsonDefaults.Options);
+            var payload = TaskResultDataMapper.FromDocument(task);
+            var json = JsonSerializer.Serialize(payload, DasApiJson.SerializerOptions);
             using var request = new HttpRequestMessage(HttpMethod.Post, uri);
             request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 

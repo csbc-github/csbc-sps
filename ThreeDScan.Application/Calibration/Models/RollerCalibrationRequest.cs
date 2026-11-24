@@ -1,3 +1,4 @@
+// 舊版 POST /api/calibration/roller 已停用；型別保留供對照。
 using System.ComponentModel.DataAnnotations;
 
 namespace ThreeDScan.Application.Calibration.Models;

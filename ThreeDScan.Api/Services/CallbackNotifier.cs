@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using ThreeDScan.Api.Common;
 using ThreeDScan.Application.Common;
 using ThreeDScan.Application.Common.Models;
 using ThreeDScan.Application.Scan.Models;
@@ -12,11 +13,7 @@ namespace ThreeDScan.Api.Services;
 /// <summary>POST callbackUrl；失敗依 Callback 設定重試。</summary>
 public sealed class CallbackNotifier : ICallbackNotifier
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-    };
+    private static readonly JsonSerializerOptions JsonOptions = DasApiJson.SerializerOptions;
 
     private readonly IHttpClientFactory _httpFactory;
     private readonly CallbackAccessTokenSource _tokens;

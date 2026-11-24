@@ -2,7 +2,7 @@ using ThreeDScan.Application.Common.Models;
 
 namespace ThreeDScan.Application.Scan.Models;
 
-/// <summary>指南線掃描單支角鋼（左右長度，無單一 length／orientation）。</summary>
+/// <summary>線掃描單支角鋼的頭尾角點與尺寸。</summary>
 public sealed class LineScanAngleIronDto
 {
     /// <summary>角鋼序號。</summary>
@@ -20,11 +20,12 @@ public sealed class LineScanAngleIronDto
     /// <summary>高度（由頂點與角點高度差算出）。</summary>
     public double Height { get; init; }
 
-    /// <summary>左邊長度（頭端左角點至尾端左角點之三維距離）。</summary>
-    public double LeftLength { get; init; }
-
-    /// <summary>右邊長度（頭端右角點至尾端右角點之三維距離）。</summary>
-    public double RightLength { get; init; }
+    // 左右沿邊長度暫不回傳。
+    // /// <summary>左邊長度（頭端左角點至尾端左角點之三維距離）。</summary>
+    // public double LeftLength { get; init; }
+    //
+    // /// <summary>右邊長度（頭端右角點至尾端右角點之三維距離）。</summary>
+    // public double RightLength { get; init; }
 
     /// <summary>整支角鋼沿滾輪的長度 (mm)。</summary>
     public double Length { get; init; }

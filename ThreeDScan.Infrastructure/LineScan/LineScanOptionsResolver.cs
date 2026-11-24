@@ -94,7 +94,7 @@ public sealed class LineScanOptionsResolver
         var endpoint = RequireEndpoint(scannerId);
         if (!string.Equals(endpoint.PositionSource, "encoder", StringComparison.OrdinalIgnoreCase))
         {
-            throw new LineScanDeviceException("SCAN_LINE_CONFIG", "目前原生線掃描後端要求 Encoder 定位，不會以 rollerSpeed 估算位移。");
+            throw new LineScanDeviceException("SCAN_LINE_CONFIG", "目前原生線掃描後端要求 Encoder 定位。");
         }
 
         var calibration = await GetCalibrationAsync(scannerId, ct).ConfigureAwait(false);

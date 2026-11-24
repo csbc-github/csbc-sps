@@ -8,6 +8,7 @@ public interface IRollerCalibrationRepository
     /// <summary>讀取該光達最後一次成功校正；沒有則回傳 null。</summary>
     Task<RollerBaselineRecord?> GetAsync(string scannerId, CancellationToken ct = default);
 
-    /// <summary>覆寫該光達的滾輪基準。</summary>
-    Task SaveAsync(RollerBaselineRecord record, CancellationToken ct = default);
+    // 舊版 POST /api/calibration/roller 已停用；不再由 DAS 寫入基準。
+    // /// <summary>覆寫該光達的滾輪基準。</summary>
+    // Task SaveAsync(RollerBaselineRecord record, CancellationToken ct = default);
 }

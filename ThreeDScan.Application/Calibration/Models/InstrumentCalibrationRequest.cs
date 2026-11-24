@@ -4,7 +4,7 @@ using ThreeDScan.Application.Common.Models;
 
 namespace ThreeDScan.Application.Calibration.Models;
 
-/// <summary>POST /api/calibration/instrument 請求（API 串接規格 UC-01）。</summary>
+/// <summary>UC-01 儀器校正內部請求（由 start／complete 對映；舊 POST /api/calibration/instrument 已停用）。</summary>
 public sealed class InstrumentCalibrationRequest
 {
     /// <summary>面掃描器識別碼。</summary>

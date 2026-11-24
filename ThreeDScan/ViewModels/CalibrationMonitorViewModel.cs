@@ -22,7 +22,7 @@ public class CalibrationMonitorViewModel : ViewModelBase, IAsyncDisposable
     private string _apiBaseUrl = "http://localhost:5295";
     private string _connectionState = "未連線";
     private string _lastScannerId = "";
-    private string _statusText = "等待外部呼叫 POST /api/calibration/instrument";
+    private string _statusText = "等待外部呼叫 POST /api/calibration/instrument/start 或 complete";
     private string _detailText = "";
     private string _viewportStatus = "（等待儀器校正 API 回傳影像）";
 

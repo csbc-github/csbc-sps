@@ -28,6 +28,7 @@ public sealed class LineScanDeviceHost
         _logger = logger;
     }
 
+#if false // 舊版 POST /api/calibration/roller 已停用。
     /// <summary>滾輪清空檢查並回傳 Z 距離。</summary>
     public async Task<double> CalibrateRollerAsync(string scannerId, CancellationToken ct = default)
     {
@@ -91,12 +92,12 @@ public sealed class LineScanDeviceHost
             Release(endpointKey, taskId);
         }
     }
+#endif
 
     /// <summary>開始線掃描錄製；taskId 為工作目錄資料夾名稱。</summary>
     public async Task StartLineAsync(
         string sessionDirectory,
         string scannerId,
-        double rollerSpeed,
         string? traceId,
         CancellationToken ct = default)
     {
@@ -135,7 +136,6 @@ public sealed class LineScanDeviceHost
                     scannerId,
                     taskId,
                     traceId,
-                    rollerSpeed,
                     api = "DAS-v1.1",
                     coordinateFrame = "calibrated_local_encoder",
                 });
@@ -438,6 +438,7 @@ public sealed class LineScanDeviceHost
         }
     }
 
+#if false // 舊版 POST /api/calibration/roller 已停用。
     static bool Inside(P point, double[]? roi)
     {
         if (roi == null)
@@ -447,6 +448,7 @@ public sealed class LineScanDeviceHost
 
         return point.X >= roi[0] && point.X <= roi[1] && point.Y >= roi[2] && point.Y <= roi[3];
     }
+#endif
 
     sealed class SetupPreview
     {

@@ -1,3 +1,4 @@
+// 舊版 POST /api/calibration/roller 已停用；型別保留供對照。
 namespace ThreeDScan.Domain.Models;
 
 /// <summary>一次空滾輪取樣的擬合結果。</summary>

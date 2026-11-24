@@ -89,47 +89,10 @@ public sealed class ScanController : ControllerBase
         });
     }
 
-    /// <summary>已廢止；請改用 POST /api/scanners/{scannerId}/roi。</summary>
-    [HttpPut("line/region")]
-    public IActionResult SetLineRegion([FromBody] LineScanRegion region)
-    {
-        return BadRequest(new
-        {
-            error = new
-            {
-                code = "DEPRECATED",
-                message = "line/region 已廢止，請改用 POST /api/scanners/{scannerId}/roi。",
-            },
-        });
-    }
-
-    /// <summary>已廢止；請改用 POST /api/scanners/{scannerId}/roi（bounds 為 null 清除）。</summary>
-    [HttpDelete("line/region")]
-    public IActionResult ClearLineRegion()
-    {
-        return BadRequest(new
-        {
-            error = new
-            {
-                code = "DEPRECATED",
-                message = "line/region 已廢止，請改用 POST /api/scanners/{scannerId}/roi。",
-            },
-        });
-    }
-
-    /// <summary>已廢止；請改用 GET /api/scanners/{scannerId}/settings。</summary>
-    [HttpGet("line/region")]
-    public IActionResult GetLineRegion()
-    {
-        return BadRequest(new
-        {
-            error = new
-            {
-                code = "DEPRECATED",
-                message = "line/region 已廢止，請改用 GET /api/scanners/{scannerId}/settings。",
-            },
-        });
-    }
+    // 舊 line/region 已廢止；請用 POST /api/scanners/{scannerId}/roi、GET .../settings。
+    // [HttpPut("line/region")] ...
+    // [HttpDelete("line/region")] ...
+    // [HttpGet("line/region")] ...
 
     /// <summary>最近一次線掃描 complete 的結果，供進料區顯示。</summary>
     [HttpGet("line/latest")]

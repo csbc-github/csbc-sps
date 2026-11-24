@@ -1,6 +1,7 @@
 using System.Net.Http;
 using Microsoft.Extensions.FileProviders;
 using ThreeDScan.Api.Auth;
+using ThreeDScan.Api.Common;
 using ThreeDScan.Api.Hubs;
 using ThreeDScan.Api.Services;
 using ThreeDScan.Application.Calibration;
@@ -13,7 +14,11 @@ using ThreeDScan.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        DasApiJson.Configure(options.JsonSerializerOptions);
+    });
 builder.Services.AddSignalR();
 builder.Services.AddCors(options =>
 {
@@ -65,17 +70,18 @@ if (!string.IsNullOrWhiteSpace(contentsRoot))
     });
 }
 
-var exportRoot = app.Services.GetRequiredService<IStorageSettings>().ExportRoot;
-if (!string.IsNullOrWhiteSpace(exportRoot))
-{
-    Directory.CreateDirectory(exportRoot);
-    app.UseStaticFiles(new StaticFileOptions
-    {
-        RequestPath = "/scan-files",
-        FileProvider = new PhysicalFileProvider(exportRoot),
-        ServeUnknownFileTypes = true,
-    });
-}
+// 舊靜態點雲前綴 /scan-files 已停用；現行 pointCloudUrl 走 GET /api/files/{taskId}/{artifactId}。
+// var exportRoot = app.Services.GetRequiredService<IStorageSettings>().ExportRoot;
+// if (!string.IsNullOrWhiteSpace(exportRoot))
+// {
+//     Directory.CreateDirectory(exportRoot);
+//     app.UseStaticFiles(new StaticFileOptions
+//     {
+//         RequestPath = "/scan-files",
+//         FileProvider = new PhysicalFileProvider(exportRoot),
+//         ServeUnknownFileTypes = true,
+//     });
+// }
 
 app.UseCors();
 app.UseHttpsRedirection();
