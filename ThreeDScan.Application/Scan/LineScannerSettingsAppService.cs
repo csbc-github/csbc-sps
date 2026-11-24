@@ -78,7 +78,7 @@ public sealed class LineScannerSettingsAppService
         existing.CalibrationFirstY = firstY;
         existing.CalibrationSecondX = secondX;
         existing.CalibrationSecondY = secondY;
-        existing.UpdatedAt = DateTimeOffset.UtcNow;
+        existing.UpdatedAt = DateTimeOffset.Now;
         existing.TraceId = traceId;
         await _settings.SaveAsync(existing, ct).ConfigureAwait(false);
         return ToDto(scannerId, existing, traceId);
@@ -106,7 +106,7 @@ public sealed class LineScannerSettingsAppService
         existing.CalibrationFirstY = null;
         existing.CalibrationSecondX = null;
         existing.CalibrationSecondY = null;
-        existing.UpdatedAt = DateTimeOffset.UtcNow;
+        existing.UpdatedAt = DateTimeOffset.Now;
         existing.TraceId = traceId;
         await _settings.SaveAsync(existing, ct).ConfigureAwait(false);
         return ToDto(scannerId, existing, traceId);
@@ -155,7 +155,7 @@ public sealed class LineScannerSettingsAppService
             existing.RoiYMax = bounds[3];
         }
 
-        existing.UpdatedAt = DateTimeOffset.UtcNow;
+        existing.UpdatedAt = DateTimeOffset.Now;
         existing.TraceId = traceId;
         await _settings.SaveAsync(existing, ct).ConfigureAwait(false);
         return ToDto(scannerId, existing, traceId);

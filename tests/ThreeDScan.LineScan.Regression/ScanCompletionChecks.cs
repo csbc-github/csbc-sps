@@ -202,11 +202,11 @@ internal static class ScanCompletionChecks
             "independent callback worker persists one attempt for the terminal scan");
         if (firstAttemptFails)
         {
-            Program.Check(!document.CallbackDelivered && document.CallbackNextAttemptAt > DateTimeOffset.UtcNow
+            Program.Check(!document.CallbackDelivered && document.CallbackNextAttemptAt > DateTimeOffset.Now
                 && document.CallbackLastError == "HTTP 503", "failed callback persists its error and next retry time");
             await SweepAsync();
             Program.Check(handler.Payloads.Count == 1, "pending retry is not delivered before its persisted due time");
-            document.CallbackNextAttemptAt = DateTimeOffset.UtcNow.AddSeconds(-1);
+            document.CallbackNextAttemptAt = DateTimeOffset.Now.AddSeconds(-1);
             await SweepAsync();
             Program.Check(document.CallbackAttempts == 2 && handler.Payloads.Count == 2,
                 "due callback retry uses the persisted terminal scan");

@@ -46,7 +46,7 @@ public sealed class SickCSharpLineScanner : ISickLineScanner
             ScannerId = context.ScannerId,
             TaskId = context.TaskId,
             TraceId = context.TraceId,
-            StartedAt = DateTimeOffset.UtcNow.ToString("O"),
+            StartedAt = DateTimeOffset.Now.ToString("O"),
         };
         await File.WriteAllTextAsync(
             Path.Combine(sessionDirectory, "line-scan-meta.json"),

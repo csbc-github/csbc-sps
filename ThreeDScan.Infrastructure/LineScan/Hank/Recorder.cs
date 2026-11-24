@@ -17,7 +17,7 @@ public sealed class Recorder
     readonly double[]? roi;
     readonly object? context;
     readonly bool simulation;
-    readonly DateTimeOffset started = DateTimeOffset.UtcNow;
+    readonly DateTimeOffset started = DateTimeOffset.Now;
     string? error;
     bool stopping, finished;
     public string? Error { get { lock (gate) return error; } }
@@ -119,7 +119,7 @@ public sealed class Recorder
             var snapshot = JsonSerializer.SerializeToElement(context, ScanJson.Options);
             if (snapshot.ValueKind == JsonValueKind.Object) foreach (var p in snapshot.EnumerateObject()) metadata[p.Name] = p.Value.Clone();
         }
-        metadata["source"] = path; metadata["started_utc"] = started; metadata["completed_utc"] = DateTimeOffset.UtcNow;
+        metadata["source"] = path; metadata["started_utc"] = started; metadata["completed_utc"] = DateTimeOffset.Now;
         metadata["synthetic"] = simulation; metadata["encoder_source"] = simulation ? "synthetic" : "recorded";
         metadata["complete"] = Error == null; metadata["error"] = Error ?? "";
         metadata["encoder_path"] = encoderPath; metadata["encoder_frames"] = frames; metadata["frames"] = frames; metadata["points"] = points;

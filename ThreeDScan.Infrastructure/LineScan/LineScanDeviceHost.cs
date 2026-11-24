@@ -255,7 +255,7 @@ public sealed class LineScanDeviceHost
                 ScannerId = scannerId.Trim(),
                 X = xs.ToArray(),
                 Y = ys.ToArray(),
-                CapturedAt = DateTimeOffset.UtcNow,
+                CapturedAt = DateTimeOffset.Now,
                 AverageScans = profile.Frames,
                 Encoders = encoders,
             };

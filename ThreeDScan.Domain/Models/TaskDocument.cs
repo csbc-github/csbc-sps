@@ -29,10 +29,10 @@ public sealed class TaskDocument
     public string TraceId { get; set; } = "";
 
     /// <summary>建立時刻。</summary>
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 
     /// <summary>最後更新時刻。</summary>
-    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.Now;
 
     /// <summary>擷取完成時刻。</summary>
     public DateTimeOffset? CapturedAt { get; set; }

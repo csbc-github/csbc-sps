@@ -28,7 +28,7 @@ public sealed class ScannerProgramGroupRepository : IScannerProgramGroupReposito
 
         if (existing.Count < ScannerProgramGroupDefaults.GroupCount)
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = DateTimeOffset.Now;
             for (byte programNo = 0; programNo < ScannerProgramGroupDefaults.GroupCount; programNo++)
             {
                 if (existing.Any(x => x.ProgramNo == programNo)) continue;
@@ -82,14 +82,14 @@ public sealed class ScannerProgramGroupRepository : IScannerProgramGroupReposito
                 ScannerId = scannerId,
                 ProgramNo = programNo,
                 DisplayName = trimmed,
-                UpdatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.Now,
                 UpdatedBy = updatedBy,
             });
         }
         else
         {
             row.DisplayName = trimmed;
-            row.UpdatedAt = DateTimeOffset.UtcNow;
+            row.UpdatedAt = DateTimeOffset.Now;
             row.UpdatedBy = updatedBy;
         }
 

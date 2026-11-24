@@ -62,8 +62,8 @@ public sealed class AuthSession
         IdToken = idToken;
         Principal = principal;
         AccessTokenExpiresAt = expiresInSeconds is > 0
-            ? DateTimeOffset.UtcNow.AddSeconds(expiresInSeconds.Value - 30)
-            : DateTimeOffset.UtcNow.AddMinutes(55);
+            ? DateTimeOffset.Now.AddSeconds(expiresInSeconds.Value - 30)
+            : DateTimeOffset.Now.AddMinutes(55);
     }
 
     /// <summary>清除工作階段（登出或重新登入前）。</summary>
@@ -81,7 +81,7 @@ public sealed class AuthSession
     {
         get
         {
-            return AccessTokenExpiresAt is null || DateTimeOffset.UtcNow >= AccessTokenExpiresAt;
+            return AccessTokenExpiresAt is null || DateTimeOffset.Now >= AccessTokenExpiresAt;
         }
     }
 }

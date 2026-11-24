@@ -517,7 +517,7 @@ public sealed class ScanOrchestrator : IScanOrchestrator
         var captureDir = Path.Combine(_store.TaskDirectory(d.TaskId), "capture");
         var holeCapture = await CaptureRawPlyAsync(d, navigator, captureDir, ct).ConfigureAwait(false);
         var rawPly = holeCapture.RawPlyPath;
-        var capturedAt = DateTimeOffset.UtcNow;
+        var capturedAt = DateTimeOffset.Now;
         var analysis = await Task.Run(
             () => HoleAnalysis.AnalyzeFile(rawPly, holeType, ToFeatureRoi(effectiveRoi), ct),
             ct).ConfigureAwait(false);
@@ -825,7 +825,7 @@ public sealed class ScanOrchestrator : IScanOrchestrator
         var directory = Path.Combine(_store.TaskDirectory(d.TaskId), $"segment-{number:D3}");
         var capture = await CaptureRawPlyAsync(d, navigator, directory, ct).ConfigureAwait(false);
         var rawPly = capture.RawPlyPath;
-        var capturedAt = DateTimeOffset.UtcNow;
+        var capturedAt = DateTimeOffset.Now;
         var coordinates = await CoordinatesForSegmentAsync(d.ScannerId, ct).ConfigureAwait(false);
         if (!_registry.TryGetProcessingDefaults(d.ScannerId, out var processingDefaults))
         {

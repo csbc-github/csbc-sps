@@ -110,7 +110,7 @@ public sealed class TaskWatchdogHostedService : BackgroundService
             try
             {
                 var doc = await scanTasks.GetAsync(id, ct: ct).ConfigureAwait(false);
-                if (doc.Terminal || doc.UpdatedAt > DateTimeOffset.UtcNow.AddMinutes(-minutes))
+                if (doc.Terminal || doc.UpdatedAt > DateTimeOffset.Now.AddMinutes(-minutes))
                 {
                     continue;
                 }

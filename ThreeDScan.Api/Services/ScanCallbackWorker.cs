@@ -106,7 +106,7 @@ public sealed class ScanCallbackWorker : BackgroundService
                     || task.CallbackUrl is null
                     || task.CallbackDelivered
                     || task.CallbackAttempts >= maxAttempts
-                    || task.CallbackNextAttemptAt > DateTimeOffset.UtcNow)
+                    || task.CallbackNextAttemptAt > DateTimeOffset.Now)
                 {
                     continue;
                 }
@@ -140,7 +140,7 @@ public sealed class ScanCallbackWorker : BackgroundService
         {
             d.CallbackAttempts = attempt;
             d.CallbackNextAttemptAt = attempt <= maxRetries
-                ? DateTimeOffset.UtcNow.AddSeconds(DelayAt(delays, attempt - 1))
+                ? DateTimeOffset.Now.AddSeconds(DelayAt(delays, attempt - 1))
                 : null;
         }, stoppingToken).ConfigureAwait(false);
 
@@ -198,7 +198,7 @@ public sealed class ScanCallbackWorker : BackgroundService
             }
             else if (attempt <= maxRetries)
             {
-                d.CallbackNextAttemptAt = DateTimeOffset.UtcNow.AddSeconds(DelayAt(delays, attempt - 1));
+                d.CallbackNextAttemptAt = DateTimeOffset.Now.AddSeconds(DelayAt(delays, attempt - 1));
             }
         }, stoppingToken).ConfigureAwait(false);
     }

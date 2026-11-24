@@ -36,13 +36,13 @@ public sealed class SystemConfigRepository : ISystemConfigRepository
             {
                 ConfigKey = key,
                 ConfigValue = value,
-                UpdatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.Now,
             });
         }
         else
         {
             row.ConfigValue = value;
-            row.UpdatedAt = DateTimeOffset.UtcNow;
+            row.UpdatedAt = DateTimeOffset.Now;
         }
 
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -61,7 +61,7 @@ public sealed class SystemConfigRepository : ISystemConfigRepository
         {
             ConfigKey = key,
             ConfigValue = defaultValue,
-            UpdatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.Now,
         });
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
     }

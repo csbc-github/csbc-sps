@@ -102,7 +102,7 @@ public sealed class ScanTaskRepository : IScanTaskRepository
             }
 
             Directory.CreateDirectory(TaskDirectory(doc.TaskId));
-            doc.UpdatedAt = DateTimeOffset.UtcNow;
+            doc.UpdatedAt = DateTimeOffset.Now;
             await PersistUnlockedAsync(doc, insert: true, ct).ConfigureAwait(false);
         }
         finally
@@ -139,7 +139,7 @@ public sealed class ScanTaskRepository : IScanTaskRepository
             }
 
             await mutation(doc).ConfigureAwait(false);
-            doc.UpdatedAt = DateTimeOffset.UtcNow;
+            doc.UpdatedAt = DateTimeOffset.Now;
             await PersistUnlockedAsync(doc, insert: false, ct).ConfigureAwait(false);
             return doc;
         }

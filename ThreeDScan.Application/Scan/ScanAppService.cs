@@ -153,7 +153,7 @@ public sealed class ScanAppService : IScanAppService
         }
 
         var taskId = Guid.NewGuid().ToString("N");
-        var startedAt = DateTimeOffset.UtcNow;
+        var startedAt = DateTimeOffset.Now;
         var doc = new TaskDocument
         {
             TaskId = taskId,
@@ -314,7 +314,7 @@ public sealed class ScanAppService : IScanAppService
                     d.Phase = "Completed";
                     d.Result = resultJson;
                     d.Error = null;
-                    d.CapturedAt = DateTimeOffset.UtcNow;
+                    d.CapturedAt = DateTimeOffset.Now;
                     completed = true;
                 },
                 ct).ConfigureAwait(false);

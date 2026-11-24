@@ -36,7 +36,7 @@ public sealed class ScannerProgramSettingsRepository : IScannerProgramSettingsRe
         CancellationToken ct = default)
     {
         var hash = SHA256.HashData(settingsBlob);
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.Now;
 
         _db.ScannerProgramSettingsHistory.Add(new ScannerProgramSettingsHistoryEntity
         {

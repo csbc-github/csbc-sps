@@ -914,13 +914,13 @@ public class FeedingViewModel : ViewModelBase
         {
             if (_previewStartBusy || _userStoppedLive || _apiLineRecording
                 || _selectingRegion || _profileFrozen || _isPickingDesktopPoints
-                || DateTimeOffset.UtcNow < _nextPreviewStartAtUtc)
+                || DateTimeOffset.Now < _nextPreviewStartAtUtc)
             {
                 return;
             }
 
             _previewStartBusy = true;
-            _nextPreviewStartAtUtc = DateTimeOffset.UtcNow.AddSeconds(3);
+            _nextPreviewStartAtUtc = DateTimeOffset.Now.AddSeconds(3);
             shouldStart = true;
         });
         if (!shouldStart)
