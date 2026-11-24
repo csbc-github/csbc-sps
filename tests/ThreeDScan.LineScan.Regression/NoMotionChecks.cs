@@ -55,7 +55,7 @@ internal static class NoMotionChecks
             Program.Check(!File.Exists(session.OutputPath) && !File.Exists(Path.ChangeExtension(session.OutputPath, ".json")),
                 "zero-motion guard never invents a reconstructed Y or successful 3D artifact");
 
-            await VerifyAcceptedFailureAsync(directory, session.StopAndBuildAsync, guard!, simulateCallbackFailure: false);
+            await VerifyAcceptedFailureAsync(directory, session.StopAndBuildAsync, guard!);
             using var configurationServices = new ServiceCollection().BuildServiceProvider();
             var registry = Options.Create(new LineScannerRegistryOptions());
             var resolver = new LineScanOptionsResolver(registry, configurationServices.GetRequiredService<IServiceScopeFactory>());
@@ -67,7 +67,6 @@ internal static class NoMotionChecks
                 && translated.Message.Contains(guard!.Message), "actual host/adapter translates no-motion failure to domain task exception");
             Program.Check(direct.Captures.Count == 0 && direct.Endpoints.Count == 0,
                 "actual host removes failed capture and releases endpoint reservation");
-            foreach (bool callbackFailure in new[] { false, true })
             {
                 var actual = InjectOfflineCapture(directory, session, calibration, settings, resolver, registry);
                 async Task<Cloud> CompleteThroughAdapter()
@@ -75,7 +74,7 @@ internal static class NoMotionChecks
                     await actual.Adapter.StopRecordingAsync(directory);
                     throw new InvalidOperationException("A zero-motion capture must never complete successfully.");
                 }
-                await VerifyAcceptedFailureAsync(directory, CompleteThroughAdapter, guard!, callbackFailure);
+                await VerifyAcceptedFailureAsync(directory, CompleteThroughAdapter, guard!);
                 Program.Check(actual.Captures.Count == 0 && actual.Endpoints.Count == 0,
                     "queued actual host/adapter failure also releases capture and endpoint");
             }
@@ -92,7 +91,7 @@ internal static class NoMotionChecks
         Console.WriteLine("PASS zero encoder motion remains rejected and accepted completion reaches persisted Failed state");
     }
 
-    static async Task VerifyAcceptedFailureAsync(string directory, Func<Task<Cloud>> stop, Exception expectedFailure, bool simulateCallbackFailure)
+    static async Task VerifyAcceptedFailureAsync(string directory, Func<Task<Cloud>> stop, Exception expectedFailure)
     {
         string taskId = Path.GetFileName(directory);
         const string callbackUrl = "http://127.0.0.1/unused-test-callback";
@@ -102,7 +101,6 @@ internal static class NoMotionChecks
             Phase = "LineAcquiring", TraceId = "no-motion-trace"
         };
         int released = 0, stopped = 0, measured = 0;
-        var callbackPayloads = new List<TaskResultData>();
         var queue = new AcceptedWorkQueue();
         var cache = new DasTaskResultCache();
         cache.SetLatestLine(new TaskResultData { TaskId = taskId, Status = "Processing" });
@@ -126,15 +124,8 @@ internal static class NoMotionChecks
             if (method.Name == nameof(ISickLineScanner.MeasureAsync)) measured++;
             throw new NotSupportedException("No-motion completion must not measure or start a scanner: " + method.Name);
         });
-        var callback = InterfaceDouble.Create<ICallbackNotifier>((method, args) =>
-        {
-            if (method.Name != nameof(ICallbackNotifier.NotifyAsync)) throw new NotSupportedException(method.Name);
-            Program.Check((string)args![0]! == callbackUrl, "failure callback uses accepted task callback metadata");
-            callbackPayloads.Add((TaskResultData)args[1]!);
-            return simulateCallbackFailure
-                ? Task.FromException(new IOException("Simulated callback delivery failure; no network request was sent"))
-                : Task.CompletedTask;
-        });
+        var callback = InterfaceDouble.Create<ICallbackNotifier>((method, _) =>
+            throw new InvalidOperationException("Line completion must defer notifications to ScanCallbackWorker: " + method.Name));
         var orchestrator = InterfaceDouble.Create<IScanOrchestrator>((method, _) =>
             method.Name == nameof(IScanOrchestrator.FindAsync) ? Task.FromResult<TaskDocument?>(document) : throw new NotSupportedException(method.Name));
         var services = new ServiceCollection();
@@ -153,8 +144,8 @@ internal static class NoMotionChecks
         Exception? escaped = null;
         try { await work(provider, CancellationToken.None); }
         catch (Exception error) { escaped = error; }
-        Console.WriteLine($"No-motion worker: escaped={escaped?.GetType().Name ?? "none"}; status={document.Status}; phase={document.Phase}; callbackFailure={simulateCallbackFailure}");
-        Program.Check(escaped == null || simulateCallbackFailure && escaped is IOException,
+        Console.WriteLine($"No-motion worker: escaped={escaped?.GetType().Name ?? "none"}; status={document.Status}; phase={document.Phase}");
+        Program.Check(escaped == null,
             "expected no-motion data failure is contained by application completion boundary");
         Program.Check(document.Terminal && document.Status == "Failed" && document.Phase == "Failed",
             "zero-motion accepted task reaches Failed instead of remaining Processing");
@@ -166,8 +157,8 @@ internal static class NoMotionChecks
         Program.Check(latest.Status == "Failed" && latest.Error?.Code == "SCAN_LINE_002", "latest line cache leaves Processing on expected failure");
         var queried = await application.GetTaskResultAsync(taskId);
         Program.Check(queried.Data?.Status == "Failed" && queried.Data.Error?.Code == "SCAN_LINE_002", "actual task query preserves terminal failure");
-        Program.Check(callbackPayloads.Count == 1 && callbackPayloads[0].Status == "Failed" && callbackPayloads[0].Result == null
-            && callbackPayloads[0].TraceId == document.TraceId, "callback receives matching failed payload and trace metadata");
+        Program.Check(document.CallbackUrl == callbackUrl && document.CallbackAttempts == 0 && !document.CallbackDelivered,
+            "failed task retains pending callback metadata for the independent callback worker");
     }
 
     sealed record OfflineCapture(SickCSharpLineScanner Adapter, System.Collections.IDictionary Captures,

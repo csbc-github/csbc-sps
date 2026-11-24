@@ -41,6 +41,8 @@ public class FeedingViewModel : ViewModelBase
     private bool _isScanning;
     private bool _userStoppedLive;
     private bool _livePollBusy;
+    private bool _previewStartBusy;
+    private DateTimeOffset _nextPreviewStartAtUtc;
     private string _liveHint = "正在連接線掃描器…";
     private DispatcherTimer? _liveTimer;
     private bool _selectingRegion;
@@ -411,10 +413,7 @@ public class FeedingViewModel : ViewModelBase
         _liveTimer?.Stop();
         _connectionTimer?.Stop();
         _linePollTimer?.Stop();
-        if (IsScanning)
-        {
-            await StopAsync().ConfigureAwait(false);
-        }
+        await StopAsync().ConfigureAwait(false);
     }
 
     /// <summary>剖面點選回呼（由 FeedingView 轉發）。</summary>
@@ -526,7 +525,8 @@ public class FeedingViewModel : ViewModelBase
 
         CancelDesktopCalibration();
         ScanStatusText = "正在凍結輪廓…";
-        await CaptureProfileAsync().ConfigureAwait(false);
+        // Selection state belongs to the WPF dispatcher after the HTTP capture.
+        await CaptureProfileAsync();
         if (!IsProfileFrozen || ProfileSnapPoints.Count < 2)
         {
             ScanStatusText = "還沒有剖面，無法框選";
@@ -542,7 +542,7 @@ public class FeedingViewModel : ViewModelBase
     {
         CancelDesktopCalibration();
         IsSelectingRegion = false;
-        await CaptureProfileAsync().ConfigureAwait(false);
+        await CaptureProfileAsync();
         if (!IsProfileFrozen || ProfileSnapPoints.Count == 0)
         {
             return;
@@ -565,13 +565,18 @@ public class FeedingViewModel : ViewModelBase
 
     private async Task ResumeLiveAfterProfileAsync()
     {
-        IsProfileFrozen = false;
-        ProfileSnapPoints.Clear();
-        IsPickingDesktopPoints = false;
-        _desktopPointsChosen = 0;
-        IsSelectingRegion = false;
-        LiveHint = "架設預覽";
-        ScanStatusText = "已恢復即時剖面";
+        // Save/clear HTTP continuations can arrive on a worker thread. The collection
+        // change synchronously reaches LidarScanView and must run on its dispatcher.
+        await RunOnUiAsync(() =>
+        {
+            IsProfileFrozen = false;
+            ProfileSnapPoints.Clear();
+            IsPickingDesktopPoints = false;
+            _desktopPointsChosen = 0;
+            IsSelectingRegion = false;
+            LiveHint = "架設預覽";
+            ScanStatusText = "已恢復即時剖面";
+        });
         if (!_userStoppedLive)
         {
             await StartAsync().ConfigureAwait(false);
@@ -779,7 +784,7 @@ public class FeedingViewModel : ViewModelBase
             });
             return true;
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
             await RunOnUiAsync(() => ScanStatusText = "儲存兩點失敗：" + ex.Message);
             return false;
@@ -805,7 +810,7 @@ public class FeedingViewModel : ViewModelBase
             await ResumeLiveAfterProfileAsync().ConfigureAwait(false);
             await RunOnUiAsync(() => ScanStatusText = "兩點桌面校正已清除");
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
             await RunOnUiAsync(() => ScanStatusText = "清除兩點失敗：" + ex.Message);
         }
@@ -862,7 +867,7 @@ public class FeedingViewModel : ViewModelBase
             await RunOnUiAsync(() => ApplyScannerSettingsJson(body));
             await ResumeLiveAfterProfileAsync().ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
             await RunOnUiAsync(() => ScanStatusText = "ROI 未寫入服務，請確認掃描服務已啟動");
         }
@@ -894,57 +899,131 @@ public class FeedingViewModel : ViewModelBase
 
     private async Task StartAsync()
     {
-        _userStoppedLive = false;
+        await RunOnUiAsync(() =>
+        {
+            _userStoppedLive = false;
+            _nextPreviewStartAtUtc = DateTimeOffset.MinValue;
+        });
+        await StartPreviewAsync().ConfigureAwait(false);
+    }
+
+    private async Task StartPreviewAsync()
+    {
+        var shouldStart = false;
+        await RunOnUiAsync(() =>
+        {
+            if (_previewStartBusy || _userStoppedLive || _apiLineRecording
+                || _selectingRegion || _profileFrozen || _isPickingDesktopPoints
+                || DateTimeOffset.UtcNow < _nextPreviewStartAtUtc)
+            {
+                return;
+            }
+
+            _previewStartBusy = true;
+            _nextPreviewStartAtUtc = DateTimeOffset.UtcNow.AddSeconds(3);
+            shouldStart = true;
+        });
+        if (!shouldStart)
+        {
+            return;
+        }
+
         try
         {
             var scannerId = ResolveDefaultScannerId();
             var json = JsonSerializer.Serialize(new { scannerId });
-            var response = await LineResultHttp.PostAsync(
+            using var response = await LineResultHttp.PostAsync(
                 ApiBase() + "/api/scan/line/setup/start",
                 new StringContent(json, Encoding.UTF8, "application/json")).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 await RunOnUiAsync(() =>
                 {
-                    ScanStatusText = "無法啟動架設預覽";
-                    OverallStatus = SystemStatus.Error;
+                    if (_userStoppedLive || _profileFrozen || _selectingRegion || _isPickingDesktopPoints || _apiLineRecording)
+                    {
+                        return;
+                    }
+
+                    IsScanning = false;
+                    LiveHint = "等待恢復架設預覽";
+                    ScanStatusText = "架設預覽尚未啟動，稍後自動重試（HTTP " + (int)response.StatusCode + "）";
+                    OverallStatus = SystemStatus.Warning;
                 });
                 return;
             }
 
-            IsScanning = true;
+            var stoppedWhileStarting = false;
             await RunOnUiAsync(() =>
             {
+                stoppedWhileStarting = _userStoppedLive;
+                if (_userStoppedLive || _profileFrozen || _selectingRegion || _isPickingDesktopPoints || _apiLineRecording)
+                {
+                    return;
+                }
+
+                IsScanning = true;
                 LiveHint = "架設預覽";
                 ScanStatusText = "即時剖面 · API";
                 OverallStatus = SystemStatus.Warning;
             });
+            if (stoppedWhileStarting)
+            {
+                // A stop can finish before the pending start reaches the service.
+                // Close that late preview too, including when the window was closed.
+                await StopPreviewRequestAsync().ConfigureAwait(false);
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            await RunOnUiAsync(() => ScanStatusText = ex.Message);
+            await RunOnUiAsync(() =>
+            {
+                if (!_userStoppedLive && !_profileFrozen && !_selectingRegion && !_isPickingDesktopPoints && !_apiLineRecording)
+                {
+                    IsScanning = false;
+                    LiveHint = "等待恢復架設預覽";
+                    ScanStatusText = "架設預覽連線失敗，稍後自動重試：" + ex.Message;
+                    OverallStatus = SystemStatus.Warning;
+                }
+            });
+        }
+        finally
+        {
+            await RunOnUiAsync(() => _previewStartBusy = false);
         }
     }
 
     private async Task StopAsync()
     {
-        _userStoppedLive = true;
+        await RunOnUiAsync(() => _userStoppedLive = true);
         try
         {
-            var scannerId = ResolveDefaultScannerId();
-            var json = JsonSerializer.Serialize(new { scannerId });
-            await LineResultHttp.PostAsync(
-                ApiBase() + "/api/scan/line/setup/stop",
-                new StringContent(json, Encoding.UTF8, "application/json")).ConfigureAwait(false);
+            await StopPreviewRequestAsync().ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
         }
 
-        IsScanning = false;
-        LiveHint = "已停止即時剖面";
-        ScanStatusText = "已停止";
-        OverallStatus = SystemStatus.Normal;
+        await RunOnUiAsync(() =>
+        {
+            if (!_userStoppedLive)
+            {
+                return;
+            }
+
+            IsScanning = false;
+            LiveHint = "已停止即時剖面";
+            ScanStatusText = "已停止";
+            OverallStatus = SystemStatus.Normal;
+        });
+    }
+
+    private static async Task StopPreviewRequestAsync()
+    {
+        var scannerId = ResolveDefaultScannerId();
+        var json = JsonSerializer.Serialize(new { scannerId });
+        using var response = await LineResultHttp.PostAsync(
+            ApiBase() + "/api/scan/line/setup/stop",
+            new StringContent(json, Encoding.UTF8, "application/json")).ConfigureAwait(false);
     }
 
     private void StartLiveWatch()
@@ -995,23 +1074,31 @@ public class FeedingViewModel : ViewModelBase
             {
                 await dispatcher.InvokeAsync(() => ApplyLive(json));
             }
+
+            var needsPreview = false;
+            await RunOnUiAsync(() => needsPreview = !_apiLineRecording && !_userStoppedLive
+                && !_profileFrozen && !_selectingRegion && !_isPickingDesktopPoints
+                && ProfileSnapPoints.Count == 0);
+            if (needsPreview)
+            {
+                // Recording takes ownership of the scanner and closes setup preview.
+                // Restart it when the task ends, or after the API service restarts.
+                await StartPreviewAsync().ConfigureAwait(false);
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
-            var dispatcher = System.Windows.Application.Current?.Dispatcher;
-            if (dispatcher == null || dispatcher.CheckAccess())
+            await RunOnUiAsync(() =>
             {
+                if (_userStoppedLive || _profileFrozen || _selectingRegion || _isPickingDesktopPoints)
+                {
+                    return;
+                }
+
+                IsScanning = false;
                 LiveHint = "無法讀取 line/live";
                 ScanStatusText = ex.Message;
-            }
-            else
-            {
-                _ = dispatcher.BeginInvoke(() =>
-                {
-                    LiveHint = "無法讀取 line/live";
-                    ScanStatusText = ex.Message;
-                });
-            }
+            });
         }
         finally
         {
@@ -1021,7 +1108,7 @@ public class FeedingViewModel : ViewModelBase
 
     private void ApplyLive(string json)
     {
-        if (_selectingRegion || _profileFrozen)
+        if (_selectingRegion || _profileFrozen || _isPickingDesktopPoints)
         {
             return;
         }
@@ -1030,9 +1117,17 @@ public class FeedingViewModel : ViewModelBase
         var root = doc.RootElement;
         var recording = root.TryGetProperty("recording", out var flag) && flag.ValueKind == JsonValueKind.True;
         _apiLineRecording = recording;
+        if (_userStoppedLive)
+        {
+            IsScanning = false;
+            return;
+        }
+
         if (recording)
         {
+            IsScanning = true;
             LiveHint = "線掃描錄製中";
+            ScanStatusText = "線掃描任務進行中";
             _ = RefreshConnectionAsync();
             if (root.TryGetProperty("x", out var xs) && root.TryGetProperty("y", out var ys))
             {
@@ -1043,11 +1138,12 @@ public class FeedingViewModel : ViewModelBase
         }
 
         _apiLineRecording = false;
-        IsScanning = !_userStoppedLive;
+        IsScanning = false;
         if (root.TryGetProperty("x", out var setupX) && root.TryGetProperty("y", out var setupY))
         {
             if (ApplyNativeLive(setupX, setupY))
             {
+                IsScanning = true;
                 LiveHint = "架設預覽";
                 ScanStatusText = "即時剖面 · API";
                 OverallStatus = SystemStatus.Normal;

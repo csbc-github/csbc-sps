@@ -20,10 +20,17 @@ internal static class Program
         try
         {
             ProtocolChecks();
+            RawAveragingChecks.Run();
+            RawRecordingChecks.Run();
+            RawCornerChecks.Run();
             AveragingChecks();
             var measured = ProfileAndServiceChecks();
             await ContextChecks.RunAsync();
             await NoMotionChecks.RunAsync();
+            await ScanCompletionChecks.RunAsync();
+            await TerminalTransitionChecks.RunAsync();
+            await LiveStateChecks.RunAsync();
+            MeasurementDiagnosticsChecks.Run();
             await EncoderSimulationChecks.RunAsync();
             await EncoderSimulationHostChecks.RunAsync();
             await HttpChecks.RunAsync(measured);
@@ -166,7 +173,7 @@ internal static class Program
         Near(profile.RightMm, expected.GetProperty(mirror ? "LeftMm" : "RightMm").GetDouble(), name + " right");
         Near(profile.WidthMm, expected.GetProperty("WidthMm").GetDouble(), name + " width");
         Near(profile.CorrectedHeightMm, expected.GetProperty("CorrectedHeightMm").GetDouble(), name + " peak height");
-        Check(profile.AutoCalibrationModel == "scan_order_contacts_v3", name + " explicit scene model");
+        Check(profile.AutoCalibrationModel == Profile.SceneContactModel, name + " explicit scene model");
         Check(profile.LegPoints?.Length == 3, name + " displayed feature geometry");
         var local = profile.LegPoints!.Select(calibration.Transform).ToArray();
         var reference = expected.GetProperty("local_points");

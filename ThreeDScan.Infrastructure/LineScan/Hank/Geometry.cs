@@ -87,7 +87,7 @@ public record ProfileResult(P[] Points, double LeftMm, double RightMm, double Wi
             result["auto_calibration"] = true; result["auto_calibration_model"] = AutoCalibrationModel;
             result["auto_face_reliable"] = AutoFaceReliable; result["auto_endpoint_actions"] = AutoEndpointActions;
             result["leg_points"] = LegPoints?.Select(Point).ToArray();
-            if (AutoCalibrationModel == Profile.SceneContactModel)
+            if (AutoCalibrationModel is Profile.SceneContactModel or Profile.PreviousSceneContactModel)
             {
                 result["table_contact_offsets_mm"] = TableContactOffsetsMm;
                 result["face_chord_rms_mm"] = FaceChordRmsMm;
@@ -110,7 +110,8 @@ public static partial class Profile
     public const double TrialHeightOffsetMm = 6.0;
     public const double AutoHeightOffsetMm = 1.9528341984012556;
     public const string AutoCalibrationModel = "bounded_face_blend_v2";
-    public const string SceneContactModel = "scan_order_contacts_v3";
+    public const string PreviousSceneContactModel = "scan_order_contacts_v3";
+    public const string SceneContactModel = "scan_order_contacts_v4";
 
     static double Median(IEnumerable<double> values) { var a = values.Order().ToArray(); return (a[(a.Length-1)/2]+a[a.Length/2])/2; }
     public static Line FitFace(List<P> points)
@@ -146,7 +147,8 @@ public static partial class Profile
     public static ProfileResult AutoCorrect(ProfileResult report, Calibration calibration, Line[] faces, Line?[] tables,
         string model = AutoCalibrationModel, List<P>? nativePoints = null)
     {
-        if (model == SceneContactModel) return CorrectSceneContacts(report, calibration, faces, tables, nativePoints ?? []);
+        if (model is SceneContactModel or PreviousSceneContactModel)
+            return CorrectSceneContacts(report, calibration, faces, tables, nativePoints ?? [], model);
         var raw = report.Points.Select(calibration.Transform).ToArray(); var peak = raw[1]; var ends = new[] {raw[0],raw[2]};
         var lines = faces.Select(f => FitFace(f.Points)).ToArray(); var top = lines[0].Intersect(lines[1]);
         bool reliable = top is P t && t.X >= ends[0].X-2 && t.X <= ends[1].X+2 && t.Y > 0 && t.Distance(peak) <= 10 && lines.Max(l => l.Rms) <= 2;
@@ -220,9 +222,10 @@ public static partial class Profile
         return Math.Abs(steps[1].Dot(line.Direction)) / distance >= .98;
     }
 
-    public static List<Line> Segments(List<P> points, double tolerance = 2, int min = 4, double gap = 12, bool recoverSparse = false, int trim = 0)
+    public static List<Line> Segments(List<P> points, double tolerance = 2, int min = 4, double gap = 12,
+        bool recoverSparse = false, int trim = 0, bool recoverSceneSampling = false)
     {
-        var runs = new List<List<P>>(); for (int i = 0; i < points.Count; i++) { var p = points[i]; if (i == 0 || points[i-1].Distance(p) > gap && !(recoverSparse && SparseEdgeBridge(points, i, gap))) runs.Add([]); runs[^1].Add(p); }
+        var runs = new List<List<P>>(); for (int i = 0; i < points.Count; i++) { var p = points[i]; if (i == 0 || points[i-1].Distance(p) > gap && !(recoverSparse && (recoverSceneSampling ? SceneSparseEdgeBridge(points, i, gap) : SparseEdgeBridge(points, i, gap)))) runs.Add([]); runs[^1].Add(p); }
         var result = new List<Line>();
         foreach (var run in runs)
         {
@@ -268,7 +271,8 @@ public static partial class Profile
         if (autoCalibrate) { cleanTable=false; recoverSparse=true; correction=0; }
         calibration.Validate(); if (!double.IsFinite(correction)) throw new ArgumentException("高度補償無效");
         var pairs = source.Where(p => p.Finite).Select(p => (Level: calibration.Transform(p), Raw: p)).ToList();
-        bool sceneContacts = autoCalibrate && autoModel == SceneContactModel;
+        bool sceneContacts = autoCalibrate && autoModel is SceneContactModel or PreviousSceneContactModel;
+        bool recoverSceneSampling = autoCalibrate && autoModel == SceneContactModel;
         if (sceneContacts)
         {
             // Near-vertical faces must follow their physical ray sequence.
@@ -291,7 +295,7 @@ public static partial class Profile
                 pairs.AddRange(group);
             }
         }
-        var points = pairs.Select(p => p.Level).ToList(); var segments = Segments(points, recoverSparse: recoverSparse); var results = new List<ProfileResult>(); double last = double.NegativeInfinity;
+        var points = pairs.Select(p => p.Level).ToList(); var segments = Segments(points, recoverSparse: recoverSparse, recoverSceneSampling: recoverSceneSampling); var results = new List<ProfileResult>(); double last = double.NegativeInfinity;
         for (int i = 0; i < segments.Count - 1; i++)
         {
             var l = segments[i]; var r = segments[i + 1]; if (l.Points[^1].Distance(r.Points[0]) > 12) continue; double angle = Math.Acos(Math.Clamp(Math.Abs(l.Direction.Dot(r.Direction)), -1, 1)) * 180 / Math.PI; var apex = l.Intersect(r); if (apex is not P top || Math.Abs(angle - 90) > 30 || top.Y < 5) continue; var lf = l.Far(top); var rf = r.Far(top);
@@ -308,7 +312,7 @@ public static partial class Profile
             var peak = upright ? samples.MinBy(p => p.Level.Distance(top)) : highest;
             if (peak.Level.X < a.X || peak.Level.X > c.X || Math.Min(a.Distance(peak.Level), c.Distance(peak.Level)) < 1e-6) continue;
             if (highest.Level.Y + correction <= 0) throw new ArgumentException("補償高度不可小於零");
-            var gaps = Enumerable.Range(1, points.Count - 1).Where(k => recoverSparse && points[k-1].X >= a.X && points[k-1].X <= c.X && points[k].X >= a.X && points[k].X <= c.X && SparseEdgeBridge(points, k)).Select(k => points[k-1].Distance(points[k])).ToArray();
+            var gaps = Enumerable.Range(1, points.Count - 1).Where(k => recoverSparse && points[k-1].X >= a.X && points[k-1].X <= c.X && points[k].X >= a.X && points[k].X <= c.X && (recoverSceneSampling ? SceneSparseEdgeBridge(points, k) : SparseEdgeBridge(points, k))).Select(k => points[k-1].Distance(points[k])).ToArray();
             var warnings = new List<string>();
             if (gaps.Length > 0) warnings.Add($"已保留稀疏直邊掃描點（最大點距 {gaps.Max().ToString("F2", System.Globalization.CultureInfo.InvariantCulture)} mm）；邊長仍依可見端點量測");
             if (Math.Max(a.Y, c.Y) > 4) warnings.Add("端點高於桌面：顯示可見邊長，未外推到底線");

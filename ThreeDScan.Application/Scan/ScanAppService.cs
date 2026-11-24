@@ -290,7 +290,7 @@ public sealed class ScanAppService : IScanAppService
             var baseline = await _rollerCalibration.GetAsync(doc.ScannerId, ct).ConfigureAwait(false);
             if (baseline is null)
             {
-                await FinishLineTaskFailedAsync(taskId, callbackUrl, "SCAN_LINE_003", "尚未完成滾輪校正，無法提供絕對高度。", ct)
+                await FinishLineTaskFailedAsync(taskId, "SCAN_LINE_003", "尚未完成滾輪校正，無法提供絕對高度。", ct)
                     .ConfigureAwait(false);
                 return;
             }
@@ -309,17 +309,29 @@ public sealed class ScanAppService : IScanAppService
                 AngleIrons = parts.Select(ToAngleIron).ToList(),
             };
             var resultJson = JsonSerializer.SerializeToElement(result, JsonOptions);
+            var completed = false;
             await _scanTaskStore.UpdateAsync(
                 taskId,
                 d =>
                 {
+                    if (d.Terminal)
+                    {
+                        return;
+                    }
+
                     d.Status = "Completed";
                     d.Phase = "Completed";
                     d.Result = resultJson;
                     d.Error = null;
                     d.CapturedAt = DateTimeOffset.UtcNow;
+                    completed = true;
                 },
                 ct).ConfigureAwait(false);
+            if (!completed)
+            {
+                return;
+            }
+
             _devices.ReleaseByTaskId(taskId);
             var payload = new TaskResultData
             {
@@ -330,17 +342,26 @@ public sealed class ScanAppService : IScanAppService
                 TraceId = doc.TraceId,
             };
             _taskResults.SetLatestLine(payload);
-            await _callback.NotifyAsync(callbackUrl, payload, ct).ConfigureAwait(false);
+            // ScanCallbackWorker delivers the persisted terminal task separately.
+            // Network retries must not occupy the single accepted-work consumer.
         }
-        catch (Exception ex) when (ex is ArgumentException or ScanTaskException or InvalidOperationException or TimeoutException or IOException or JsonException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // An accepted job must leave Processing even for malformed recorded data
+            // or an unexpected measurement failure. InvalidDataException is not an
+            // IOException and previously escaped into the generic queue logger.
+            _logger.LogError(ex, "線掃描完成失敗（taskId={TaskId}）。", taskId);
             doc = await _scanTaskStore.FindAsync(taskId, ct).ConfigureAwait(false);
-            if (doc is null || doc.Status == "Aborted")
+            if (doc is null || doc.Terminal)
             {
                 return;
             }
 
-            await FinishLineTaskFailedAsync(taskId, callbackUrl, "SCAN_LINE_002", ex.Message, ct).ConfigureAwait(false);
+            await FinishLineTaskFailedAsync(taskId, "SCAN_LINE_002", ex.Message, ct).ConfigureAwait(false);
         }
     }
 
@@ -366,14 +387,26 @@ public sealed class ScanAppService : IScanAppService
         }
 
         var traceId = Guid.NewGuid().ToString("N");
+        var aborted = false;
         await _scanTaskStore.UpdateAsync(
             taskId,
             d =>
             {
+                if (d.Terminal)
+                {
+                    return;
+                }
+
                 d.Status = "Aborted";
                 d.Phase = "Aborted";
+                aborted = true;
             },
             ct).ConfigureAwait(false);
+        if (!aborted)
+        {
+            return DasOperationResult<ScanAbortData>.Fail("SCAN_LINE_001", "taskId 不存在或已逾時。");
+        }
+
         await _lineScanner.AbortRecordingAsync(_scanTaskStore.TaskDirectory(taskId), ct).ConfigureAwait(false);
         _devices.ReleaseByTaskId(taskId);
         var payload = new TaskResultData
@@ -402,14 +435,26 @@ public sealed class ScanAppService : IScanAppService
             return;
         }
 
+        var expired = false;
         await _scanTaskStore.UpdateAsync(
             taskId,
             d =>
             {
+                if (d.Terminal)
+                {
+                    return;
+                }
+
                 d.Status = "Aborted";
                 d.Phase = "Aborted";
+                expired = true;
             },
             ct).ConfigureAwait(false);
+        if (!expired)
+        {
+            return;
+        }
+
         await _lineScanner.AbortRecordingAsync(_scanTaskStore.TaskDirectory(taskId), ct).ConfigureAwait(false);
         _devices.ReleaseByTaskId(taskId);
         _taskResults.Remove(taskId);
@@ -1132,21 +1177,33 @@ public sealed class ScanAppService : IScanAppService
 
     private async Task FinishLineTaskFailedAsync(
         string taskId,
-        string callbackUrl,
         string code,
         string message,
         CancellationToken ct)
     {
         var doc = await _scanTaskStore.FindAsync(taskId, ct).ConfigureAwait(false);
+        var failed = false;
         await _scanTaskStore.UpdateAsync(
             taskId,
             d =>
             {
+                if (d.Terminal)
+                {
+                    return;
+                }
+
                 d.Status = "Failed";
                 d.Phase = "Failed";
+                d.Result = null;
                 d.Error = new TaskApiError { Code = code, Message = message };
+                failed = true;
             },
             ct).ConfigureAwait(false);
+        if (!failed)
+        {
+            return;
+        }
+
         _devices.ReleaseByTaskId(taskId);
         var payload = new TaskResultData
         {
@@ -1161,7 +1218,6 @@ public sealed class ScanAppService : IScanAppService
             TraceId = doc?.TraceId ?? "",
         };
         _taskResults.SetLatestLine(payload);
-        await _callback.NotifyAsync(callbackUrl, payload, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -1188,18 +1244,19 @@ public sealed class ScanAppService : IScanAppService
         foreach (var id in await _scanTaskStore.NonTerminalTaskIdsAsync(ct).ConfigureAwait(false))
         {
             var doc = await _scanTaskStore.FindAsync(id, ct).ConfigureAwait(false);
-            if (doc is not null && doc.Kind == "Line" && doc.Phase == "LineAcquiring")
+            if (doc is not null && !doc.Terminal && doc.Kind == "Line"
+                && doc.Phase is "LineAcquiring" or "LineProcessing")
             {
-                if (_lineDevice.TryGetRecordingLive(id, out var x, out var y))
+                // No fresh averaged frame does not mean the scanner is idle. Keep
+                // the same busy contract as setup/start until this task is terminal.
+                var hasSnapshot = _lineDevice.TryGetRecordingLive(id, out var x, out var y);
+                return new LineScanLiveFrame
                 {
-                    return new LineScanLiveFrame
-                    {
-                        Recording = true,
-                        TaskId = id,
-                        X = x,
-                        Y = y,
-                    };
-                }
+                    Recording = true,
+                    TaskId = id,
+                    X = hasSnapshot ? x : [],
+                    Y = hasSnapshot ? y : [],
+                };
             }
         }
 
