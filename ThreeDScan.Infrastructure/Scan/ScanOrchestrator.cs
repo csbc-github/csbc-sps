@@ -635,7 +635,8 @@ public sealed class ScanOrchestrator : IScanOrchestrator
             };
             x.Result = JsonDefaults.Element(resultPayload);
         }, ct).ConfigureAwait(false);
-        WriteHoleBoundary(d, capturedAt, featureBoundary);
+        // 監看檔：右表座標 + WPF 研磨區左側 raw PLY 點雲路徑。
+        WriteHoleBoundary(d, capturedAt, featureBoundary, rawPly);
     }
 
     /// <inheritdoc />
@@ -1363,7 +1364,14 @@ public sealed class ScanOrchestrator : IScanOrchestrator
         }
     }
 
-    private void WriteHoleBoundary(TaskDocument d, DateTimeOffset capturedAt, FeaturePoint[] boundary)
+    /// <summary>
+    /// 寫入孔洞監看檔（<c>featureBoundary</c> 與 <c>rawPlyPath</c>），供 WPF 研磨區右表與左側 3D 點雲。
+    /// </summary>
+    /// <param name="d">任務文件。</param>
+    /// <param name="capturedAt">擷取時間。</param>
+    /// <param name="boundary">孔緣輪廓（公開絕對座標）。</param>
+    /// <param name="rawPlyPath">本次孔洞擷取之 <c>capture\raw.ply</c> 絕對路徑（掃描器座標，供點雲顯示）。</param>
+    private void WriteHoleBoundary(TaskDocument d, DateTimeOffset capturedAt, FeaturePoint[] boundary, string rawPlyPath)
     {
         try
         {
@@ -1381,6 +1389,7 @@ public sealed class ScanOrchestrator : IScanOrchestrator
                 scanId = "SCAN-" + d.TaskId,
                 capturedAt,
                 featureBoundary = boundary,
+                rawPlyPath = Path.GetFullPath(rawPlyPath),
                 updatedAt = DateTimeOffset.Now,
             }, JsonDefaults.Options));
         }

@@ -6,7 +6,9 @@ using ThreeDScan.Domain.Models;
 
 namespace ThreeDScan.Infrastructure.Scan;
 
-/// <summary>解析 ContentsRoot/_monitor/latest-hole-boundary.json。</summary>
+/// <summary>
+/// 解析 ContentsRoot/_monitor/latest-hole-boundary.json（<c>featureBoundary</c>、<c>rawPlyPath</c>）。
+/// </summary>
 public sealed class HoleBoundaryReader : IHoleBoundaryReader
 {
     /// <inheritdoc />
@@ -39,9 +41,23 @@ public sealed class HoleBoundaryReader : IHoleBoundaryReader
                 });
             }
 
+            // WPF 研磨區 3D 點雲：API 自孔洞掃描寫入 rawPlyPath（舊檔可無此欄）。
+            string? plyPath = null;
+            if (doc.RootElement.TryGetProperty("rawPlyPath", out var plyEl)
+                && plyEl.ValueKind == JsonValueKind.String)
+            {
+                plyPath = plyEl.GetString();
+            }
+            else if (doc.RootElement.TryGetProperty("RawPlyPath", out var plyEl2)
+                && plyEl2.ValueKind == JsonValueKind.String)
+            {
+                plyPath = plyEl2.GetString();
+            }
+
             return new HoleBoundarySnapshot
             {
                 Points = points,
+                RawPlyPath = string.IsNullOrWhiteSpace(plyPath) ? null : plyPath.Trim(),
             };
         }
         catch (IOException)

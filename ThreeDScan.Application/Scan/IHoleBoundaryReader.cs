@@ -7,6 +7,6 @@ public interface IHoleBoundaryReader
 {
     /// <summary>讀 ContentsRoot 下的 latest-hole-boundary.json；沒有檔或解析失敗回 null。</summary>
     /// <param name="contentsRoot">appsettings Storage:ContentsRoot。</param>
-    /// <returns>邊界座標；無法讀取時為 null。</returns>
+    /// <returns>邊界座標與可選的 raw PLY 路徑；無法讀取時為 null。</returns>
     HoleBoundarySnapshot? TryRead(string contentsRoot);
 }

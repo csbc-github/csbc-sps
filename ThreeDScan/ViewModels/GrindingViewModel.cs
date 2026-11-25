@@ -7,51 +7,54 @@ using ThreeDScan.Common;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Infrastructure.Scan;
 using ThreeDScan.Models;
+using ThreeDScan.Services;
 
 namespace ThreeDScan.ViewModels;
 
-/// <summary>研磨區：顯示本次孔洞 featureBoundary。</summary>
+/// <summary>研磨區：監看孔洞邊界檔，左側僅顯示 3D 點雲、右側顯示座標表。</summary>
+/// <remarks>
+/// 點雲來自監看檔 <c>rawPlyPath</c>（掃描器座標）；
+/// <see cref="PathPoints"/> 來自 <c>featureBoundary</c>（公開絕對座標）。兩者座標系不同，3D 視窗不疊孔緣。
+/// </remarks>
 public class GrindingViewModel : ViewModelBase
 {
-    private bool _is3DMode = true;
     private FeaturePathPoint? _selectedPathPoint;
     private FileSystemWatcher? _watch;
     private int _watchVersion;
     private readonly string _contentsRoot;
     private readonly IHoleBoundaryReader _boundary;
+    private IReadOnlyList<PointCloudRenderVertex> _pointCloudVertices = Array.Empty<PointCloudRenderVertex>();
+    private bool _hasPointCloud;
 
     /// <summary>邊界座標序列。</summary>
     public ObservableCollection<FeaturePathPoint> PathPoints { get; } = new();
 
-    /// <summary>2D 模式。</summary>
-    public bool Is2DMode
+    /// <summary>WPF 3D 點雲頂點（掃描器座標）。</summary>
+    public IReadOnlyList<PointCloudRenderVertex> PointCloudVertices
     {
         get
         {
-            return !_is3DMode;
+            return _pointCloudVertices;
         }
-        set
+        private set
         {
-            if (SetProperty(ref _is3DMode, !value))
+            if (SetProperty(ref _pointCloudVertices, value))
             {
-                OnPropertyChanged(nameof(Is3DMode));
+                HasPointCloud = value.Count > 0;
             }
         }
     }
 
-    /// <summary>3D 模式。</summary>
-    public bool Is3DMode
+    /// <summary>是否有可顯示的點雲。</summary>
+    public bool HasPointCloud
     {
         get
         {
-            return _is3DMode;
+            return _hasPointCloud;
         }
-        set
+        private set
         {
-            if (SetProperty(ref _is3DMode, value))
-            {
-                OnPropertyChanged(nameof(Is2DMode));
-            }
+            SetProperty(ref _hasPointCloud, value);
         }
     }
 
@@ -89,6 +92,7 @@ public class GrindingViewModel : ViewModelBase
         _contentsRoot = config["Storage:ContentsRoot"] ?? "";
         _boundary = boundary;
         StartWatching();
+        QueueReload();
     }
 
     /// <summary>監看 ContentsRoot 下的孔洞邊界檔變更。</summary>
@@ -126,7 +130,7 @@ public class GrindingViewModel : ViewModelBase
         _ = ReloadAfterDelayAsync(version);
     }
 
-    /// <summary>延遲後把監看檔結果綁到清單。</summary>
+    /// <summary>延遲後把監看檔結果綁到清單與點雲。</summary>
     /// <param name="version">這次重載序號；過期則略過。</param>
     private async Task ReloadAfterDelayAsync(int version)
     {
@@ -136,11 +140,12 @@ public class GrindingViewModel : ViewModelBase
             return;
         }
 
-        ApplyBoundary();
+        await ApplyBoundaryAsync(version).ConfigureAwait(true);
     }
 
-    /// <summary>讀邊界並更新 <see cref="PathPoints"/>。</summary>
-    private void ApplyBoundary()
+    /// <summary>讀邊界並更新 <see cref="PathPoints"/> 與點雲。</summary>
+    /// <param name="version">重載序號。</param>
+    private async Task ApplyBoundaryAsync(int version)
     {
         var snapshot = _boundary.TryRead(_contentsRoot);
         if (snapshot is null)
@@ -163,6 +168,26 @@ public class GrindingViewModel : ViewModelBase
             i++;
         }
 
+        // 左側 3D：僅載入 raw PLY；舊版監看檔無 rawPlyPath 時維持佔位。
+        IReadOnlyList<PointCloudRenderVertex> verts = Array.Empty<PointCloudRenderVertex>();
+        if (!string.IsNullOrWhiteSpace(snapshot.RawPlyPath) && File.Exists(snapshot.RawPlyPath))
+        {
+            try
+            {
+                verts = await AsciiPlyPointCloudDisplayLoader.LoadAsync(snapshot.RawPlyPath, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                verts = Array.Empty<PointCloudRenderVertex>();
+            }
+        }
+
+        if (version != _watchVersion)
+        {
+            return;
+        }
+
         void Apply()
         {
             PathPoints.Clear();
@@ -172,6 +197,7 @@ public class GrindingViewModel : ViewModelBase
             }
 
             SelectedPathPoint = PathPoints.FirstOrDefault();
+            PointCloudVertices = verts;
         }
 
         var dispatcher = System.Windows.Application.Current?.Dispatcher;

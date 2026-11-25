@@ -20,7 +20,7 @@ public static class ScanMonitorPaths
     /// <summary>割切區狀態檔名。</summary>
     public const string CuttingStatusFileName = "latest-status-cutting.txt";
 
-    /// <summary>孔洞邊界監看檔名。</summary>
+    /// <summary>孔洞邊界監看檔名（含 featureBoundary、rawPlyPath 等 JSON 欄位）。</summary>
     public const string HoleBoundaryFileName = "latest-hole-boundary.json";
 
     /// <summary>最新 GLB 指標檔的絕對路徑（預設噴印區）。</summary>
@@ -76,8 +76,9 @@ public static class ScanMonitorPaths
         return Path.Combine(contentsRoot.Trim(), DirectoryName, name);
     }
 
-    /// <summary>孔洞邊界監看檔路徑。</summary>
+    /// <summary>孔洞邊界監看檔路徑（WPF 研磨區監看此檔）。</summary>
     /// <param name="contentsRoot">ContentsRoot。</param>
+    /// <returns>JSON 監看檔絕對路徑；contentsRoot 空白時為空字串。</returns>
     public static string HoleBoundaryFile(string? contentsRoot)
     {
         if (string.IsNullOrWhiteSpace(contentsRoot))

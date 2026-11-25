@@ -11,6 +11,7 @@
              d:DesignWidth="1200" d:DesignHeight="680">
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisInvert" Invert="True"/>
     </UserControl.Resources>
 
     <controls:AdaptiveSplitView Background="{StaticResource BackgroundBrush}"
@@ -20,24 +21,18 @@
                                 PrimaryMinHeight="280" SecondaryMinHeight="260">
         <controls:AdaptiveSplitView.PrimaryContent>
             <DockPanel Margin="12">
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                    <RadioButton Content="2D 高度圖" GroupName="GrindingViewMode"
-                                 IsChecked="{Binding Is2DMode}"
-                                 Style="{StaticResource ToggleButtonStyle}"/>
-                    <RadioButton Content="3D 點雲" GroupName="GrindingViewMode"
-                                 IsChecked="{Binding Is3DMode}"
-                                 Style="{StaticResource ToggleButtonStyle}" Margin="6,0,0,0"/>
-                </StackPanel>
+                <TextBlock DockPanel.Dock="Top" Text="3D 點雲（掃描器座標）"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Margin="0,0,0,8"/>
 
                 <Grid>
                     <controls:PreviewPlaceholder
-                        Visibility="{Binding Is2DMode, Converter={StaticResource BoolToVis}}"
-                        Title="2D 高度圖"
-                        SubTitle="研磨區面掃描特徵（UC-05）"/>
-                    <controls:PreviewPlaceholder
-                        Visibility="{Binding Is3DMode, Converter={StaticResource BoolToVis}}"
-                        Title="3D 研磨視圖"
-                        SubTitle="研磨區面掃描特徵（UC-05）"/>
+                        Visibility="{Binding HasPointCloud, Converter={StaticResource BoolToVisInvert}}"
+                        Title="尚無點雲"
+                        SubTitle="孔洞掃描完成後顯示 capture\raw.ply"/>
+                    <controls:PointCloudViewport
+                        Visibility="{Binding HasPointCloud, Converter={StaticResource BoolToVis}}"
+                        Vertices="{Binding PointCloudVertices}"/>
                 </Grid>
             </DockPanel>
         </controls:AdaptiveSplitView.PrimaryContent>
