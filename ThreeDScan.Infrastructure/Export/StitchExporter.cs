@@ -15,11 +15,13 @@ public static class StitchExporter
     /// <param name="sourceA">A 來源檔。</param>
     /// <param name="sourceB">B 來源檔。</param>
     /// <param name="output">輸出資料夾。</param>
-    public static void Save(ButtStitchResult result, string sourceA, string sourceB, string output)
+    /// <param name="exportPointClouds">是否另存診斷點雲；false 仍保留完整接縫報告與截面。</param>
+    public static void Save(ButtStitchResult result, string sourceA, string sourceB, string output, bool exportPointClouds = true)
     {
         Directory.CreateDirectory(output);
         string[] names = ["stitched.ply", "all_points_transformed.ply", "part_a_aligned.ply", "part_b_aligned.ply", "stitch-report.json", "seam-profile.csv"];
-        if (names.Any(name => File.Exists(Path.Combine(output, name))))
+        string[] outputNames = exportPointClouds ? names : [names[4], names[5]];
+        if (outputNames.Any(name => File.Exists(Path.Combine(output, name))))
         {
             throw new IOException("拼接結果已存在，請改用新的輸出資料夾。");
         }
@@ -56,20 +58,23 @@ public static class StitchExporter
             }
         }
 
-        ScanPly.Write(
-            Path.Combine(output, names[0]),
-            header,
-            Points(result.PartA, 0, true).Concat(Points(result.PartB, 1, true)),
-            result.StitchedPointCount,
-            "Nominal gap is an assumption for non-overlapping captures; no synthetic points");
-        ScanPly.Write(
-            Path.Combine(output, names[1]),
-            header,
-            Points(result.PartA, 0, false).Concat(Points(result.PartB, 1, false)),
-            result.TotalSourcePoints,
-            "Complete rigidly transformed inputs, including boundary points excluded from clean butt stitch");
-        ScanPly.Write(Path.Combine(output, names[2]), header, Points(result.PartA, 0, true), result.PartA.RetainedPointCount, "Retained scan A");
-        ScanPly.Write(Path.Combine(output, names[3]), header, Points(result.PartB, 1, true), result.PartB.RetainedPointCount, "Retained scan B");
+        if (exportPointClouds)
+        {
+            ScanPly.Write(
+                Path.Combine(output, names[0]),
+                header,
+                Points(result.PartA, 0, true).Concat(Points(result.PartB, 1, true)),
+                result.StitchedPointCount,
+                "Nominal gap is an assumption for non-overlapping captures; no synthetic points");
+            ScanPly.Write(
+                Path.Combine(output, names[1]),
+                header,
+                Points(result.PartA, 0, false).Concat(Points(result.PartB, 1, false)),
+                result.TotalSourcePoints,
+                "Complete rigidly transformed inputs, including boundary points excluded from clean butt stitch");
+            ScanPly.Write(Path.Combine(output, names[2]), header, Points(result.PartA, 0, true), result.PartA.RetainedPointCount, "Retained scan A");
+            ScanPly.Write(Path.Combine(output, names[3]), header, Points(result.PartB, 1, true), result.PartB.RetainedPointCount, "Retained scan B");
+        }
         var report = new
         {
             schemaVersion = 1,
@@ -89,7 +94,7 @@ public static class StitchExporter
             partA = result.PartA,
             partB = result.PartB,
             provenance = "source_scan: 0=A, 1=B; source_point_index is zero-based vertex index in the referenced input PLY; intensity and extra columns preserved",
-            files = names,
+            files = outputNames,
         };
         using (var stream = new FileStream(Path.Combine(output, names[4]), FileMode.CreateNew))
         {

@@ -1,5 +1,6 @@
 using System.Net.Http;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
 using ThreeDScan.Api.Auth;
 using ThreeDScan.Api.Common;
 using ThreeDScan.Api.Hubs;
@@ -11,6 +12,7 @@ using ThreeDScan.Application.Scan;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Infrastructure;
+using ThreeDScan.Infrastructure.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,6 +60,10 @@ builder.Services.AddScoped<LineScannerSettingsAppService>();
 builder.Services.AddSingleton<ICalibrationPreviewPublisher, SignalRCalibrationPreviewPublisher>();
 
 var app = builder.Build();
+
+var edgeRepair = app.Services.GetRequiredService<IOptions<SurfaceScanOrchestratorOptions>>().Value;
+app.Logger.LogInformation("Surface model outer-edge repair: enabled={Enabled}, minimum depth>{MinimumDepthMm} mm.",
+    edgeRepair.FillOuterEdges, edgeRepair.OuterEdgeRepairMinDepthMm);
 
 var contentsRoot = builder.Configuration["Storage:ContentsRoot"];
 if (!string.IsNullOrWhiteSpace(contentsRoot))

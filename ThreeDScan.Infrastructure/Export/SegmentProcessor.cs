@@ -5,7 +5,7 @@ using ThreeDScan.Infrastructure.Export.Models;
 namespace ThreeDScan.Infrastructure.Export;
 
 /// <summary>單段抽取、兩翼擬合與 PLY 輸出。</summary>
-/// <remarks>由 Hank Scan3D 的 SegmentProcessor 搬入，邏輯不改。</remarks>
+/// <remarks>高點建立候選、連續實測板面恢復低邊，再以獨立平面辨識兩翼。</remarks>
 public sealed class SegmentProcessor
 {
     private readonly CoordinateTransformOptions _coordinates;
@@ -56,12 +56,18 @@ public sealed class SegmentProcessor
         }
 
         var cloud = ScanPly.Read(rawPly);
+        var extractionOptions = new ExtractionOptions(options.ZThresholdMm, options.CellMm, options.MinimumComponentCells)
+        {
+            RecoverMeasuredEdges = options.RecoverMeasuredEdges,
+        };
         var extraction = AngleSteelExtractor.Process(
-            cloud,
-            new ExtractionOptions(options.ZThresholdMm, options.CellMm, options.MinimumComponentCells),
+            cloud, extractionOptions,
             cancellationToken: cancellationToken);
         var candidates = new List<ComponentCandidate>();
         var candidatePoints = new Dictionary<int, (ScanVector[] Points, int[] Indices, WingFit? Fit)>();
+        var localSupportDiagnostics = new Dictionary<int, LocalSupportDiagnostics>();
+        var localSupportWarnings = new Dictionary<int, string>();
+        int nextCandidateRank = extraction.Components.Select(c => c.Rank).DefaultIfEmpty(0).Max() + 1;
         foreach (var component in extraction.Objects)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -76,14 +82,11 @@ public sealed class SegmentProcessor
             WingFit? fit = null;
             string? reason = null;
             bool planar = false;
-            try
-            {
-                fit = GeometryFitting.FitWings(points, indices, options.MaximumPlaneRmsMm);
-            }
-            catch (InvalidOperationException ex)
-            {
-                reason = ex.Message;
-            }
+            var planeCandidates = points.Length >= 500
+                ? WingPlaneSegmentation.FindPlanes(points, Math.Clamp(options.MaximumPlaneRmsMm * 1.5, .25, 1), 4, cancellationToken)
+                : [];
+            GeometryFitting.TryFitWings(points, indices, options.MaximumPlaneRmsMm,
+                out fit, out reason, cancellationToken, planeCandidates);
 
             try
             {
@@ -121,6 +124,43 @@ public sealed class SegmentProcessor
                 Reason = reason,
             });
             candidatePoints[component.Rank] = (points, indices, fit);
+
+            // A raised table can join all its workpieces into a single XY
+            // component. Keep that parent for planar analysis and explicit rank
+            // selection; add only independently validated two-wing children.
+            if (options.Selection == ComponentSelection.AngleSteel && fit is null && planar && options.ZThresholdMm > 0)
+            {
+                var separated = LocalSupportPlaneSeparation.Find(
+                    cloud, points, indices, extraction.Calibration, extractionOptions,
+                    options.MaximumPlaneRmsMm, cancellationToken, planeCandidates);
+                localSupportDiagnostics[component.Rank] = separated.Diagnostics;
+                foreach (var child in separated.Children)
+                {
+                    int childRank = nextCandidateRank++;
+                    var childFit = child.Fit;
+                    double childConfidence = Math.Clamp(1 - Math.Max(childFit.Left.Rms, childFit.Right.Rms)
+                        / (options.MaximumPlaneRmsMm * 2), 0, 1)
+                        * Math.Min(1, (childFit.Left.Indices.Length + childFit.Right.Indices.Length)
+                            / (double)child.Points.Length);
+                    candidates.Add(new ComponentCandidate
+                    {
+                        Rank = childRank,
+                        ParentComponentRank = component.Rank,
+                        PointCount = child.Points.Length,
+                        CellCount = child.CellCount,
+                        ScannerBounds = ScanBounds.Of(child.Points),
+                        IsTwoWing = true,
+                        Confidence = childConfidence,
+                        LeftPlaneRmsMm = childFit.Left.Rms,
+                        RightPlaneRmsMm = childFit.Right.Rms,
+                        WingNormalAngleDegrees = childFit.NormalAngle,
+                        IsPlanar = false,
+                    });
+                    candidatePoints[childRank] = (child.Points, child.RawIndices, childFit);
+                    localSupportWarnings[childRank] = $"從 rank {component.Rank} 的局部支承板上方分離角鋼為 rank {childRank}；"
+                        + $"保留 {child.Points.Length:N0} 個原始實測點，通過完整兩翼檢查；支承板只用於選點，未改動座標。";
+                }
+            }
         }
 
         if (candidates.Count == 0)
@@ -149,44 +189,21 @@ public sealed class SegmentProcessor
 
         var chosen = candidatePoints[selected.Rank];
         var warnings = new List<string>(extraction.Warnings);
-        if (options.RecoverMeasuredEdges && chosen.Fit is not null)
+        if (localSupportWarnings.TryGetValue(selected.Rank, out string? supportWarning))
         {
-            int[] recovered = RecoverMeasuredWingEdges(cloud, chosen.Indices, chosen.Fit, options.ScannerRoi);
-            if (recovered.Length > chosen.Indices.Length)
-            {
-                var measured = recovered.Select(i => cloud.Points[i].Position).ToArray();
-                try
-                {
-                    var refit = GeometryFitting.FitWings(measured, recovered, options.MaximumPlaneRmsMm);
-                    int added = recovered.Length - chosen.Indices.Length;
-                    chosen = (measured, recovered, refit);
-                    warnings.Add($"同掃描列恢復 {added} 個連續且符合翼板平面的原始外緣量測點，避免 Z 高度門檻裁掉翼板邊緣；未補造或插值點。");
-                    int candidateIndex = candidates.FindIndex(c => c.Rank == selected.Rank);
-                    double confidence = Math.Clamp(1 - Math.Max(refit.Left.Rms, refit.Right.Rms) / (options.MaximumPlaneRmsMm * 2), 0, 1)
-                        * Math.Min(1, (refit.Left.Indices.Length + refit.Right.Indices.Length) / (double)measured.Length);
-                    candidates[candidateIndex] = new ComponentCandidate
-                    {
-                        Rank = selected.Rank,
-                        PointCount = recovered.Length,
-                        CellCount = selected.CellCount,
-                        ScannerBounds = ScanBounds.Of(measured),
-                        IsTwoWing = selected.IsTwoWing,
-                        Confidence = confidence,
-                        LeftPlaneRmsMm = refit.Left.Rms,
-                        RightPlaneRmsMm = refit.Right.Rms,
-                        WingNormalAngleDegrees = refit.NormalAngle,
-                        IsPlanar = selected.IsPlanar,
-                        Reason = selected.Reason,
-                    };
-                }
-                catch (InvalidOperationException ex)
-                {
-                    warnings.Add("外緣原量測擴充後兩翼品質未通過，保留原先抽取：" + ex.Message);
-                }
-            }
+            warnings.Add(supportWarning);
         }
-
-        warnings.Add("原有地面校正只用於物件分離；輸出與平面厚度均從原始 scanner 歐氏座標計算。");
+        var scanBounds = extraction.Calibration.AlignedBounds;
+        var objectBounds = selected.ScannerBounds;
+        var clipped = new List<string>();
+        const double boundaryTolerance = .25;
+        if (objectBounds.MinX <= scanBounds.MinX + boundaryTolerance) clipped.Add("X 最小");
+        if (objectBounds.MaxX >= scanBounds.MaxX - boundaryTolerance) clipped.Add("X 最大");
+        if (objectBounds.MinY <= scanBounds.MinY + boundaryTolerance) clipped.Add("Y 最小");
+        if (objectBounds.MaxY >= scanBounds.MaxY - boundaryTolerance) clipped.Add("Y 最大");
+        if (clipped.Count > 0)
+            warnings.Add($"選中物件接觸掃描範圍邊界（{string.Join("、", clipped)}）；範圍外沒有量測點，不能視為完整實體外緣，請核對擷取範圍。");
+        warnings.Add("地面平面只用於物件分離與外緣恢復；輸出與平面厚度均從原始 scanner 歐氏座標計算。");
         if (!_coordinates.IsCalibrated)
         {
             warnings.Add("Scanner→mount 外參/原點尚未完成現場儀器校正；目前絕對座標依設定值計算。預設 A 繞 X、C 繞 Z，角度為度，Rz(C)*Rx(A)。");
@@ -199,6 +216,13 @@ public sealed class SegmentProcessor
 
         SurfaceGeometry? geometry = null;
         string? geometryError = selected.Reason;
+        if (chosen.Fit is null && localSupportDiagnostics.TryGetValue(selected.Rank, out var supportDiagnostic)
+            && supportDiagnostic.Detected && supportDiagnostic.ValidChildCount == 0)
+        {
+            var failedChild = supportDiagnostic.Children.OrderByDescending(c => c.FinalPointCount).FirstOrDefault();
+            geometryError = failedChild is null ? supportDiagnostic.Reason
+                : $"已辨識支承板；其上方 {failedChild.FinalPointCount:N0} 個實測點未通過兩翼檢查：{failedChild.Reason}";
+        }
         if (chosen.Fit is not null)
         {
             try
@@ -295,6 +319,7 @@ public sealed class SegmentProcessor
                 coordinates = _coordinates,
                 processingOptions = options,
                 extractionGroundCorrection = extraction.Calibration,
+                localSupportSeparation = localSupportDiagnostics,
                 groundCorrectionPurpose = "Segmentation only; never used as a physical scanner-to-world transform.",
                 provenance = "Each output point retains its exact raw_point_index; all extra source vertex properties are retained.",
             }, ExtractionJson.Options);
@@ -329,53 +354,6 @@ public sealed class SegmentProcessor
     {
         return roi is null
             || (p.X >= roi.MinX && p.X <= roi.MaxX && p.Y >= roi.MinY && p.Y <= roi.MaxY && p.Z >= roi.MinZ && p.Z <= roi.MaxZ);
-    }
-
-    private static int[] RecoverMeasuredWingEdges(ScanCloud raw, int[] seeds, WingFit fit, ScannerRoi? roi)
-    {
-        // Same measured-row extension principle as the supplied latest StitchJob.Prepare.
-        // A candidate must continue the observed edge, lie on its fitted wing and be a raw measurement.
-        var rows = seeds.GroupBy(i => raw.Points[i].Position.Y).ToDictionary(g => g.Key, g =>
-            (Min: g.Min(i => raw.Points[i].Position.X), Max: g.Max(i => raw.Points[i].Position.X), Candidates: new List<int>()));
-        for (int i = 0; i < raw.Points.Length; i++)
-        {
-            var p = raw.Points[i].Position;
-            if (!Inside(p, roi) || !rows.TryGetValue(p.Y, out var row))
-            {
-                continue;
-            }
-
-            if (p.X >= row.Min - 25 && p.X <= row.Max + 25 && (p.X < row.Min || p.X > row.Max))
-            {
-                row.Candidates.Add(i);
-            }
-        }
-
-        var retained = seeds.ToHashSet();
-        foreach (var row in rows.Values)
-        {
-            foreach (bool right in new[] { false, true })
-            {
-                var plane = right ? fit.Right : fit.Left;
-                double edge = right ? row.Max : row.Min;
-                var ordered = right
-                    ? row.Candidates.Where(i => raw.Points[i].Position.X > edge).OrderBy(i => raw.Points[i].Position.X)
-                    : row.Candidates.Where(i => raw.Points[i].Position.X < edge).OrderByDescending(i => raw.Points[i].Position.X);
-                foreach (int i in ordered)
-                {
-                    var p = raw.Points[i].Position;
-                    if (Math.Abs(p.X - edge) > .8 || Math.Abs(plane.Normal.Dot(p) - plane.D) > .5)
-                    {
-                        break;
-                    }
-
-                    retained.Add(i);
-                    edge = p.X;
-                }
-            }
-        }
-
-        return retained.Order().ToArray();
     }
 
     private static void ValidateRoi(ScannerRoi? roi)

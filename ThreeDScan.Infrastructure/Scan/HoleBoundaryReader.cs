@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Globalization;
 using ThreeDScan.Application.Common.Models;
 using ThreeDScan.Application.Scan;
 using ThreeDScan.Application.Scan.Models;
@@ -24,40 +25,60 @@ public sealed class HoleBoundaryReader : IHoleBoundaryReader
         {
             using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var doc = JsonDocument.Parse(stream);
-            if (!doc.RootElement.TryGetProperty("featureBoundary", out var boundary)
-                && !doc.RootElement.TryGetProperty("FeatureBoundary", out boundary))
+            var root = doc.RootElement;
+            bool hasBoundary = TryGet(root, "featureBoundary", out var boundary);
+            bool hasFeatures = TryGet(root, "features", out var featuresElement);
+            if (!hasBoundary && !hasFeatures)
             {
                 return null;
             }
 
-            var points = new List<CoordinateDto>();
-            foreach (var item in boundary.EnumerateArray())
+            var features = new List<HoleFeatureSnapshot>();
+            if (hasFeatures)
             {
-                points.Add(new CoordinateDto
+                if (featuresElement.ValueKind != JsonValueKind.Array) throw new JsonException("features must be an array.");
+                foreach (var item in featuresElement.EnumerateArray())
                 {
-                    X = ReadNumber(item, "x", "X"),
-                    Y = ReadNumber(item, "y", "Y"),
-                    Z = ReadNumber(item, "z", "Z"),
-                });
-            }
-
-            // WPF 研磨區 3D 點雲：API 自孔洞掃描寫入 rawPlyPath（舊檔可無此欄）。
-            string? plyPath = null;
-            if (doc.RootElement.TryGetProperty("rawPlyPath", out var plyEl)
-                && plyEl.ValueKind == JsonValueKind.String)
-            {
-                plyPath = plyEl.GetString();
-            }
-            else if (doc.RootElement.TryGetProperty("RawPlyPath", out var plyEl2)
-                && plyEl2.ValueKind == JsonValueKind.String)
-            {
-                plyPath = plyEl2.GetString();
+                    string status = ReadString(item, "status") ?? "PARTIAL";
+                    bool closed = status.Equals("CLOSED", StringComparison.OrdinalIgnoreCase)
+                        && (!TryGet(item, "closed", out var closedElement) || closedElement.ValueKind == JsonValueKind.True);
+                    features.Add(new HoleFeatureSnapshot
+                    {
+                        Id = ReadString(item, "id") ?? "",
+                        FaceId = ReadString(item, "faceId") ?? "",
+                        Type = ReadString(item, "type") ?? "Unknown",
+                        Status = closed ? "CLOSED" : "PARTIAL",
+                        Closed = closed,
+                        WidthMm = ReadOptionalNumber(item, "widthMm"),
+                        HeightMm = ReadOptionalNumber(item, "heightMm"),
+                        Reason = ReadString(item, "reason"),
+                        Boundary = TryGet(item, "boundary", out var publicBoundary) ? ReadPoints(publicBoundary) : [],
+                        ScannerBoundary = TryGet(item, "scannerBoundary", out var scannerBoundary) ? ReadPoints(scannerBoundary) : [],
+                    });
+                }
             }
 
             return new HoleBoundarySnapshot
             {
-                Points = points,
-                RawPlyPath = string.IsNullOrWhiteSpace(plyPath) ? null : plyPath.Trim(),
+                Points = hasBoundary ? ReadPoints(boundary) : [],
+                RawPlyPath = ReadString(root, "rawPlyPath")?.Trim(),
+                ExtractedPlyPath = ReadString(root, "extractedPlyPath")?.Trim(),
+                Features = features,
+                SelectedFeatureId = ReadString(root, "selectedFeatureId"),
+                TaskId = ReadString(root, "taskId"),
+                CapturedAt = DateTimeOffset.TryParse(ReadString(root, "capturedAt"), CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind, out var capturedAt) ? capturedAt : null,
+                CoordinateFrame = ReadString(root, "coordinateFrame"),
+                AngleSteelOnly = TryGet(root, "holeScope", out var scope)
+                    && scope.ValueKind == JsonValueKind.Object && ReadString(scope, "mode") == "AngleSteelOnly",
+                WorkpieceIdentified = scope.ValueKind == JsonValueKind.Object
+                    && TryGet(scope, "workpieceIdentified", out var identified) && identified.ValueKind == JsonValueKind.True,
+                ScopeReason = scope.ValueKind == JsonValueKind.Object ? ReadString(scope, "reason") : null,
+                AbsoluteCoordinatesCalibrated = TryGet(root, "absoluteCoordinatesCalibrated", out var calibrated)
+                    && calibrated.ValueKind is JsonValueKind.True or JsonValueKind.False ? calibrated.GetBoolean() : null,
+                Warnings = TryGet(root, "warnings", out var warnings) && warnings.ValueKind == JsonValueKind.Array
+                    ? warnings.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToArray()
+                    : [],
             };
         }
         catch (IOException)
@@ -70,23 +91,40 @@ public sealed class HoleBoundaryReader : IHoleBoundaryReader
         }
     }
 
-    /// <summary>讀 camelCase 或 PascalCase 數值；都沒有則 0。</summary>
-    /// <param name="element">JSON 物件。</param>
-    /// <param name="camel">小寫開頭欄位。</param>
-    /// <param name="pascal">大寫開頭欄位。</param>
-    /// <returns>座標值。</returns>
-    private static double ReadNumber(JsonElement element, string camel, string pascal)
+    private static IReadOnlyList<CoordinateDto> ReadPoints(JsonElement array)
     {
-        if (element.TryGetProperty(camel, out var a) && a.TryGetDouble(out var va))
+        if (array.ValueKind != JsonValueKind.Array) throw new JsonException("A measured boundary must be an array.");
+        var points = new List<CoordinateDto>();
+        foreach (var point in array.EnumerateArray())
         {
-            return va;
+            points.Add(new CoordinateDto
+            {
+                X = ReadOptionalNumber(point, "x") ?? throw new JsonException("Measured X is missing."),
+                Y = ReadOptionalNumber(point, "y") ?? throw new JsonException("Measured Y is missing."),
+                Z = ReadOptionalNumber(point, "z") ?? throw new JsonException("Measured Z is missing."),
+            });
         }
+        return points;
+    }
 
-        if (element.TryGetProperty(pascal, out var b) && b.TryGetDouble(out var vb))
+    private static double? ReadOptionalNumber(JsonElement element, string name)
+    {
+        if (TryGet(element, name, out var value) && value.ValueKind == JsonValueKind.Number
+            && value.TryGetDouble(out double number) && double.IsFinite(number)) return number;
+        return null;
+    }
+
+    private static string? ReadString(JsonElement element, string name) =>
+        TryGet(element, name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    private static bool TryGet(JsonElement element, string name, out JsonElement value)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
         {
-            return vb;
+            value = default;
+            return false;
         }
-
-        return 0;
+        return element.TryGetProperty(name, out value)
+            || element.TryGetProperty(char.ToUpperInvariant(name[0]) + name[1..], out value);
     }
 }

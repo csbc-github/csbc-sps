@@ -27,8 +27,17 @@ public sealed class StitchProcessingResult
     /// <summary>點數。</summary>
     public int PointCount { get; init; }
 
-    /// <summary>品質是否通過。</summary>
+    /// <summary>嚴格品質是否全部通過；與允許保留翼緣警告的點雲完成狀態分開。</summary>
     public bool ValidationPassed { get; init; }
+
+    /// <summary>留出截面的對齊、翼板支承與資料互斥檢查；不適用或舊報告時為 null。</summary>
+    public bool? AlignmentValidationPassed { get; init; }
+
+    /// <summary>兩段翼緣及各端自身內側翼寬是否全部通過；不適用或舊報告時為 null。</summary>
+    public bool? BoundaryValidationPassed { get; init; }
+
+    /// <summary>未通過的接縫品質條件，含實際值及門檻。</summary>
+    public StitchQualityFailure[] ValidationFailures { get; init; } = [];
 
     /// <summary>絕對座標是否已校正。</summary>
     public bool AbsoluteCoordinatesCalibrated { get; init; }

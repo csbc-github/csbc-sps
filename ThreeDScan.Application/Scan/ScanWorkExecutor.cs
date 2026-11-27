@@ -112,6 +112,7 @@ public sealed class ScanWorkExecutor : IScanWorkExecutor
             {
                 Code = code,
                 Message = message,
+                Details = (error as ScanTaskException)?.Details,
             };
         }).ConfigureAwait(false);
     }

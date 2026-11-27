@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><PlatformTarget>x64</PlatformTarget><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <Compile Include="../../ThreeDScan/Common/ViewModelBase.cs" Link="Common/ViewModelBase.cs" />
+    <Compile Include="../../ThreeDScan/Models/CoordinateInfo.cs" Link="Models/CoordinateInfo.cs" />
+    <Compile Include="../../ThreeDScan/Models/HeadFeatureDisplayInfo.cs" Link="Models/HeadFeatureDisplayInfo.cs" />
+    <Compile Include="../../ThreeDScan/Controls/HeadViewCamera.cs" Link="Controls/HeadViewCamera.cs" />
+    <Compile Include="../../ThreeDScan/Controls/HeadViewCameraPose.cs" Link="Controls/HeadViewCameraPose.cs" />
+    <Compile Include="../../ThreeDScan/Controls/GlbMeshLoader.cs" Link="Controls/GlbMeshLoader.cs" />
+    <Compile Include="../../PlyProcessor.Core/PlyPoint.cs" Link="Legacy/PlyPoint.cs" />
+    <Compile Include="../../PlyProcessor.Core/PlyReader.cs" Link="Legacy/PlyReader.cs" />
+    <Compile Include="../../PlyProcessor.Core/HeadFeatureExtractor.cs" Link="Legacy/HeadFeatureExtractor.cs" />
+    <Compile Include="../../PlyProcessor.Core/HeadFeatureExtractResult.cs" Link="Legacy/HeadFeatureExtractResult.cs" />
+  </ItemGroup>
+</Project>

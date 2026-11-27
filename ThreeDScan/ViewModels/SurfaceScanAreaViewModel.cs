@@ -46,6 +46,7 @@ public class SurfaceScanAreaViewModel : ViewModelBase
     private ImageSource? _preview2dSide;
     private FileSystemWatcher? _glbWatch;
     private int _glbWatchVersion;
+    private CancellationTokenSource? _featureLoadCancellation;
 
     public bool Is2DMode
     {
@@ -351,7 +352,7 @@ public class SurfaceScanAreaViewModel : ViewModelBase
         return AsciiPlyPointCloudDisplayLoader.LoadAsync(plyPath, token);
     }
 
-    /// <summary>監看 API 寫入 ContentsRoot 的最新 GLB 指標；啟動時不載入既有結果。</summary>
+    /// <summary>監看 API 寫入 ContentsRoot 的最新 GLB／點雲指標；啟動時不載入既有結果。</summary>
     private void StartWatchingApiGlb()
     {
         var pointer = ScanMonitorPaths.GlbPointerFile(_config["Storage:ContentsRoot"], _machineArea);
@@ -434,18 +435,71 @@ public class SurfaceScanAreaViewModel : ViewModelBase
             return;
         }
 
-        SetPreviewMode(PreviewMode.Glb);
-        if (string.Equals(GlbPath, glbPath, StringComparison.OrdinalIgnoreCase))
+        bool isPointCloud = string.Equals(Path.GetExtension(glbPath), ".ply", StringComparison.OrdinalIgnoreCase);
+        if (!isPointCloud && !string.Equals(Path.GetExtension(glbPath), ".glb", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _featureLoadCancellation?.Cancel();
+        _featureLoadCancellation?.Dispose();
+        _featureLoadCancellation = new CancellationTokenSource();
+        HeadFeatures.Clear();
+        PointCloudVertices = Array.Empty<PointCloudRenderVertex>();
+        if (isPointCloud)
         {
             GlbPath = null;
+            SetPreviewMode(PreviewMode.PointCloud);
+        }
+        else
+        {
+            SetPreviewMode(PreviewMode.Glb);
+            if (string.Equals(GlbPath, glbPath, StringComparison.OrdinalIgnoreCase))
+            {
+                GlbPath = null;
+            }
+            GlbPath = glbPath;
         }
 
         LastPlyPath = glbPath;
-        GlbPath = glbPath;
-        HeadFeatures.LoadFromGlb(glbPath);
+        _ = LoadArtifactFeaturesAsync(glbPath, Volatile.Read(ref _glbWatchVersion), _featureLoadCancellation.Token);
         LoadSiblingPreviews(glbPath, _glbWatchVersion);
-        ScanStatusText = $"API 結果：{Path.GetFileName(glbPath)}";
+        ScanStatusText = isPointCloud ? $"API 拼接點雲：{Path.GetFileName(glbPath)}" : $"API 結果：{Path.GetFileName(glbPath)}";
         OverallStatus = SystemStatus.Normal;
+    }
+
+    private async Task LoadArtifactFeaturesAsync(string artifactPath, int version, CancellationToken cancellationToken)
+    {
+        ArtifactFeatureData data;
+        try
+        {
+            data = await Task.Run(() => HeadFeatureDisplayInfo.ReadArtifact(artifactPath, cancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            data = new ArtifactFeatureData();
+        }
+        if (version != Volatile.Read(ref _glbWatchVersion)) return;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            TryApplyArtifactFeatures(data, version, artifactPath);
+            return;
+        }
+        await dispatcher.InvokeAsync(() => TryApplyArtifactFeatures(data, version, artifactPath));
+    }
+
+    /// <summary>在 UI 套用前再次核對任務版本及路徑，拒絕舊任務晚到的背景結果。</summary>
+    internal bool TryApplyArtifactFeatures(ArtifactFeatureData data, int version, string expectedArtifactPath)
+    {
+        if (version != Volatile.Read(ref _glbWatchVersion)
+            || !string.Equals(expectedArtifactPath, LastPlyPath, StringComparison.OrdinalIgnoreCase)) return false;
+        HeadFeatures.ApplyArtifactData(data);
+        return true;
     }
 
     /// <summary>同目錄的 PLY 與拼接產出的 top／front／side.png 一併載入，切換模式即可看。</summary>
@@ -473,15 +527,19 @@ public class SurfaceScanAreaViewModel : ViewModelBase
             return;
         }
 
-        _ = LoadPointCloudThenApplyAsync(plyPath, version);
+        _ = LoadPointCloudThenApplyAsync(plyPath, version, _featureLoadCancellation?.Token ?? CancellationToken.None);
     }
 
-    private async Task LoadPointCloudThenApplyAsync(string plyPath, int version)
+    private async Task LoadPointCloudThenApplyAsync(string plyPath, int version, CancellationToken cancellationToken)
     {
         IReadOnlyList<PointCloudRenderVertex> verts;
         try
         {
-            verts = await LoadDisplayPointCloudAsync(plyPath, CancellationToken.None);
+            verts = await LoadDisplayPointCloudAsync(plyPath, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
         }
         catch (Exception)
         {

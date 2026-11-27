@@ -14,4 +14,13 @@ public sealed class StitchProcessingOptions
 
     /// <summary>是否匯出實體模型。</summary>
     public bool ExportModels { get; init; } = true;
+
+    /// <summary>修補超過門檻的模型外緣缺口；保留內孔與量測點雲，補入部分標記為推估幾何。</summary>
+    public bool FillOuterEdges { get; init; } = true;
+
+    /// <summary>外緣缺口深度超過此值才修補（mm）；0 為補至完整直線外框。</summary>
+    public double OuterEdgeRepairMinDepthMm { get; init; } = 10;
+
+    /// <summary>另存各段對齊與完整轉換點雲；API 預設只寫正式合併點雲及完整接縫報告。</summary>
+    public bool ExportDiagnosticPointClouds { get; init; }
 }

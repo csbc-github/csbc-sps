@@ -24,6 +24,7 @@ public static class TaskResultDataMapper
             {
                 Code = document.Error.Code,
                 Message = document.Error.Message,
+                Details = document.Error.Details,
             };
         }
 

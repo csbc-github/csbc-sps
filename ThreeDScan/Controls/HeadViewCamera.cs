@@ -15,7 +15,7 @@ public static class HeadViewCamera
         left = default;
         apex = default;
         right = default;
-        if (features is null || string.IsNullOrEmpty(features.Kind))
+        if (features is null || !features.HasHeadPoints)
         {
             return false;
         }
@@ -23,7 +23,9 @@ public static class HeadViewCamera
         left = new Point3D(features.LeftCorner.X, features.LeftCorner.Y, features.LeftCorner.Z);
         apex = new Point3D(features.Apex.X, features.Apex.Y, features.Apex.Z);
         right = new Point3D(features.RightCorner.X, features.RightCorner.Y, features.RightCorner.Z);
-        return true;
+        return double.IsFinite(left.X) && double.IsFinite(left.Y) && double.IsFinite(left.Z)
+            && double.IsFinite(apex.X) && double.IsFinite(apex.Y) && double.IsFinite(apex.Z)
+            && double.IsFinite(right.X) && double.IsFinite(right.Y) && double.IsFinite(right.Z);
     }
 
     public static double DistanceForDiagonal(double diagonal)

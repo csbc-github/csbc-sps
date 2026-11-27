@@ -35,6 +35,16 @@ internal static class StitchMath
             b[^1]);
     }
 
+    /// <summary>獨立內側量測帶與端部的橫向翼寬檢查；高度只由實際兩端接縫的 CheckEdges 評估。</summary>
+    internal static SectionEdgeCheck CheckWidthCoverage(ProfilePoint[] interior, ProfilePoint[] end, ButtStitchOptions options)
+    {
+        // Explicit transverse projection, not fabricated point-cloud vertices.
+        // Curvature/noise can change a wing's end/interior edge height while
+        // leaving the same measured width fully visible at both stations.
+        ProfilePoint[] Width(ProfilePoint[] profile) => profile.Select(p => new ProfilePoint(p.U, 0, p.Support)).ToArray();
+        return CheckEdges(Width(interior), Width(end), options);
+    }
+
     /// <summary>分位數。</summary>
     /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Processing.Legacy.Stitching.StitchMath</c>。</remarks>
     /// <param name="values">數值。</param>
@@ -198,8 +208,61 @@ internal static class StitchMath
     /// <param name="bin">分箱寬度。</param>
     internal static ProfilePoint[] Profile(ScanVector[] points, IEnumerable<int> indices, double bin)
     {
-        return indices.GroupBy(i => (long)Math.Floor(points[i].X / bin)).OrderBy(g => g.Key).Where(g => g.Count() >= 3)
+        return indices.GroupBy(i => TransverseBin(points[i].X, bin)).OrderBy(g => g.Key).Where(g => g.Count() >= 3)
             .Select(g => new ProfilePoint(Median(g.Select(i => points[i].X)), Median(g.Select(i => points[i].Z)), g.Count())).ToArray();
+    }
+
+    /// <summary>以長向重複觀測的翼板分箱核對邊界；零星尾點仍保留在原量測輸出。</summary>
+    internal static ProfilePoint[] EdgeProfile(ScanVector[] points, IEnumerable<int> indices, double bin, double ridgeU)
+    {
+        int[] selected = indices.ToArray();
+        if (selected.Length == 0) throw new InvalidOperationException("翼板邊界沒有可用量測。");
+        double minY = selected.Min(i => points[i].Y), maxY = selected.Max(i => points[i].Y);
+        double span = maxY - minY;
+        if (span <= 0) throw new InvalidOperationException("翼板邊界缺少長向重複觀測。");
+        var columns = selected.GroupBy(i => TransverseBin(points[i].X, bin)).OrderBy(g => g.Key)
+            .Where(g => g.Count() >= 3).Select(g => new
+            {
+                Point = new ProfilePoint(Median(g.Select(i => points[i].X)), Median(g.Select(i => points[i].Z)), g.Count()),
+                // Count occupied physical cells, not raw points. Scanner density
+                // and the different 10/60 mm band depths must not move an edge.
+                Occupied = g.Select(i => TransverseBin(points[i].Y - minY, bin)).Distinct().Count(),
+                Span = g.Max(i => points[i].Y) - g.Min(i => points[i].Y),
+            }).ToArray();
+        var left = columns.Where(c => c.Point.U < ridgeU).ToArray();
+        var right = columns.Where(c => c.Point.U >= ridgeU).ToArray();
+        if (left.Length == 0 || right.Length == 0) throw new InvalidOperationException("翼板邊界缺少獨立兩翼支承。");
+        // Each wing supplies its own sampling baseline: a sparse but repeatedly
+        // measured upright wing must not be judged by its denser broad neighbour.
+        double leftMinimum = .5 * Median(left.Select(c => (double)c.Occupied));
+        double rightMinimum = .5 * Median(right.Select(c => (double)c.Occupied));
+        // A three-column median rejects one isolated transverse spike without
+        // moving a sustained boundary or inventing an endpoint between samples.
+        // The nearest measured neighbours may be up to 1.5 mm apart, matching
+        // the existing profile interpolation gap limit (e.g. a 1 mm raster).
+        double RepeatedCells(int column) => Median(new[]
+        {
+            column > 0 && columns[column].Point.U - columns[column - 1].Point.U <= 1.5 ? (double)columns[column - 1].Occupied : 0,
+            columns[column].Occupied,
+            column + 1 < columns.Length && columns[column + 1].Point.U - columns[column].Point.U <= 1.5 ? columns[column + 1].Occupied : 0,
+        });
+        var supported = columns.Where((c, index) => RepeatedCells(index) >= (c.Point.U < ridgeU ? leftMinimum : rightMinimum)
+            && c.Span >= .5 * span).Select(c => c.Point).ToArray();
+        if (supported.Length < 30 || !supported.Any(p => p.U < ridgeU) || !supported.Any(p => p.U >= ridgeU))
+            throw new InvalidOperationException("沿長向持續觀測的兩翼邊界不足，不能核對接縫全寬。");
+        return supported;
+    }
+
+    /// <summary>穩定的截面分箱；只消除剛體投影在整數邊界的浮點誤差，不改動量測座標。</summary>
+    internal static long TransverseBin(double coordinate, double bin)
+    {
+        double scaled = coordinate / bin;
+        double boundary = Math.Round(scaled);
+        // Original PLY coordinates are quantized to one millionth of a mm.
+        // Otherwise a nominal raster column on a bin boundary can split into
+        // two artificial columns whose observed end stations are far apart.
+        if (Math.Abs(scaled - boundary) <= 1e-5) scaled = boundary;
+        return checked((long)Math.Floor(scaled));
     }
 
     /// <summary>截面 2D 剛體微調。</summary>

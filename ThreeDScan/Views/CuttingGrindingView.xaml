@@ -56,7 +56,7 @@
                                     <controls:PreviewPlaceholder
                                         Visibility="{Binding Has2DPreview, Converter={StaticResource BoolToVisInvert}}"
                                         Title="2D 高度圖"
-                                        SubTitle="割切區面掃描（UC-04）"/>
+                                        SubTitle="割切區面掃描"/>
                                     <Grid Visibility="{Binding Has2DPreview, Converter={StaticResource BoolToVis}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

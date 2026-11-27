@@ -25,6 +25,7 @@ public sealed class SignalRCalibrationPreviewPublisher : ICalibrationPreviewPubl
             preview.TraceId,
             preview.Timestamp,
             preview.Success,
+            preview.Stage,
             preview.ErrorMessage,
             Balls = preview.Balls.Select(b => new
             {
@@ -34,6 +35,14 @@ public sealed class SignalRCalibrationPreviewPublisher : ICalibrationPreviewPubl
                 b.Z,
                 Diameter = b.Diameter,
                 b.IsWithinTolerance,
+                b.EligibleForCalibration,
+                b.KnownRadiusModelValidated,
+                b.SphereFitMethod,
+                b.UsesKnownRadius,
+                b.NominalDiameterMm,
+                b.FreeMeasurementQualityPassed,
+                b.UsedLocalizedOutlierValidation,
+                b.CenterSensitivityMm,
             }),
             preview.CompensationOffsetX,
             preview.CompensationOffsetY,

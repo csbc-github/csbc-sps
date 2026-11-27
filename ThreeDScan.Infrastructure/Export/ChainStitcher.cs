@@ -144,12 +144,15 @@ public static class ChainStitcher
             var pair = pairs[i];
             int[] a = pair.PartA.ValidationIndices.Where(j => keep[i][j]).ToArray();
             int[] b = pair.PartB.ValidationIndices.Where(j => keep[i + 1][j]).ToArray();
-            var comparisons = Compare(pair, a, b, options, out var fullSection);
+            var comparisons = Compare(pair, a, b, options, out var fullSection, out var rawFullSection);
             var absolute = comparisons.Select(p => Math.Abs(p.DeltaMm)).ToArray();
             double rms = Math.Sqrt(comparisons.Average(p => p.DeltaMm * p.DeltaMm));
             double p95 = StitchMath.Quantile(absolute, .95);
             var validation = new StitchValidation(
-                rms <= options.MaximumValidationRmsMm && p95 <= options.MaximumValidationP95Mm && fullSection.Passed,
+                rms <= options.MaximumValidationRmsMm && p95 <= options.MaximumValidationP95Mm && fullSection.Passed
+                    && pair.Validation.LeftEndInteriorCoverage?.Passed != false
+                    && pair.Validation.RightEndInteriorCoverage?.Passed != false
+                    && pair.Validation.LeftEndWingSupportFraction >= .7 && pair.Validation.RightEndWingSupportFraction >= .7,
                 comparisons.Length,
                 rms,
                 StitchMath.Median(absolute),
@@ -165,7 +168,14 @@ public static class ChainStitcher
                 pair.Validation.Method,
                 pair.Validation.AbsoluteLongitudinalPlacementVerified,
                 pair.Validation.PhysicalOverallLengthVerified,
-                fullSection);
+                fullSection)
+            {
+                UnfilteredFullSection = rawFullSection,
+                LeftEndInteriorCoverage = pair.Validation.LeftEndInteriorCoverage,
+                RightEndInteriorCoverage = pair.Validation.RightEndInteriorCoverage,
+                LeftEndWingSupportFraction = pair.Validation.LeftEndWingSupportFraction,
+                RightEndWingSupportFraction = pair.Validation.RightEndWingSupportFraction,
+            };
             seams[i] = new ChainSeam
             {
                 SeamNumber = i + 1,
@@ -211,10 +221,12 @@ public static class ChainStitcher
             PlaneTrainingIndices = part.PlaneTrainingIndices,
             ProfileTrainingIndices = part.ProfileTrainingIndices,
             ValidationIndices = validation,
+            ValidationCandidatePointCount = part.ValidationCandidatePointCount,
         };
     }
 
-    private static ProfileComparison[] Compare(ButtStitchResult pair, int[] a, int[] b, ButtStitchOptions options, out SectionEdgeCheck fullSection)
+    private static ProfileComparison[] Compare(ButtStitchResult pair, int[] a, int[] b, ButtStitchOptions options,
+        out SectionEdgeCheck fullSection, out SectionEdgeCheck rawFullSection)
     {
         var pa = StitchMath.Profile(pair.PartA.TransformedPoints, a, options.ProfileBinMm);
         var pb = StitchMath.Profile(pair.PartB.TransformedPoints, b, options.ProfileBinMm);
@@ -223,7 +235,12 @@ public static class ChainStitcher
             throw new InvalidOperationException("多段裁切後留出的接縫驗證截面不足。");
         }
 
-        fullSection = StitchMath.CheckEdges(pa, pb, options);
+        rawFullSection = StitchMath.CheckEdges(pa, pb, options);
+        var edgeA = StitchMath.EdgeProfile(pair.PartA.TransformedPoints, a, options.ProfileBinMm,
+            pair.PartA.Pose.Apply(pair.PartA.Frame.Origin).X);
+        var edgeB = StitchMath.EdgeProfile(pair.PartB.TransformedPoints, b, options.ProfileBinMm,
+            pair.PartB.Pose.Apply(pair.PartB.Frame.Origin).X);
+        fullSection = StitchMath.CheckEdges(edgeA, edgeB, options);
         double low = Math.Max(pa[0].U, pb[0].U) + options.ProfileEdgeMarginMm;
         double high = Math.Min(pa[^1].U, pb[^1].U) - options.ProfileEdgeMarginMm;
         var samples = new List<ProfileComparison>();

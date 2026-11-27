@@ -28,12 +28,19 @@ public static class StitchAttachmentPackager
         }
 
         var directory = Path.GetDirectoryName(result.StitchedPlyPath)!;
-        var cloud = await Task.Run(() => ScanPly.Read(result.StitchedPlyPath), ct).ConfigureAwait(false);
+        var coordinates = StitchProcessor.GetPreviewCoordinates(result);
+        var cloud = coordinates is null
+            ? await Task.Run(() => ScanPly.Read(result.StitchedPlyPath), ct).ConfigureAwait(false)
+            : null;
         foreach (var view in new[] { "top", "front", "side" })
         {
             ct.ThrowIfCancellationRequested();
             var png = Path.Combine(directory, view + ".png");
-            await Task.Run(() => StitchPlyPreviewRenderer.Render(cloud, png, view), ct).ConfigureAwait(false);
+            await Task.Run(() =>
+            {
+                if (coordinates is not null) StitchPlyPreviewRenderer.Render(coordinates, png, view);
+                else StitchPlyPreviewRenderer.Render(cloud!, png, view);
+            }, ct).ConfigureAwait(false);
             files.Add(png);
         }
 

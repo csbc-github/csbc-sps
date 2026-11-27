@@ -32,7 +32,7 @@ public sealed class ExtractionResult
         }
     }
 
-    /// <summary>高度以上點數。</summary>
+    /// <summary>高度種子與恢復的實測低邊緣總點數。</summary>
     public int AboveThresholdCount
     {
         get
@@ -40,6 +40,12 @@ public sealed class ExtractionResult
             return AbovePoints.Length;
         }
     }
+
+    /// <summary>套用高度門檻後的原始種子點數。</summary>
+    public int SeedPointCount { get; init; }
+
+    /// <summary>通過同板面、連續距離與地面排除後恢復的點數。</summary>
+    public int RecoveredPointCount => AbovePoints.Length - SeedPointCount;
 
     /// <summary>佔用格數。</summary>
     public int OccupiedCellCount { get; init; }

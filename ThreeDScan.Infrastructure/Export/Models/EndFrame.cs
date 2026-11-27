@@ -1,7 +1,7 @@
 namespace ThreeDScan.Infrastructure.Export.Models;
 
 /// <summary>端部座標框。</summary>
-/// <remarks>由 Hank Scan3D 的 EndFrame 搬入，邏輯不改。</remarks>
+/// <remarks>完整 XYZ 正交基底；平面係數以此框的局部座標表示。</remarks>
 public sealed class EndFrame
 {
     /// <summary>建立端部框。</summary>
@@ -45,16 +45,19 @@ public sealed class EndFrame
     /// <summary>上軸。</summary>
     public ScanVector UpAxis { get; init; }
 
-    /// <summary>左翼平面。</summary>
+    /// <summary>左翼平面；局部 z = Ax + By + C，RMS 為原始歐氏正交距離。</summary>
     public FittedSurface LeftSurface { get; init; }
 
-    /// <summary>右翼平面。</summary>
+    /// <summary>右翼平面；局部 z = Ax + By + C，RMS 為原始歐氏正交距離。</summary>
     public FittedSurface RightSurface { get; init; }
 
     /// <summary>兩翼法線夾角（度）。</summary>
     public double PlaneNormalAngleDegrees { get; init; }
 
-    /// <summary>端部 Y（mm）。</summary>
+    /// <summary>平面係數使用的座標框。</summary>
+    public string SurfaceCoordinateFrame => "EndFrameLocalXYZ";
+
+    /// <summary>端點原始掃描器 Y（mm）；僅保留報告相容，不用來判定長向距離。</summary>
     public double EndpointYmm { get; init; }
 
     /// <summary>點對齊到端部框。</summary>

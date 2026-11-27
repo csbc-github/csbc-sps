@@ -14,7 +14,8 @@ public static class ChainStitchExporter
     /// <param name="result">鏈結果。</param>
     /// <param name="sources">來源檔。</param>
     /// <param name="output">輸出資料夾。</param>
-    public static void Save(ChainStitchResult result, IReadOnlyList<string> sources, string output)
+    /// <param name="exportPointClouds">是否另存診斷點雲；false 仍保留完整接縫報告與截面。</param>
+    public static void Save(ChainStitchResult result, IReadOnlyList<string> sources, string output, bool exportPointClouds = true)
     {
         if (sources.Count != result.ScanCount)
         {
@@ -23,13 +24,14 @@ public static class ChainStitchExporter
 
         if (result.LegacyPair is { } pair)
         {
-            StitchExporter.Save(pair, sources[0], sources[1], output);
+            StitchExporter.Save(pair, sources[0], sources[1], output, exportPointClouds);
             return;
         }
 
         string[] partNames = result.Parts.Select(part => $"part_{part.ScanIndex + 1:D3}_aligned.ply").ToArray();
         string[] names = ["stitched.ply", "all_points_transformed.ply", "stitch-report.json", "seam-profile.csv", .. partNames];
-        if (names.Any(name => File.Exists(Path.Combine(output, name))))
+        string[] outputNames = exportPointClouds ? names : [names[2], names[3]];
+        if (outputNames.Any(name => File.Exists(Path.Combine(output, name))))
         {
             throw new IOException("拼接結果已存在，請改用新的輸出資料夾。");
         }
@@ -114,26 +116,29 @@ public static class ChainStitchExporter
             }
         }
 
-        ScanPly.Write(
-            Path.Combine(output, names[0]),
-            header,
-            result.Parts.SelectMany(part => Points(part, true)),
-            result.StitchedPointCount,
-            "Adjacent original captures; configured nominal gaps; no synthetic points");
-        ScanPly.Write(
-            Path.Combine(output, names[1]),
-            header,
-            result.Parts.SelectMany(part => Points(part, false)),
-            result.TotalSourcePoints,
-            "Complete transformed originals including points trimmed from either end");
-        foreach (var part in result.Parts)
+        if (exportPointClouds)
         {
             ScanPly.Write(
-                Path.Combine(output, partNames[part.ScanIndex]),
+                Path.Combine(output, names[0]),
                 header,
-                Points(part, true),
-                part.RetainedPointCount,
-                $"Retained original scan {part.ScanIndex + 1}");
+                result.Parts.SelectMany(part => Points(part, true)),
+                result.StitchedPointCount,
+                "Adjacent original captures; configured nominal gaps; no synthetic points");
+            ScanPly.Write(
+                Path.Combine(output, names[1]),
+                header,
+                result.Parts.SelectMany(part => Points(part, false)),
+                result.TotalSourcePoints,
+                "Complete transformed originals including points trimmed from either end");
+            foreach (var part in result.Parts)
+            {
+                ScanPly.Write(
+                    Path.Combine(output, partNames[part.ScanIndex]),
+                    header,
+                    Points(part, true),
+                    part.RetainedPointCount,
+                    $"Retained original scan {part.ScanIndex + 1}");
+            }
         }
 
         using (var writer = new StreamWriter(new FileStream(Path.Combine(output, names[3]), FileMode.CreateNew), new UTF8Encoding(false)))
@@ -172,7 +177,7 @@ public static class ChainStitchExporter
             result.Parts,
             result.Seams,
             provenance = "source_scan is a zero-based int index into sources; source_point_index is the original zero-based vertex index. Original extra columns are preserved. Seam end poses/indices use local pair coordinates; LocalToGlobalPose maps them into final coordinates.",
-            files = names,
+            files = outputNames,
         };
         using var stream = new FileStream(Path.Combine(output, names[2]), FileMode.CreateNew);
         JsonSerializer.Serialize(stream, report, ExtractionJson.Options);

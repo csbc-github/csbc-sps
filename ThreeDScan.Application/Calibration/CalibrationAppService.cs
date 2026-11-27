@@ -248,7 +248,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
             };
         }
 
-        var pairingBalls = SelectBallsForPairing(measure.Balls, request.StandardBalls.Count);
+        var pairingBalls = SelectBallsForPairing(measure.Balls);
 
         InstrumentCalibrationComputeResult computed;
         try
@@ -337,7 +337,8 @@ public sealed class CalibrationAppService : ICalibrationAppService
             frame.PreviewGrayPath, frame.PreviewHeightPath,
             computed.Compensation.OffsetX, computed.Compensation.OffsetY, computed.Compensation.OffsetZ,
             computed.Rmse, null, ct,
-            frame.MeasureParams, frame.DetectCount, computed.MatchedBalls);
+            frame.MeasureParams, frame.DetectCount, computed.MatchedBalls,
+            stage: CalibrationPreview.StageAwaitingNextShot);
 
         return await InstrumentOkAsync(request, traceId, data, ct);
     }
@@ -394,16 +395,8 @@ public sealed class CalibrationAppService : ICalibrationAppService
                 ActualScannerPosition = merged.ActualScannerPosition,
                 CalibratedAt = now.ToString("O"),
                 Balls = frame.Balls
-                    .Where(b => b.IsWithinTolerance)
-                    .Select(b => new MeasuredBallDto
-                    {
-                        Index = b.Index,
-                        X = b.X,
-                        Y = b.Y,
-                        Z = b.Z,
-                        Diameter = b.Diameter,
-                        Ok = true,
-                    }).ToList(),
+                    .Where(b => b.EligibleForCalibration)
+                    .Select(ToMeasuredBallDto).ToList(),
                 MatchedBalls = seq2.MatchedBalls,
                 DatumPlane = MapDatumPlane(frame.DatumPlane),
                 ScannerToFloorZ = merged.ScannerToFloorZ,
@@ -437,16 +430,8 @@ public sealed class CalibrationAppService : ICalibrationAppService
             ActualScannerPosition = merged.ActualScannerPosition,
             CalibratedAt = now.ToString("O"),
             Balls = frame.Balls
-                .Where(b => b.IsWithinTolerance)
-                .Select(b => new MeasuredBallDto
-                {
-                    Index = b.Index,
-                    X = b.X,
-                    Y = b.Y,
-                    Z = b.Z,
-                    Diameter = b.Diameter,
-                    Ok = true,
-                }).ToList(),
+                .Where(b => b.EligibleForCalibration)
+                .Select(ToMeasuredBallDto).ToList(),
             MatchedBalls = seq2.MatchedBalls,
             DatumPlane = MapDatumPlane(frame.DatumPlane),
             ScannerToFloorZ = merged.ScannerToFloorZ,
@@ -487,16 +472,8 @@ public sealed class CalibrationAppService : ICalibrationAppService
             ActualScannerPosition = computed.ActualScannerPosition,
             CalibratedAt = calibratedAt.ToString("O"),
             Balls = frame.Balls
-                .Where(b => b.IsWithinTolerance)
-                .Select(b => new MeasuredBallDto
-                {
-                    Index = b.Index,
-                    X = b.X,
-                    Y = b.Y,
-                    Z = b.Z,
-                    Diameter = b.Diameter,
-                    Ok = true,
-                }).ToList(),
+                .Where(b => b.EligibleForCalibration)
+                .Select(ToMeasuredBallDto).ToList(),
             MatchedBalls = computed.MatchedBalls,
             DatumPlane = MapDatumPlane(frame.DatumPlane),
             ScannerToFloorZ = computed.ScannerToFloorZ,
@@ -647,7 +624,8 @@ public sealed class CalibrationAppService : ICalibrationAppService
         CancellationToken ct,
         LjCalibrationParameters? measureParams = null,
         int? detectCount = null,
-        IReadOnlyList<MatchedBallDto>? matchedBalls = null)
+        IReadOnlyList<MatchedBallDto>? matchedBalls = null,
+        string? stage = null)
     {
         await _previewPublisher.PublishAsync(ApplyPreviewMode(new CalibrationPreview
         {
@@ -655,8 +633,9 @@ public sealed class CalibrationAppService : ICalibrationAppService
             TraceId = traceId,
             Timestamp = DateTimeOffset.Now,
             Success = success,
+            Stage = stage,
             ErrorMessage = error,
-            Balls = balls.Where(b => b.IsWithinTolerance).ToList(),
+            Balls = balls.Where(b => b.EligibleForCalibration).ToList(),
             CompensationOffsetX = ox,
             CompensationOffsetY = oy,
             CompensationOffsetZ = oz,
@@ -689,6 +668,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
             TraceId = preview.TraceId,
             Timestamp = preview.Timestamp,
             Success = preview.Success,
+            Stage = preview.Stage,
             ErrorMessage = preview.ErrorMessage,
             CompensationOffsetX = preview.CompensationOffsetX,
             CompensationOffsetY = preview.CompensationOffsetY,
@@ -764,15 +744,31 @@ public sealed class CalibrationAppService : ICalibrationAppService
         };
     }
 
-    /// <summary>配對用球清單：優先直徑合格球，數量仍不足時退回全部量測球。</summary>
+    /// <summary>只以有校正資格的球心配對；自由估徑超差與已知尺寸球心資格分開記錄。</summary>
     private static IReadOnlyList<MeasuredBall> SelectBallsForPairing(
-        IReadOnlyList<MeasuredBall> balls,
-        int needed)
+        IReadOnlyList<MeasuredBall> balls)
     {
-        var ok = balls.Where(b => b.IsWithinTolerance).ToList();
-        if (ok.Count >= needed)
-            return ok;
-        return balls;
+        return balls.Where(b => b.EligibleForCalibration).ToList();
+    }
+
+    private static MeasuredBallDto ToMeasuredBallDto(MeasuredBall ball)
+    {
+        return new MeasuredBallDto
+        {
+            Index = ball.Index,
+            X = ball.X,
+            Y = ball.Y,
+            Z = ball.Z,
+            Diameter = ball.Diameter,
+            Ok = ball.IsWithinTolerance,
+            KnownRadiusModelValidated = ball.KnownRadiusModelValidated,
+            SphereFitMethod = ball.SphereFitMethod,
+            UsesKnownRadius = ball.UsesKnownRadius,
+            NominalDiameterMm = ball.NominalDiameterMm,
+            FreeMeasurementQualityPassed = ball.FreeMeasurementQualityPassed,
+            UsedLocalizedOutlierValidation = ball.UsedLocalizedOutlierValidation,
+            CenterSensitivityMm = ball.CenterSensitivityMm,
+        };
     }
 
     /// <summary>寫 OperationLog 後回成功；data 再依 Production／Debug 裁欄位。</summary>
@@ -924,15 +920,7 @@ public sealed class CalibrationAppService : ICalibrationAppService
             ScannerToFloorZ = computed.ScannerToFloorZ,
             MatchedBalls = computed.MatchedBalls,
             DatumPlane = MapDatumPlane(datumPlane),
-            Balls = allBalls.Select(b => new MeasuredBallDto
-            {
-                Index = b.Index,
-                X = b.X,
-                Y = b.Y,
-                Z = b.Z,
-                Diameter = b.Diameter,
-                Ok = b.IsWithinTolerance,
-            }).ToList(),
+            Balls = allBalls.Select(ToMeasuredBallDto).ToList(),
         };
     }
 

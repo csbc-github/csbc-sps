@@ -2,12 +2,12 @@ using ThreeDScan.Infrastructure.Export.Models;
 
 namespace ThreeDScan.Infrastructure.Export;
 
-/// <summary>原版 process_scan.pyc process() 管線，含備援路徑。</summary>
-/// <remarks>由 Hank Scan3D 的 AngleSteelExtractor 搬入，邏輯不改。</remarks>
+/// <summary>以分區地面平面分離物件，保留原始來源點索引。</summary>
+/// <remarks>地面校正僅用於分離；實際幾何與輸出仍取原始掃描器點。</remarks>
 public static class AngleSteelExtractor
 {
     /// <summary>由 PLY 路徑抽取。</summary>
-    /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Processing.Legacy.Extraction.AngleSteelExtractor</c>。</remarks>
+    /// <remarks>分區地面估計與同板面恢復只用於選點，不改原始掃描器幾何。</remarks>
     /// <param name="path">PLY 路徑。</param>
     /// <param name="options">抽取參數。</param>
     /// <param name="log">進度紀錄。</param>
@@ -22,7 +22,7 @@ public static class AngleSteelExtractor
     }
 
     /// <summary>由點雲抽取。</summary>
-    /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Processing.Legacy.Extraction.AngleSteelExtractor</c>。</remarks>
+    /// <remarks>分區地面估計與同板面恢復只用於選點，不改原始掃描器幾何。</remarks>
     /// <param name="cloud">點雲。</param>
     /// <param name="options">抽取參數。</param>
     /// <param name="log">進度紀錄。</param>
@@ -34,7 +34,7 @@ public static class AngleSteelExtractor
         CancellationToken cancellationToken = default)
     {
         options ??= new ExtractionOptions();
-        Validate(cloud, options);
+        Validate(cloud, options, cancellationToken);
         void Log(string message)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -42,118 +42,35 @@ public static class AngleSteelExtractor
         }
 
         var warnings = new List<string>();
-        Log("[1/4] 偵測掃描器邊緣並建立 XY 座標…");
-        var (edgeX, edgeY) = FindEdges(cloud.Points);
-        ScanVector origin = new ScanVector();
-        ScanVector xa = new ScanVector(1, 0, 0);
-        ScanVector ya = new ScanVector(0, 1, 0);
-        ScanVector za = new ScanVector(0, 0, 1);
-        bool useXY = true;
-        string? edgeFallback = null;
-        try
-        {
-            (origin, xa, ya, za) = BuildBasis(cloud.Points, edgeX, edgeY);
-        }
-        catch (CalibrationMathException ex)
-        {
-            useXY = false;
-            edgeFallback = ex.Message;
-            warnings.Add("未取得足夠有效邊緣，沿用原版備援：保留掃描器 XY，依 Z 高度分布校正地面。");
-            Log(warnings[^1]);
-        }
-
-        ScanVector Align(ScanVector raw)
-        {
-            var r = raw - origin;
-            return new ScanVector(r.Dot(xa), r.Dot(ya), r.Dot(za));
-        }
-
-        var bounds = ScanBounds.Of(cloud.Points.Select(p => Align(p.Position)));
-        Log("[2/4] 取樣四角並校正地面…");
-        double a = 0, b = 0, c = 0, zZero = 0, rmse = 0;
-        int[] cornerCounts = new int[4];
-        int groundSampleCount = 0;
-        string groundMethod;
-        if (useXY)
-        {
-            double w = options.CornerWindowMm;
-            (double X, double Y)[] centers =
-            [
-                (bounds.MinX + w, bounds.MinY + w),
-                (bounds.MaxX - w, bounds.MinY + w),
-                (bounds.MinX + w, bounds.MaxY - w),
-                (bounds.MaxX - w, bounds.MaxY - w),
-            ];
-            var bins = centers.Select(_ => new List<ScanVector>()).ToArray();
-            for (int i = 0; i < cloud.Points.Length; i += options.CornerSample)
-            {
-                var p = Align(cloud.Points[i].Position);
-                for (int j = 0; j < centers.Length; j++)
-                {
-                    if (Math.Abs(p.X - centers[j].X) < w && Math.Abs(p.Y - centers[j].Y) < w)
-                    {
-                        bins[j].Add(p);
-                    }
-                }
-            }
-
-            cornerCounts = bins.Select(bin => bin.Count).ToArray();
-            var corners = bins.SelectMany(bin => bin.Take(1000)).ToList();
-            groundSampleCount = corners.Count;
-            groundMethod = "Corners";
-            if (corners.Count >= 4)
-            {
-                try
-                {
-                    (a, b, c) = CalibrationMath.FitPlane(corners);
-                }
-                catch (CalibrationMathException)
-                {
-                    groundMethod = "DegenerateCorners";
-                    warnings.Add("四角地面點退化，沿用原版備援：地面平面係數設為零。");
-                }
-            }
-            else
-            {
-                groundMethod = "InsufficientCorners";
-                warnings.Add("四角取樣不足四點，沿用原版備援：地面平面係數設為零。");
-            }
-
-            var residuals = corners.Select(p => p.Z - (a * p.X + b * p.Y + c)).ToArray();
-            if (residuals.Length > 0)
-            {
-                zZero = CalibrationMath.Median(residuals);
-                double sum = 0;
-                foreach (var value in residuals)
-                {
-                    sum += (value - zZero) * (value - zZero);
-                }
-
-                rmse = Math.Sqrt(sum / residuals.Length);
-            }
-        }
-        else
-        {
-            var samples = cloud.Points.Where((_, i) => i % options.CornerSample == 0).Select(p => p.Position.Z).ToArray();
-            groundSampleCount = samples.Length;
-            double min = samples.Min(), max = samples.Max(), width = max > min ? (max - min) / 80 : 1;
-            var histogram = new int[80];
-            foreach (double value in samples)
-            {
-                histogram[Math.Min(79, (int)((value - min) / width))]++;
-            }
-
-            int peak = Array.IndexOf(histogram, histogram.Max());
-            c = min + (peak + .5) * width;
-            groundMethod = "Histogram";
-        }
-
-        Log($"[3/4] Z 零點 {zZero:F6} mm；地面 z = {a:G8}x + {b:G8}y + {c:G8}");
+        Log("[1/4] 保留掃描器 XY，分區取樣可見地面…");
+        var ground = GroundPlaneEstimator.Estimate(cloud.Points, options, cancellationToken);
+        Log($"[2/4] 多區塊地面支持 {ground.Diagnostics.SupportFraction:P1}；RMS {ground.Rmse:F3} mm");
+        if (ground.Diagnostics.Warning is { } warning) warnings.Add(warning);
+        Log($"[3/4] 地面 z = {ground.A:G8}x + {ground.B:G8}y + {ground.C:G8}；僅供分離");
         var calibration = new ScanCalibration(
-            edgeX, edgeY, useXY, edgeFallback, origin, xa, ya, za, a, b, c, zZero,
-            groundMethod, cornerCounts, groundSampleCount, rmse, bounds);
+            ground.Bounds.MaxX, ground.Bounds.MaxY, false, null,
+            new ScanVector(), new ScanVector(1, 0, 0), new ScanVector(0, 1, 0), new ScanVector(0, 0, 1),
+            ground.A, ground.B, ground.C, 0, "DistributedPerimeterRansac",
+            ground.CornerCounts, ground.Diagnostics.SampleCount, ground.Rmse, ground.Bounds)
+        {
+            GroundDiagnostics = ground.Diagnostics,
+        };
         Log("[4/4] 轉換、依高度過濾並分離物件…");
         var above = new List<CalibratedScanPoint>();
+        // Organized captures reuse the same X/Y coordinates across rows.
+        // Memoize only this call's identical bit patterns; arbitrary point
+        // clouds fall back to the same quantizer after the bounded cache fills.
+        var planarQuantization = new Dictionary<long, double>(4096);
+        double QuantizePlanar(double value)
+        {
+            long bits = BitConverter.DoubleToInt64Bits(value);
+            if (planarQuantization.TryGetValue(bits, out double quantized)) return quantized;
+            quantized = ScanPly.Quantize(value);
+            if (planarQuantization.Count < 8192) planarQuantization.Add(bits, quantized);
+            return quantized;
+        }
+        ScanVector QuantizePosition(ScanVector point) => new(
+            QuantizePlanar(point.X), QuantizePlanar(point.Y), ScanPly.Quantize(point.Z));
         for (int i = 0; i < cloud.Points.Length; i++)
         {
             if (i % 100000 == 0)
@@ -165,11 +82,12 @@ public static class AngleSteelExtractor
             var p = calibration.Transform(raw.Position);
             if (p.Z > options.ZThresholdMm)
             {
-                above.Add(new CalibratedScanPoint(raw.SourcePointIndex, ScanPly.Quantize(p), raw.ExtraColumns));
+                above.Add(new CalibratedScanPoint(raw.SourcePointIndex, QuantizePosition(p), raw.ExtraColumns));
             }
         }
 
         var points = above.ToArray();
+        int seedPointCount = points.Length;
         GridCell Cell(ScanVector p)
         {
             return new GridCell(checked((long)(p.X / options.CellMm)), checked((long)(p.Y / options.CellMm)));
@@ -188,7 +106,7 @@ public static class AngleSteelExtractor
         {
             cancellationToken.ThrowIfCancellationRequested();
             var seed = remaining.Cells.First();
-            var component = FloodFill(occupied, seed);
+            var component = FloodFill(occupied, seed, cancellationToken);
             int label = sizes.Count + 1;
             foreach (var cell in component)
             {
@@ -202,6 +120,7 @@ public static class AngleSteelExtractor
         var members = sizes.Select(_ => new List<int>()).ToArray();
         for (int i = 0; i < points.Length; i++)
         {
+            if ((i & 65535) == 0) cancellationToken.ThrowIfCancellationRequested();
             members[labels[Cell(points[i].Position)] - 1].Add(i);
         }
 
@@ -225,11 +144,45 @@ public static class AngleSteelExtractor
             warnings.Add("沒有符合高度及最小連通格數的物件，未取出角鋼。");
         }
 
-        Log($"完成：{cloud.Points.Length:N0} 點 → 高度過濾 {points.Length:N0} 點；取出 {components.Count(cmp => cmp.Retained)} 個物件。");
+        if (options.RecoverMeasuredEdges && components.Any(cmp => cmp.Retained))
+        {
+            // Existing high seeds of every component are reserved before growth;
+            // low measured points can only be owned by one retained component.
+            var claimed = new bool[cloud.Points.Length];
+            foreach (var seed in points) claimed[seed.SourcePointIndex] = true;
+            for (int index = 0; index < components.Length; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var component = components[index];
+                if (!component.Retained) continue;
+                var seeds = component.AbovePointIndices.Select(i => points[i].SourcePointIndex).ToArray();
+                var recovered = MeasuredSurfaceRecovery.Recover(cloud, seeds, calibration, options, cancellationToken);
+                var componentMembers = new List<int>(component.AbovePointIndices);
+                foreach (int rawIndex in recovered)
+                {
+                    if (claimed[rawIndex]) continue;
+                    claimed[rawIndex] = true;
+                    var raw = cloud.Points[rawIndex];
+                    componentMembers.Add(above.Count);
+                    above.Add(new CalibratedScanPoint(rawIndex, QuantizePosition(calibration.Transform(raw.Position)), raw.ExtraColumns));
+                }
+                int added = componentMembers.Count - component.PointCount;
+                if (added == 0) continue;
+                components[index] = new ExtractionComponent(
+                    component.Label, component.Rank, component.CellCount, componentMembers.Count,
+                    component.Retained, component.Name, componentMembers.ToArray(),
+                    ScanBounds.Of(componentMembers.Select(i => above[i].Position)));
+                warnings.Add($"rank {component.Rank}：{seeds.Length:N0} 個高度種子恢復 {added:N0} 個連續同板面的實測低邊緣點；排除地面且未插值。");
+            }
+            points = above.ToArray();
+        }
+
+        Log($"完成：{cloud.Points.Length:N0} 點 → 高度種子 {seedPointCount:N0} 點、恢復 {points.Length - seedPointCount:N0} 點；取出 {components.Count(cmp => cmp.Retained)} 個物件。");
         return new ExtractionResult
         {
             Source = cloud,
             AbovePoints = points,
+            SeedPointCount = seedPointCount,
             Calibration = calibration,
             Options = options,
             OccupiedCellCount = occupied.Count,
@@ -238,13 +191,14 @@ public static class AngleSteelExtractor
         };
     }
 
-    private static HashSet<GridCell> FloodFill(CompatibleGridSet occupied, GridCell seed)
+    private static HashSet<GridCell> FloodFill(CompatibleGridSet occupied, GridCell seed, CancellationToken cancellationToken)
     {
         var visited = new HashSet<GridCell>();
         var queue = new Stack<GridCell>();
         queue.Push(seed);
         while (queue.TryPop(out var cell))
         {
+            if ((visited.Count & 16383) == 0) cancellationToken.ThrowIfCancellationRequested();
             if (visited.Contains(cell) || !occupied.Contains(cell))
             {
                 continue;
@@ -269,63 +223,7 @@ public static class AngleSteelExtractor
         return visited;
     }
 
-    private static (double X, double Y) FindEdges(SourceScanPoint[] points)
-    {
-        var xScores = new Dictionary<double, (int Count, int Total)>();
-        var yScores = new Dictionary<double, (int Count, int Total)>();
-        var previousByX = new Dictionary<double, (double Y, double Z)>();
-        double previousY = 0, previousZ = 0;
-        foreach (var point in points)
-        {
-            var p = point.Position;
-            double xi = Math.Round(p.X, MidpointRounding.ToEven), yi = Math.Round(p.Y, MidpointRounding.ToEven);
-            var previous = previousByX.GetValueOrDefault(xi);
-            var score = xScores.GetValueOrDefault(xi);
-            xScores[xi] = (score.Count + (Math.Abs(p.Z - previous.Z) > .2 ? 1 : 0), score.Total + 1);
-            previousByX[xi] = (p.Y, p.Z);
-            if (Math.Abs(p.Y - previousY) > 1e-6)
-            {
-                var yScore = yScores.GetValueOrDefault(yi);
-                yScores[yi] = (yScore.Count + (Math.Abs(p.Z - previousZ) > .8 ? 1 : 0), yScore.Total + 1);
-            }
-
-            previousY = p.Y;
-            previousZ = p.Z;
-        }
-
-        // The bundled implementation selects max coordinate key, not the largest discontinuity score.
-        return (xScores.Count > 0 ? xScores.Keys.Max() : Math.Round(points.Max(p => p.Position.X)),
-            yScores.Count > 0 ? yScores.Keys.Max() : Math.Round(points.Max(p => p.Position.Y)));
-    }
-
-    private static (ScanVector Origin, ScanVector X, ScanVector Y, ScanVector Z) BuildBasis(
-        SourceScanPoint[] points,
-        double edgeX,
-        double edgeY)
-    {
-        var xPoints = points.Where(p => Math.Abs(p.Position.X - edgeX) < 1e-6).Select(p => p.Position).ToArray();
-        var yPoints = points.Where(p => Math.Abs(p.Position.Y - edgeY) < 1e-6).Select(p => p.Position).ToArray();
-        if (xPoints.Length < 20 || yPoints.Length < 20)
-        {
-            throw new CalibrationMathException("Not enough edge points");
-        }
-
-        var xl = CalibrationMath.RobustLine(xPoints);
-        var yl = CalibrationMath.RobustLine(yPoints);
-        var origin = CalibrationMath.ClosestOrigin(xl, yl);
-        var xa = xl.Direction.Normalize();
-        var ya = yl.Direction.Normalize();
-        if (xa.Dot(ya) < 0)
-        {
-            ya = ya.Scale(-1.0);
-        }
-
-        var za = xa.Cross(ya).Normalize();
-        ya = za.Cross(xa).Normalize();
-        return (origin, xa, ya, za);
-    }
-
-    private static void Validate(ScanCloud cloud, ExtractionOptions options)
+    private static void Validate(ScanCloud cloud, ExtractionOptions options, CancellationToken cancellationToken)
     {
         if (cloud.Points.Length == 0)
         {
@@ -334,13 +232,18 @@ public static class AngleSteelExtractor
 
         if (!double.IsFinite(options.ZThresholdMm) || !double.IsFinite(options.CellMm) || options.CellMm <= 0
             || options.MinimumComponentCells < 1 || !double.IsFinite(options.CornerWindowMm) || options.CornerWindowMm <= 0
-            || options.CornerSample < 1)
+            || options.CornerSample < 1 || options.GroundMaxSamples < 30
+            || !double.IsFinite(options.GroundDistanceToleranceMm) || options.GroundDistanceToleranceMm <= 0
+            || !double.IsFinite(options.GroundMaximumSlope) || options.GroundMaximumSlope <= 0
+            || !double.IsFinite(options.GroundMinimumSupportFraction)
+            || options.GroundMinimumSupportFraction <= 0 || options.GroundMinimumSupportFraction > 1)
         {
-            throw new ArgumentException("高度門檻必須有限；格子、最小連通格數、四角視窗與取樣步距必須大於零。");
+            throw new ArgumentException("抽取門檻、格子、地面取樣與品質設定無效。");
         }
 
         for (int i = 0; i < cloud.Points.Length; i++)
         {
+            if ((i & 65535) == 0) cancellationToken.ThrowIfCancellationRequested();
             var p = cloud.Points[i];
             if (p.SourcePointIndex != i || !double.IsFinite(p.Position.X) || !double.IsFinite(p.Position.Y) || !double.IsFinite(p.Position.Z))
             {

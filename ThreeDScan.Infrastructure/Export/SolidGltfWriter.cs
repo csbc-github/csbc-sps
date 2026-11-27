@@ -95,11 +95,20 @@ internal static class SolidGltfWriter
                     meshCellMm = model.Options.CellMm,
                     scanMillimetresToGltfMetres = "(x,y,z) -> (0.001*x,0.001*z,-0.001*y)",
                     reconstructed = true,
+                    outerEdgesFilled = model.OutlineFill?.FilledExteriorCells > 0,
+                    addedOuterGeometryIsEstimated = model.OutlineFill?.FilledExteriorCells > 0,
+                    measuredPointCloudUnchanged = true,
+                    edgeInfillReport = model.OutlineFill is null
+                        ? (JsonElement?)null
+                        : JsonSerializer.SerializeToElement(model.OutlineFill, ExtractionJson.Options),
                 },
             };
         }
 
-        var jsonOptions = new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
+        var jsonOptions = new JsonSerializerOptions
+        {
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        };
         File.WriteAllText(gltfPath, JsonSerializer.Serialize(Document("data:application/octet-stream;base64," + Convert.ToBase64String(buffer)), jsonOptions), new UTF8Encoding(false));
         byte[] json = JsonSerializer.SerializeToUtf8Bytes(Document(null), jsonOptions);
         int jsonLength = (json.Length + 3) & ~3, binLength = (buffer.Length + 3) & ~3;

@@ -17,7 +17,7 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureService
         LjCalibrationParameters parameters,
         CancellationToken ct = default)
     {
-        return Task.Run(() => MeasureCore(scannerId, config, capture, parameters), ct);
+        return Task.Run(() => MeasureCore(scannerId, config, capture, parameters, ct), ct);
     }
 
     /// <inheritdoc />
@@ -30,7 +30,7 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureService
         string contentsFolder,
         CancellationToken ct = default)
     {
-        return Task.Run(() => SetupReferenceCore(scannerId, existingConfig, capture, parameters, contentsFolder), ct);
+        return Task.Run(() => SetupReferenceCore(scannerId, existingConfig, capture, parameters, contentsFolder, ct), ct);
     }
 
     /// <summary>儀器校正量測：載入 Ref 圖、Execute 尋球、抽出球心、可選量基準面。</summary>
@@ -38,7 +38,8 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureService
         string scannerId,
         ScannerConfigRecord config,
         ScannerCaptureResult capture,
-        LjCalibrationParameters parameters)
+        LjCalibrationParameters parameters,
+        CancellationToken ct)
     {
         var settings = new LjMeasureSettings(parameters, config);
         BallSettings.SetScope(settings);
@@ -50,9 +51,9 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureService
             var measure = CreateMeasure(config.ContentsFolder);
             var (height, gray) = LoadCapture(capture);
 
-            // PatternMatch + 在 PM 對到的 XY 擬合；直徑只當及格，不依直徑排序。
-            var results = measure.Execute(height, gray);
-            var balls = ExtractBalls(results, parameters).ToList();
+            // SDK 工具保留給視埠；API 球心／球徑必須讀取原始高度穩健擬合的保留值。
+            var results = measure.Execute(height, gray, ct);
+            var balls = ExtractBalls(measure, results, parameters).ToList();
 
             MeasuredBall? firstBall = balls.FirstOrDefault();
             var datumPlane = measure.TryMeasureDatumPlane(
@@ -84,7 +85,8 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureService
         ScannerConfigRecord? existingConfig,
         ScannerCaptureResult capture,
         LjCalibrationParameters parameters,
-        string contentsFolder)
+        string contentsFolder,
+        CancellationToken ct)
     {
         Directory.CreateDirectory(contentsFolder);
 
@@ -111,7 +113,7 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureService
             measure.ReloadReferenceFromConfig();
 
             if (!measure.TryFitCalibrationBallAtRef(
-                    height, out var discoverX, out var discoverY, out var discoverD, out var discoverMessage))
+                    height, out var discoverX, out var discoverY, out var discoverD, out var discoverMessage, ct))
             {
                 throw new InvalidOperationException(
                     "Ref 擬合失敗：" + discoverMessage + " 已取消覆蓋 ref_*.png。");
@@ -121,9 +123,9 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureService
             measure.UpdatePattern(height, gray);
             measure.UpdateReference(height, gray);
 
-            // 用 Zero@Ref 再探一次；直徑不合格則整筆失敗、不覆蓋 png。
+            // 以相同原始球面擬合再驗證；直徑或外圈品質不合格則不覆蓋 png。
             if (!measure.TryValidateCalibrationProbe(
-                    height, out _, out _, out _, out _, out var validateMessage))
+                    height, out _, out _, out _, out _, out var validateMessage, ct))
             {
                 throw new InvalidOperationException(validateMessage + " 已取消覆蓋 ref_*.png。");
             }
@@ -202,29 +204,32 @@ public sealed class LjDeveloperMeasureService : ILjSphereMeasureService
         return (height, gray);
     }
 
-    /// <summary>從 Execute 結果抽出直徑合格的球；Index 為保留順序而非 PM 槽位。</summary>
+    /// <summary>從 Execute 讀取有校正資格的球心，並保留自由估徑及模型標記。</summary>
     private static IEnumerable<MeasuredBall> ExtractBalls(
+        LjDeveloperMeasureCore measure,
         IList<ILToolInfo> results,
         LjCalibrationParameters parameters)
     {
         var index = 0;
         foreach (var result in results)
         {
-            if (result is not LSphereToolInfo sphereInfo) continue;
-            var values = sphereInfo.ToolMeasureValues().Values;
-            if (values is null || values.Length < 4) continue;
-
-            var d = values[3].Value;
-            if (!BallSettings.IsAcceptableSphereDiameter(d)) continue;
+            if (!measure.TryReadKeptSphereFit(result, out var fit)) continue;
 
             yield return new MeasuredBall
             {
                 Index = index++,
-                X = values[0].Value,
-                Y = values[1].Value,
-                Z = values[2].Value,
-                Diameter = d,
-                IsWithinTolerance = Math.Abs(d - parameters.ExpectedBallDiameter) <= parameters.DiameterTolerance,
+                X = fit.X,
+                Y = fit.Y,
+                Z = fit.Z,
+                Diameter = fit.DiameterMm,
+                IsWithinTolerance = Math.Abs(fit.DiameterMm - parameters.ExpectedBallDiameter) <= parameters.DiameterTolerance,
+                KnownRadiusModelValidated = fit.Success && fit.UsesKnownRadius,
+                SphereFitMethod = fit.UsesKnownRadius ? "KnownRadiusCenter" : "FreeRadiusRobust",
+                UsesKnownRadius = fit.UsesKnownRadius,
+                NominalDiameterMm = fit.UsesKnownRadius ? fit.NominalDiameterMm : parameters.ExpectedBallDiameter,
+                FreeMeasurementQualityPassed = fit.IsGeometryValid,
+                UsedLocalizedOutlierValidation = fit.UsedLocalizedOutlierValidation,
+                CenterSensitivityMm = fit.UsedLocalizedOutlierValidation ? fit.CenterSensitivityMm : null,
             };
         }
     }

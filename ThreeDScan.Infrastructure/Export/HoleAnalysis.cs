@@ -16,7 +16,8 @@ public static class HoleAnalysis
         string path,
         string? requestedType = null,
         FeatureRoi? roi = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool angleSteelOnly = false)
     {
         if (!string.IsNullOrEmpty(requestedType) && requestedType is not ("Circle" or "Slot"))
         {
@@ -27,10 +28,16 @@ public static class HoleAnalysis
 
         cancellationToken.ThrowIfCancellationRequested();
         float[] xyz = ScannerPlyReader.Read(path);
+        // Identify the workpiece before ROI filtering. Apply its membership to
+        // detected candidates, without introducing extra gaps by cropping the workpiece.
+        var angleScope = angleSteelOnly ? AngleSteelHoleScope.Build(xyz, cancellationToken) : null;
+        int sourcePointCount = xyz.Length / 3;
+        int[] sourcePointIndices;
         if (roi is not null)
         {
             ValidateRoi(roi);
             var selected = new List<float>();
+            var selectedSourceIndices = new List<int>();
             for (int i = 0; i < xyz.Length; i += 3)
             {
                 if (xyz[i] >= roi.Minimum.X && xyz[i] <= roi.Maximum.X
@@ -40,16 +47,20 @@ public static class HoleAnalysis
                     selected.Add(xyz[i]);
                     selected.Add(xyz[i + 1]);
                     selected.Add(xyz[i + 2]);
+                    selectedSourceIndices.Add(i / 3);
                 }
             }
 
             xyz = selected.ToArray();
+            sourcePointIndices = selectedSourceIndices.ToArray();
         }
+        else sourcePointIndices = Enumerable.Range(0, sourcePointCount).ToArray();
 
         cancellationToken.ThrowIfCancellationRequested();
-        // A capture may contain a floor, both angle faces and fixture faces before the drilled plate.
-        // Search eight independent measured planes so a smaller flat hole fixture is not hidden by clutter.
-        var detection = OrganizedHoleDetector.Detect(xyz, options: new HoleDetectionOptions(8));
+        // Match the standalone reference: original scan rows and four independently measured faces.
+        var detection = OrganizedHoleDetector.Detect(xyz);
+        if (angleScope is not null)
+            detection = ApplyAngleScope(detection, angleScope, sourcePointIndices);
         cancellationToken.ThrowIfCancellationRequested();
         double tolerance = Math.Max(.8, Math.Max(detection.ScannerPitch.XMm, detection.ScannerPitch.YMm) * 1.5);
         var features = detection.AllOpenings().Select(h =>
@@ -67,12 +78,27 @@ public static class HoleAnalysis
                 h.BoundaryBox.WidthMm,
                 h.BoundaryBox.HeightMm,
                 h.Scanlines,
-                h.Reason);
+                h.Reason)
+            {
+                MeasuredBoundary = h.PerimeterPoints.Select(MapBoundary).ToArray(),
+                EdgePairs = h.EdgePoints.Select(e => new HoleEdgePair(MapBoundary(e.Point1), MapBoundary(e.Point2), e.ScanYmm)).ToArray(),
+                BoundaryBox = h.BoundaryBox,
+                Closure = h.Closure,
+                OpeningWidthRangeMm = h.OpeningWidthRangeMm,
+                BoundarySource = h.BoundarySource,
+            };
         }).ToArray();
         var eligible = features.Where(f => f.Closed && (string.IsNullOrEmpty(requestedType) || f.Type == requestedType))
             .OrderByDescending(f => f.WidthMm * f.HeightMm).ThenBy(f => f.Id, StringComparer.Ordinal).ToArray();
         var chosen = eligible.FirstOrDefault();
         var warnings = new List<string>();
+        if (detection.Scope is { } scope)
+        {
+            if (!scope.WorkpieceIdentified && scope.Reason is { } scopeReason) warnings.Add(scopeReason);
+            warnings.Add(scope.RetainedOpeningCount == 0
+                ? "目前沒有通過角鋼板面與原始孔緣來源點檢查的開口；完整原始掃描仍保留供核對。"
+                : $"只記錄角鋼實測翼板上的開口；已排除 {scope.InputOpeningCount - scope.RetainedOpeningCount} 個地面、支承板或不屬於角鋼的開口。");
+        }
         if (features.Length > 1)
         {
             warnings.Add("Multiple features were measured. featureBoundary selects one complete feature; use features for every separate boundary.");
@@ -105,7 +131,44 @@ public static class HoleAnalysis
             warnings.ToArray(),
             detection.PointCount,
             detection.ScannerPitch.XMm,
-            detection.ScannerPitch.YMm);
+            detection.ScannerPitch.YMm)
+        {
+            Detection = detection,
+            AnalysisSourcePointIndices = sourcePointIndices,
+            SourcePointCount = sourcePointCount,
+            Scope = detection.Scope,
+        };
+
+        BoundaryPoint MapBoundary(BoundaryPoint p) => new(
+            sourcePointIndices[p.SourcePointIndex], p.XMm, p.YMm, p.ZMm, p.UMm, p.VMm, p.PlaneDistanceMm);
+    }
+
+    private static HoleDetectionResult ApplyAngleScope(HoleDetectionResult input, AngleSteelHoleScope mask,
+        int[] sourcePointIndices)
+    {
+        var faces = input.Faces.ToDictionary(f => f.Id, StringComparer.Ordinal);
+        var openings = input.AllOpenings();
+        var retained = openings.Where(h => faces.TryGetValue(h.FaceId, out var face)
+            && mask.Accept(h.PerimeterPoints.Select(p => sourcePointIndices[p.SourcePointIndex]), face)).ToArray();
+        var ids = retained.Select(h => h.Id).ToHashSet(StringComparer.Ordinal);
+        var faceIds = retained.Select(h => h.FaceId).ToHashSet(StringComparer.Ordinal);
+        var report = mask.Diagnostics.WithOpenings(openings.Length, retained.Length, faceIds.Order().ToArray(),
+            openings.Where(h => !ids.Contains(h.Id)).Select(h => h.Id).ToArray());
+        return new HoleDetectionResult
+        {
+            Unit = input.Unit, PointCount = input.PointCount, ScannerPitch = input.ScannerPitch, Options = input.Options,
+            Faces = input.Faces.Where(f => faceIds.Contains(f.Id)).ToArray(),
+            Holes = input.Holes.Where(h => ids.Contains(h.Id)).ToArray(),
+            PartialHoles = input.PartialHoles.Where(h => ids.Contains(h.Id)).ToArray(),
+            Views = input.Views.Where(v => faceIds.Contains(v.FaceId)).Select(v => new HoleFaceView(
+                v.FaceId, v.Plane, v.Samples, v.MinU, v.MaxU, v.MinV, v.MaxV,
+                v.Holes.Where(h => ids.Contains(h.Id)).ToArray(),
+                v.PartialHoles.Where(h => ids.Contains(h.Id)).ToArray())).ToArray(),
+            Diagnostics = input.Diagnostics.Where(d => faceIds.Contains(d.FaceId)).ToArray(),
+            Method = input.Method + "; validated angle-steel wing and measured source-point ownership",
+            Limitations = input.Limitations,
+            Scope = report,
+        };
     }
 
     private static void ValidateRoi(FeatureRoi roi)

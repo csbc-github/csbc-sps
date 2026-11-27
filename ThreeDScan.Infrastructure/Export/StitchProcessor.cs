@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 using ThreeDScan.Domain.Models;
 using ThreeDScan.Infrastructure.Export.Models;
 
@@ -8,6 +9,23 @@ namespace ThreeDScan.Infrastructure.Export;
 /// <remarks>由 Hank Scan3D 的 StitchProcessor 搬入，邏輯不改。</remarks>
 public static class StitchProcessor
 {
+    // Scope the preview data to this exact result object, never to a mutable
+    // file path or a future task. Packaging can reuse coordinates already in RAM.
+    private static readonly ConditionalWeakTable<StitchProcessingResult, PreviewCoordinates> PreviewCache = new();
+
+    internal static IEnumerable<ScanVector>? GetPreviewCoordinates(StitchProcessingResult result) =>
+        PreviewCache.TryGetValue(result, out var data) ? data.Enumerate() : null;
+
+    private sealed record PreviewCoordinates(ScanVector[][] Points, bool[][] Retained)
+    {
+        internal IEnumerable<ScanVector> Enumerate()
+        {
+            for (int scan = 0; scan < Points.Length; scan++)
+                for (int point = 0; point < Points[scan].Length; point++)
+                    if (Retained[scan][point]) yield return Points[scan][point];
+        }
+    }
+
     /// <summary>拼接多段處理結果。</summary>
     /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Processing.StitchProcessor</c>。</remarks>
     /// <param name="segments">各段結果。</param>
@@ -42,7 +60,9 @@ public static class StitchProcessor
         }
 
         var warnings = new List<string>();
+        StitchQualityFailure[] validationFailures = [];
         bool passed = true;
+        bool? alignmentPassed = null, boundaryPassed = null;
         bool calibrated = segments.All(s => s.AbsoluteCoordinatesCalibrated);
         var clouds = segments.Select(s => ScanPly.Read(s.ScannerPlyPath)).ToArray();
         var points = new ScanVector[segments.Count][];
@@ -57,11 +77,12 @@ public static class StitchProcessor
         {
             cancellationToken.ThrowIfCancellationRequested();
             string nominal = Path.Combine(outputDirectory, "nominal-stitch");
-            var chain = StitchJob.Run(
+            var chain = StitchJob.RunPrepared(
                 segments.Select(s => s.ScannerPlyPath).ToArray(),
+                clouds,
                 nominal,
                 new ButtStitchOptions(options.NominalGapMm),
-                recoverMeasuredEdges: false);
+                options.ExportDiagnosticPointClouds);
             var anchor = RigidTransforms.Multiply(segments[0].ScannerToAbsoluteMatrix, RigidTransforms.Inverse(chain.Parts[0].Pose.Matrix));
             for (int i = 0; i < segments.Count; i++)
             {
@@ -71,11 +92,22 @@ public static class StitchProcessor
             }
 
             passed = chain.Passed;
+            alignmentPassed = chain.Seams.All(s => s.Validation.ProfileSampleCount >= 30
+                && s.Validation.CrossSectionHeightRmsMm <= chain.Options.MaximumValidationRmsMm
+                && s.Validation.CrossSectionHeightP95AbsoluteMm <= chain.Options.MaximumValidationP95Mm
+                && s.Validation.LeftEndWingSupportFraction >= .7 && s.Validation.RightEndWingSupportFraction >= .7
+                && s.Validation.FitAndValidationIndicesDisjoint);
+            boundaryPassed = chain.Seams.All(s => s.Validation.FullSection?.Passed == true
+                && s.Validation.LeftEndInteriorCoverage?.Passed == true && s.Validation.RightEndInteriorCoverage?.Passed == true);
+            validationFailures = DescribeValidationFailures(chain);
             calibrated = false;
             warnings.Add("已明確選用無重疊端對端拼接：各段長向距離假設為 nominalGapMm，cameraPosition 只錨定第一段；未驗證工件物理總長與後續段絕對位置。");
+            if (chain.Seams.Any(s => s.Validation.UnfilteredFullSection?.Passed == false && s.Validation.FullSection?.Passed == true))
+                warnings.Add("稀疏尾端分箱未用於翼板邊界判定；已依長向重複觀測核對兩段截面及各自內側翼寬，未因此刪除輸出的量測點。");
             if (!passed)
             {
                 warnings.Add("至少一個接縫的留出截面/全寬檢查未通過；保留結果供診斷。");
+                warnings.AddRange(validationFailures.Select(failure => failure.Message));
             }
         }
         else
@@ -139,10 +171,20 @@ public static class StitchProcessor
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var firstInverse = RigidTransforms.Inverse(transforms[0]);
-                    var local = OutputPoints().Select(p => RigidTransforms.Apply(firstInverse, p.Position)).ToArray();
+                    var local = points.SelectMany((part, i) => part.Where((_, j) => retained[i][j]))
+                        .Select(p => RigidTransforms.Apply(firstInverse, p)).ToArray();
                     var model = AngleSolidBuilder.Build(local, new SolidExportOptions(resolvedThickness.Value, options.MeshCellMm));
+                    if (options.FillOuterEdges)
+                    {
+                        model = AngleSolidOutlineFiller.Fill(model, options.OuterEdgeRepairMinDepthMm, cancellationToken);
+                    }
                     TransformModel(model, transforms[0]);
                     var topology = model.Validate();
+                    if (options.Mode == StitchMode.NominalButtJoin && segments.Count > 1 && options.NominalGapMm == 0
+                        && topology.ClosedSolidCount != 1)
+                    {
+                        throw new InvalidDataException($"零間隙首尾對接需建立單一連通實體，目前仍有 {topology.ClosedSolidCount} 個分離實體；未將分離模型當成已接合結果。");
+                    }
                     gltf = Path.Combine(outputDirectory, "stitched.gltf");
                     glb = Path.Combine(outputDirectory, "stitched.glb");
                     step = Path.Combine(outputDirectory, "stitched.step");
@@ -156,15 +198,23 @@ public static class StitchProcessor
                         topology,
                         model.Options,
                         model.Reconstructions,
+                        edgeInfill = model.OutlineFill,
                         thicknessSource = thicknessMm is not null ? "Explicit caller dimension" : "Consistent independent left/right inner-reference predictions",
                         coordinateFrame = "STEP: absolute XYZ millimetres. GLTF/GLB: Y-up metres, (X,Y,Z) mm -> (0.001*X,0.001*Z,-0.001*Y).",
                         assumptions = new[]
                         {
                             "Planar wing reconstruction; hidden side walls and bend radius are inferred.",
+                            !(model.OutlineFill?.FilledExteriorCells > 0)
+                                ? "Only independently supported measured wing points and measured rounded-ridge neighbours define the CAD footprint; other original measurements stay in PLY and are not projected into extra solids. No empty seam/ridge is bridged."
+                                : "Exterior notches deeper than the configured threshold are repaired within each body's fixed model envelope. Smaller edge variations and all enclosed holes are retained. Added border material is inferred. Separate major bodies and declared gaps remain separate; original measured PLY coordinates and seam-quality flags are unchanged.",
                             "Resolved footprint voids are preserved; enclosed sampling gaps up to four grid cells may be filled by the inherited solid builder.",
                             "A missing scan region may appear as a hole. Model reconstruction is not an independent dimensional inspection.",
                         },
                     }, ExtractionJson.Options);
+                    if (model.OutlineFill?.FilledExteriorCells > 0)
+                    {
+                        warnings.Add($"模型僅修補深度超過 {options.OuterEdgeRepairMinDepthMm:0.###} mm 的外緣缺口；補入部分為推估幾何，原始點雲、內部孔洞與接縫品質判定保留。");
+                    }
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or ArgumentException)
                 {
@@ -188,10 +238,15 @@ public static class StitchProcessor
             SegmentCount = segments.Count,
             PointCount = count,
             ValidationPassed = passed,
+            AlignmentValidationPassed = alignmentPassed,
+            BoundaryValidationPassed = boundaryPassed,
+            ValidationFailures = validationFailures,
             AbsoluteCoordinatesCalibrated = calibrated,
             ThicknessMm = resolvedThickness,
             Warnings = warnings.ToArray(),
         };
+        if (result.GlbPath is not null)
+            PreviewCache.Add(result, new PreviewCoordinates(points, retained));
         using (var file = new FileStream(report, FileMode.CreateNew))
         {
             JsonSerializer.Serialize(file, new
@@ -217,6 +272,56 @@ public static class StitchProcessor
         }
 
         return result;
+    }
+
+    private static StitchQualityFailure[] DescribeValidationFailures(ChainStitchResult chain)
+    {
+        var failures = new List<StitchQualityFailure>();
+        foreach (var seam in chain.Seams.Where(s => !s.Validation.Passed))
+        {
+            var validation = seam.Validation;
+            var options = chain.Options;
+            Check("crossSectionHeightRmsMm", "截面高度 RMS", validation.CrossSectionHeightRmsMm,
+                options.MaximumValidationRmsMm, false, "mm");
+            Check("crossSectionHeightP95AbsoluteMm", "截面高度 P95", validation.CrossSectionHeightP95AbsoluteMm,
+                options.MaximumValidationP95Mm, false, "mm");
+            Section("fullSection", "全截面", validation.FullSection);
+            Section("leftEndInteriorCoverage", "前段端部相對內側翼寬", validation.LeftEndInteriorCoverage);
+            Section("rightEndInteriorCoverage", "後段端部相對內側翼寬", validation.RightEndInteriorCoverage);
+            Check("leftEndWingSupportFraction", "前段端部翼板支承比例", validation.LeftEndWingSupportFraction, .7, true, "ratio");
+            Check("rightEndWingSupportFraction", "後段端部翼板支承比例", validation.RightEndWingSupportFraction, .7, true, "ratio");
+
+            void Section(string prefix, string label, SectionEdgeCheck? section)
+            {
+                if (section is null) return;
+                Check(prefix + ".leftEdgeDistanceMm", label + "左邊緣距離", section.LeftEdgeDistanceMm,
+                    options.MaximumSectionEdgeDistanceMm, false, "mm");
+                Check(prefix + ".rightEdgeDistanceMm", label + "右邊緣距離", section.RightEdgeDistanceMm,
+                    options.MaximumSectionEdgeDistanceMm, false, "mm");
+                Check(prefix + ".commonCoverageRatio", label + "共同覆蓋比例", section.CommonCoverageRatio,
+                    options.MinimumSectionCoverageRatio, true, "ratio");
+            }
+
+            void Check(string name, string label, double actual, double limit, bool minimum, string unit)
+            {
+                if (double.IsFinite(actual) && (minimum ? actual >= limit : actual <= limit)) return;
+                string valueText = double.IsFinite(actual)
+                    ? actual.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) : "無有效量測";
+                string limitText = limit.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
+                failures.Add(new StitchQualityFailure
+                {
+                    SeamNumber = seam.SeamNumber,
+                    Check = name,
+                    ActualValue = double.IsFinite(actual) ? actual : null,
+                    Limit = limit,
+                    Comparison = minimum ? ">=" : "<=",
+                    Unit = unit,
+                    Message = $"接縫 {seam.SeamNumber} {label} {valueText} {unit}，須{(minimum ? "至少" : "不超過")} {limitText} {unit}。",
+                });
+            }
+        }
+
+        return failures.ToArray();
     }
 
     private static double? ResolveThickness(IReadOnlyList<SegmentProcessingResult> segments, double? supplied, List<string> warnings)
@@ -282,7 +387,13 @@ public static class StitchProcessor
                 r.FilledSamplingCells,
                 r.RemovedAmbiguousCells,
                 r.RemovedSmallIslandCells,
-                r.OccupiedCells);
+                r.OccupiedCells)
+            {
+                InputMeasurementCount = r.InputMeasurementCount,
+                WingPlaneMeasurementCount = r.WingPlaneMeasurementCount,
+                MeasuredRidgePointCount = r.MeasuredRidgePointCount,
+                OuterEdgesFilled = r.OuterEdgesFilled,
+            };
         }
     }
 }

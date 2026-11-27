@@ -79,9 +79,10 @@ public sealed class ChainStitchResult
     /// <summary>假設說明。</summary>
     public string[] Assumptions { get; init; } =
     [
-        "The ordered inputs are contiguous non-overlapping captures of the same angle steel, in millimetres, with organized scanner-Y rows.",
-        "Join each input's maximum scanner-Y end to the next input's minimum scanner-Y end; every physical gap is assumed to equal the configured nominal gap.",
+        "The caller selected an ordered nominal end-to-end assembly of angle-steel scans in millimetres; physical adjacency and capture overlap were not independently verified.",
+        "Find each workpiece's longitudinal direction from its independently supported XYZ wing planes, oriented toward scanner +Y (+X when Y is zero); join the upper fitted-axis end to the next lower fitted-axis end at the configured nominal gap. End-frame Y is not scanner Y.",
         "Solve adjacent original captures, compose rigid poses, intersect both end masks for interior segments, and transform each original point once without intermediate PLY quantization.",
+        "Classify end-section measurements against independently trained wing planes; off-wing noise stays in the measured output but cannot define a wing edge. Each end must also cover its own interior measured wing width.",
         "Every seam is validated using final retained held-out points. Cross-section agreement does not verify absolute longitudinal placement or physical overall length.",
     ];
 }

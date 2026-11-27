@@ -3,7 +3,7 @@ using ThreeDScan.Infrastructure.Export.Models;
 namespace ThreeDScan.Infrastructure.Export;
 
 /// <summary>無重疊端對端拼接。長向位置為明確的公稱間隙假設。</summary>
-/// <remarks>由 Hank Scan3D 的 ButtStitcher 搬入，邏輯不改。</remarks>
+/// <remarks>以兩翼完整 XYZ 基底建立端部框；掃描器 Y 不代表工件長向。</remarks>
 public static class ButtStitcher
 {
     /// <summary>由兩份 PLY 拼接。</summary>
@@ -27,19 +27,19 @@ public static class ButtStitcher
     {
         options ??= new ButtStitchOptions();
         ValidateOptions(options);
-        log?.Invoke("擬合 A 最大 Y 端、B 最小 Y 端的兩翼板與長軸…");
-        var fa = BuildFrame(cloudA, true, options);
-        var fb = BuildFrame(cloudB, false, options);
+        log?.Invoke("沿實測兩翼交線擬合 A 尾端、B 頭端的兩翼板與長軸…");
+        var fa = BuildFrame(cloudA, true, options, out var fitA);
+        var fb = BuildFrame(cloudB, false, options, out var fitB);
         var aa = cloudA.Points.Select(p => fa.Align(p.Position)).ToArray();
         var bb = cloudB.Points.Select(p => fb.Align(p.Position)).ToArray();
         double DistanceA(int i)
         {
-            return fa.EndpointYmm - cloudA.Points[i].Position.Y;
+            return -fa.Align(cloudA.Points[i].Position).Y;
         }
 
         double DistanceB(int i)
         {
-            return cloudB.Points[i].Position.Y - fb.EndpointYmm;
+            return fb.Align(cloudB.Points[i].Position).Y;
         }
 
         int[] Select(ScanCloud cloud, Func<int, double> distance, double min, double max)
@@ -48,10 +48,18 @@ public static class ButtStitcher
                 .Where(i => distance(i) >= min && distance(i) <= max).ToArray();
         }
 
-        var fitA = Select(cloudA, DistanceA, options.PlaneTrainingStartMm, options.PlaneTrainingStartMm + options.PlaneTrainingDepthMm);
-        var fitB = Select(cloudB, DistanceB, options.PlaneTrainingStartMm, options.PlaneTrainingStartMm + options.PlaneTrainingDepthMm);
-        var profileFitA = Select(cloudA, DistanceA, options.ProfileTrainingStartMm, options.ProfileTrainingEndMm);
-        var profileFitB = Select(cloudB, DistanceB, options.ProfileTrainingStartMm, options.ProfileTrainingEndMm);
+        bool OnWing(EndFrame frame, ScanVector raw)
+        {
+            var local = frame.Align(raw);
+            var plane = local.X < 0 ? frame.LeftSurface : frame.RightSurface;
+            double distance = Math.Abs(local.Z - plane.A * local.X - plane.B * local.Y - plane.C)
+                / Math.Sqrt(1 + plane.A * plane.A + plane.B * plane.B);
+            return distance <= Math.Max(options.MinimumPlaneToleranceMm, 3 * plane.RmsMm);
+        }
+        var profileFitA = Select(cloudA, DistanceA, options.ProfileTrainingStartMm, options.ProfileTrainingEndMm)
+            .Where(i => OnWing(fa, cloudA.Points[i].Position)).ToArray();
+        var profileFitB = Select(cloudB, DistanceB, options.ProfileTrainingStartMm, options.ProfileTrainingEndMm)
+            .Where(i => OnWing(fb, cloudB.Points[i].Position)).ToArray();
         log?.Invoke("用獨立的內側截面帶微調截面旋轉與平移…");
         var correction = StitchMath.RefineProfile(
             StitchMath.Profile(aa, profileFitA, options.ProfileBinMm),
@@ -66,7 +74,9 @@ public static class ButtStitcher
                 correction[1][0] * p.X + correction[1][1] * p.Z + correction[1][2]);
         }
 
-        double cutA = EndCut(aa, true, options), cutB = EndCut(bb, false, options);
+        // Each fitted frame is already located at its measured full-width cut.
+        // Profile refinement acts only in X/Z and cannot change this station.
+        const double cutA = 0, cutB = 0;
         var keepA = aa.Select(p => p.Y <= cutA).ToArray();
         var keepB = bb.Select(p => p.Y >= cutB).ToArray();
         for (int i = 0; i < aa.Length; i++)
@@ -91,8 +101,12 @@ public static class ButtStitcher
             bb[i] += shift;
         }
 
-        var validationA = Select(cloudA, DistanceA, 0, options.ValidationDepthMm).Where(i => keepA[i]).ToArray();
-        var validationB = Select(cloudB, DistanceB, 0, options.ValidationDepthMm).Where(i => keepB[i]).ToArray();
+        var validationCandidatesA = Select(cloudA, DistanceA, 0, options.ValidationDepthMm).Where(i => keepA[i]).ToArray();
+        var validationCandidatesB = Select(cloudB, DistanceB, 0, options.ValidationDepthMm).Where(i => keepB[i]).ToArray();
+        var validationA = validationCandidatesA.Where(i => OnWing(fa, cloudA.Points[i].Position)).ToArray();
+        var validationB = validationCandidatesB.Where(i => OnWing(fb, cloudB.Points[i].Position)).ToArray();
+        double supportA = validationA.Length / (double)Math.Max(1, validationCandidatesA.Length);
+        double supportB = validationB.Length / (double)Math.Max(1, validationCandidatesB.Length);
         var vpA = StitchMath.Profile(aa, validationA, options.ProfileBinMm);
         var vpB = StitchMath.Profile(bb, validationB, options.ProfileBinMm);
         if (vpA.Length < 30 || vpB.Length < 30)
@@ -121,9 +135,24 @@ public static class ButtStitcher
         var abs = comparisons.Select(p => Math.Abs(p.DeltaMm)).ToArray();
         double p95 = StitchMath.Quantile(abs, .95);
         bool disjoint = !validationA.Intersect(fitA.Concat(profileFitA)).Any() && !validationB.Intersect(fitB.Concat(profileFitB)).Any();
-        var fullSection = StitchMath.CheckEdges(vpA, vpB, options);
+        var rawFullSection = StitchMath.CheckEdges(vpA, vpB, options);
+        var edgeA = StitchMath.EdgeProfile(aa, validationA, options.ProfileBinMm, shift.X);
+        var edgeB = StitchMath.EdgeProfile(bb, validationB, options.ProfileBinMm, shift.X + correction[0][2]);
+        var fullSection = StitchMath.CheckEdges(edgeA, edgeB, options);
+        // Both end profiles must also cover their own independently measured
+        // interior wing width. Two similarly incomplete ends must not pass just
+        // because they agree with one another after off-wing noise rejection.
+        var interiorIndicesA = fitA.Where(i => OnWing(fa, cloudA.Points[i].Position)).ToArray();
+        var interiorIndicesB = fitB.Where(i => OnWing(fb, cloudB.Points[i].Position)).ToArray();
+        var interiorA = StitchMath.EdgeProfile(aa, interiorIndicesA, options.ProfileBinMm, shift.X);
+        var interiorB = StitchMath.EdgeProfile(bb, interiorIndicesB, options.ProfileBinMm, shift.X + correction[0][2]);
+        if (interiorA.Length < 30 || interiorB.Length < 30)
+            throw new InvalidOperationException("內側兩翼截面不足，不能核對端部全寬。");
+        var coverageA = StitchMath.CheckWidthCoverage(interiorA, edgeA, options);
+        var coverageB = StitchMath.CheckWidthCoverage(interiorB, edgeB, options);
         var validation = new StitchValidation(
-            rms <= options.MaximumValidationRmsMm && p95 <= options.MaximumValidationP95Mm && fullSection.Passed,
+            rms <= options.MaximumValidationRmsMm && p95 <= options.MaximumValidationP95Mm && fullSection.Passed
+                && coverageA.Passed && coverageB.Passed && supportA >= .7 && supportB >= .7,
             comparisons.Count,
             rms,
             StitchMath.Median(abs),
@@ -135,7 +164,14 @@ public static class ButtStitcher
             options.NominalGapMm,
             shift.Y,
             disjoint,
-            fullSection: fullSection);
+            fullSection: fullSection)
+        {
+            UnfilteredFullSection = rawFullSection,
+            LeftEndInteriorCoverage = coverageA,
+            RightEndInteriorCoverage = coverageB,
+            LeftEndWingSupportFraction = supportA,
+            RightEndWingSupportFraction = supportB,
+        };
         if (!disjoint)
         {
             throw new InvalidOperationException("擬合資料與驗證資料不可重疊。");
@@ -154,6 +190,7 @@ public static class ButtStitcher
             PlaneTrainingIndices = fitA,
             ProfileTrainingIndices = profileFitA,
             ValidationIndices = validationA,
+            ValidationCandidatePointCount = validationCandidatesA.Length,
         };
         var partB = new StitchedPart
         {
@@ -166,6 +203,7 @@ public static class ButtStitcher
             PlaneTrainingIndices = fitB,
             ProfileTrainingIndices = profileFitB,
             ValidationIndices = validationB,
+            ValidationCandidatePointCount = validationCandidatesB.Length,
         };
         log?.Invoke($"截面檢查：RMS {rms:F3} mm，P95 {p95:F3} mm；保留 {partA.RetainedPointCount + partB.RetainedPointCount:N0} 點。");
         return new ButtStitchResult
@@ -194,7 +232,7 @@ public static class ButtStitcher
                 -z.Dot(frame.Origin) + correction[1][2] + shift.Z));
     }
 
-    private static EndFrame BuildFrame(ScanCloud cloud, bool upper, ButtStitchOptions options)
+    private static EndFrame BuildFrame(ScanCloud cloud, bool upper, ButtStitchOptions options, out int[] trainingIndices)
     {
         if (cloud.Points.Length < 1000)
         {
@@ -206,54 +244,150 @@ public static class ButtStitcher
             throw new ArgumentException("點雲包含無效座標。");
         }
 
-        double end = upper ? cloud.Points.Max(p => p.Position.Y) : cloud.Points.Min(p => p.Position.Y);
-        double length = cloud.Points.Max(p => p.Position.Y) - cloud.Points.Min(p => p.Position.Y);
+        var points = cloud.Points.Select(p => p.Position).ToArray();
+        var sourceIndices = Enumerable.Range(0, points.Length).ToArray();
+        double maximumRms = Math.Max(options.MinimumPlaneToleranceMm, options.MaximumValidationRmsMm);
+        // The coarse pair identifies the workpiece direction and the measured
+        // end stations. Final plane parameters come only from the training band;
+        // the near-end profile/validation bands remain excluded from that fit.
+        var coarse = GeometryFitting.FitWings(points, sourceIndices, maximumRms);
+        var supported = coarse.Left.Indices.Concat(coarse.Right.Indices).Distinct().ToArray();
+        double Station(ScanVector p, WingFit basis) => (p - basis.RidgeOrigin).Dot(basis.LongAxis);
+        double low = supported.Min(i => Station(points[i], coarse));
+        double high = supported.Max(i => Station(points[i], coarse));
+        var coarseBasis = SectionBasis(coarse, coarse.LongAxis);
+        ScanVector CoarseAligned(ScanVector p)
+        {
+            var d = p - coarse.RidgeOrigin;
+            return new ScanVector(d.Dot(coarseBasis.Cross), d.Dot(coarse.LongAxis), d.Dot(coarseBasis.Up));
+        }
+        // Every transverse bin contributes its own measured boundary. A global
+        // scanner-coordinate extremum can be tens of mm ahead of the complete
+        // section on an oblique scan and is not a valid held-out-band origin.
+        double end = EndCut(supported.Select(i => CoarseAligned(points[i])).ToArray(), upper, options);
+        double length = high - low;
         if (length < options.PlaneTrainingStartMm + options.PlaneTrainingDepthMm + 5)
         {
             throw new ArgumentException("掃描長度不足以分開擬合與驗證區域。");
         }
 
-        var train = cloud.Points.Where(p =>
+        trainingIndices = Enumerable.Range(0, points.Length).Where(i =>
         {
-            double d = upper ? end - p.Position.Y : p.Position.Y - end;
+            double station = Station(points[i], coarse);
+            double d = upper ? end - station : station - end;
             return d >= options.PlaneTrainingStartMm && d <= options.PlaneTrainingStartMm + options.PlaneTrainingDepthMm;
-        }).Select(p => p.Position).ToArray();
-        var peaks = train.GroupBy(p => p.Y).ToDictionary(g => g.Key, g => g.MaxBy(p => p.Z).X);
-        var left = StitchMath.FitPlane(train.Where(p => p.X < peaks[p.Y] - options.ApexExclusionMm).ToArray(), options.MinimumPlaneToleranceMm);
-        var right = StitchMath.FitPlane(train.Where(p => p.X > peaks[p.Y] + options.ApexExclusionMm).ToArray(), options.MinimumPlaneToleranceMm);
-        double denominator = left.A - right.A;
-        if (Math.Abs(denominator) < .1)
+        }).ToArray();
+        if (trainingIndices.Length < 500)
         {
-            throw new InvalidOperationException("未辨識到兩個不同的角鋼翼板。");
+            throw new InvalidOperationException($"{(upper ? "尾端" : "頭端")}內側 {options.PlaneTrainingStartMm:0.###}～{options.PlaneTrainingStartMm + options.PlaneTrainingDepthMm:0.###} mm 的兩翼擬合區只有 {trainingIndices.Length} 個量測點，至少需要 500 個；端部覆蓋不足。");
         }
+        var training = trainingIndices.Select(i => points[i]).ToArray();
+        var fit = GeometryFitting.FitWings(training, trainingIndices, maximumRms);
+        // A pair's axis has no intrinsic head/tail sign. Keep the independently
+        // measured coarse direction so a local band cannot reverse the segment.
+        var axis = fit.LongAxis.Dot(coarse.LongAxis) >= 0 ? fit.LongAxis : fit.LongAxis.Scale(-1);
+        var basis = SectionBasis(fit, axis);
+        var cross = basis.Cross;
+        var up = basis.Up;
+        var finalAligned = supported.Select(i =>
+        {
+            var d = points[i] - fit.RidgeOrigin;
+            return new ScanVector(d.Dot(cross), d.Dot(axis), d.Dot(up));
+        }).ToArray();
+        double finalEnd = EndCut(finalAligned, upper, options);
+        var origin = fit.RidgeOrigin + axis.Scale(finalEnd);
+        FittedSurface LocalSurface(PlaneFit plane)
+        {
+            double denominator = plane.Normal.Dot(up);
+            if (Math.Abs(denominator) < 1e-6)
+                throw new InvalidOperationException("端部翼板無法在截面基底表示。");
+            return new FittedSurface(-plane.Normal.Dot(cross) / denominator,
+                -plane.Normal.Dot(axis) / denominator, (plane.D - plane.Normal.Dot(origin)) / denominator,
+                plane.Rms, plane.Indices.Length, training.Length);
+        }
+        var left = LocalSurface(basis.Left);
+        var right = LocalSurface(basis.Right);
+        return new EndFrame(origin, cross, axis, up, left, right, basis.Angle, origin.Y);
+    }
 
-        double dx = -(left.B - right.B) / denominator, intercept = -(left.C - right.C) / denominator;
-        double x = dx * end + intercept, z = left.A * x + left.B * end + left.C;
-        var axis = new ScanVector(dx, 1, left.A * dx + left.B).Normalize();
-        var nl = new ScanVector(-left.A, -left.B, 1).Normalize();
-        var nr = new ScanVector(-right.A, -right.B, 1).Normalize();
-        var up = (nl + nr).Normalize();
-        var cross = axis.Cross(up).Normalize();
-        up = cross.Cross(axis).Normalize();
+    private static (ScanVector Cross, ScanVector Up, PlaneFit Left, PlaneFit Right, double Angle) SectionBasis(WingFit fit, ScanVector axis)
+    {
+        ScanVector WingRay(PlaneFit plane)
+        {
+            var direction = plane.Normal.Cross(axis).Normalize();
+            double station = StitchMath.Median(plane.Indices.Select(i => (fit.Points[i] - fit.RidgeOrigin).Dot(direction)));
+            if (Math.Abs(station) < 1e-9)
+                throw new InvalidOperationException("端部翼板缺少可辨識的稜線外延方向。");
+            return direction.Scale(station > 0 ? 1 : -1);
+        }
+        var rayA = WingRay(fit.Left);
+        var rayB = WingRay(fit.Right);
+        // Surface normal Z cannot choose the outward side of a rolled or
+        // vertical L. Observed wing rays give a single-valued convex section.
+        var outward = (rayA + rayB).Normalize().Scale(-1);
+        var cross = axis.Cross(outward).Normalize();
+        var up = cross.Cross(axis).Normalize();
+        if (rayA.Dot(up) >= -1e-6 || rayB.Dot(up) >= -1e-6 || rayA.Dot(cross) * rayB.Dot(cross) >= 0)
+            throw new InvalidOperationException("端部實測兩翼不支持同一凸折面截面。");
+        var left = rayA.Dot(cross) < 0 ? fit.Left : fit.Right;
+        var right = rayA.Dot(cross) < 0 ? fit.Right : fit.Left;
+        var nl = left.Normal.Dot(up) >= 0 ? left.Normal : left.Normal.Scale(-1);
+        var nr = right.Normal.Dot(up) >= 0 ? right.Normal : right.Normal.Scale(-1);
         double angle = Math.Acos(Math.Clamp(nl.Dot(nr), -1, 1)) * 180 / Math.PI;
-        if (angle < 30 || angle > 150)
-        {
-            throw new InvalidOperationException("翼板夾角不符合可用的角鋼截面。");
-        }
-
-        return new EndFrame(new ScanVector(x, end, z), cross, axis, up, left, right, angle, end);
+        return (cross, up, left, right, angle);
     }
 
     private static double EndCut(ScanVector[] points, bool upper, ButtStitchOptions options)
     {
-        var edges = points.Where(p => Math.Abs(p.Y) < options.EndBandMm).GroupBy(p => (long)Math.Floor(p.X / options.ProfileBinMm))
-            .Where(g => g.Count() >= 3).Select(g => upper ? g.Max(p => p.Y) : g.Min(p => p.Y)).ToArray();
-        if (edges.Length < 30)
+        var columns = points.GroupBy(p => StitchMath.TransverseBin(p.X, options.ProfileBinMm))
+            .Where(g => g.Count() >= 3).Select(g =>
+            {
+                double low = g.Min(p => p.Y), high = g.Max(p => p.Y);
+                double endpoint = upper ? high : low;
+                return new
+                {
+                    U = StitchMath.Median(g.Select(p => p.X)),
+                    Span = high - low,
+                    Endpoint = endpoint,
+                    Support = g.Count(p => Math.Abs(p.Y - endpoint) <= options.EndBandMm),
+                    Count = g.Count(),
+                };
+            }).Where(c => c.Support >= 3).ToArray();
+        if (columns.Length < 30)
         {
             throw new InvalidOperationException("掃描端部截面覆蓋不足。");
         }
 
-        return StitchMath.Quantile(edges, upper ? options.EndCoverageQuantile : 1 - options.EndCoverageQuantile);
+        double quantile = upper ? options.EndCoverageQuantile : 1 - options.EndCoverageQuantile;
+        double originalEnd = StitchMath.Quantile(columns.Select(c => c.Endpoint), quantile);
+        double center = StitchMath.Median(columns.Select(c => c.Endpoint));
+        double typicalSpan = StitchMath.Median(columns.Select(c => c.Span));
+        double Displacement(double endpoint, double reference) => upper ? reference - endpoint : endpoint - reference;
+        // Leave the original cut exactly unchanged when it agrees with the
+        // main end-point population. Ordinary short edge columns and oblique
+        // measured end faces must not be discarded merely for sparse support.
+        if (Displacement(originalEnd, center) <= Math.Max(options.EndBandMm, .5 * typicalSpan))
+            return originalEnd;
+
+        var left = columns.Where(c => c.U < 0).ToArray();
+        var right = columns.Where(c => c.U >= 0).ToArray();
+        double leftCenter = left.Length == 0 ? center : StitchMath.Median(left.Select(c => c.Endpoint));
+        double rightCenter = right.Length == 0 ? center : StitchMath.Median(right.Select(c => c.Endpoint));
+        double leftSpan = left.Length == 0 ? typicalSpan : StitchMath.Median(left.Select(c => c.Span));
+        double rightSpan = right.Length == 0 ? typicalSpan : StitchMath.Median(right.Select(c => c.Span));
+        // Only remove the specific misleading evidence: a bin confined wholly
+        // to one end-band whose endpoint is near the opposite end of its wing.
+        // Density is irrelevant; even a dense local patch is not a full-length
+        // edge. A sparse column spanning the part remains eligible unchanged.
+        var eligible = columns.Where(c => !(c.Support == c.Count && c.Span <= options.EndBandMm
+            && Displacement(c.Endpoint, c.U < 0 ? leftCenter : rightCenter)
+                > Math.Max(options.EndBandMm, .5 * (c.U < 0 ? leftSpan : rightSpan)))).ToArray();
+        if (eligible.Length < 30)
+        {
+            throw new InvalidOperationException("沿長向持續觀測的端部兩翼截面覆蓋不足。");
+        }
+
+        return StitchMath.Quantile(eligible.Select(c => c.Endpoint), quantile);
     }
 
     private static void ValidateOptions(ButtStitchOptions o)

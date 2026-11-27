@@ -95,23 +95,59 @@ public static class StitchJob
         string[] effective = prepared.Select(input => input.EffectiveFile).ToArray();
         var result = ChainStitcher.Run(effective, options, log);
         ChainStitchExporter.Save(result, effective, output);
+        WriteJobReport(paths, effective, prepared, result, output, recoverMeasuredEdges, true);
+        return result;
+    }
+
+    /// <summary>API 對已讀取並驗證 SHA 的不可變點雲直接拼接，避免再解析相同 PLY。</summary>
+    internal static ChainStitchResult RunPrepared(
+        IReadOnlyList<string> files,
+        IReadOnlyList<ScanCloud> clouds,
+        string output,
+        ButtStitchOptions options,
+        bool exportDiagnosticPointClouds)
+    {
+        if (files.Count < 2 || files.Count != clouds.Count)
+            throw new ArgumentException("拼接來源路徑與已讀取點雲數量不一致。");
+        string[] paths = files.Select(Path.GetFullPath).ToArray();
+        if (paths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != paths.Length)
+            throw new ArgumentException("同一份 PLY 不能重複加入。");
+        output = Path.GetFullPath(output);
+        if (Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any())
+            throw new IOException("結果資料夾不是空的，請選擇新的資料夾。");
+        var prepared = clouds.Select((cloud, i) => new PreparedStitchInput(
+            paths[i], paths[i], cloud.SourceSha256 ?? throw new InvalidDataException("已讀取點雲缺少來源 SHA-256。"),
+            cloud.Points.Length, cloud.Points.Length, 0, null, null, null,
+            "重用本次已讀取及校驗的選取點雲；未啟用原始量測外緣恢復。" )).ToArray();
+        var result = ChainStitcher.Run(clouds, options);
+        ChainStitchExporter.Save(result, paths, output, exportDiagnosticPointClouds);
+        WriteJobReport(paths, paths, prepared, result, output, false, exportDiagnosticPointClouds);
+        return result;
+    }
+
+    private static void WriteJobReport(
+        string[] paths, string[] effective, PreparedStitchInput[] prepared,
+        ChainStitchResult result, string output, bool recoverMeasuredEdges, bool exportDiagnosticPointClouds)
+    {
         var report = new
         {
             schemaVersion = 1,
             recoverMeasuredEdges,
+            exportDiagnosticPointClouds,
             originalInputFiles = paths,
             effectiveInputFiles = effective,
             inputs = prepared,
             result.Passed,
             result.ScanCount,
             result.SeamCount,
-            method = "Extend measured outer edges from matching original raw scans using local scanner-row wing fits and contiguous measured samples. Never fabricate, scale, interpolate or fill interior holes.",
+            method = recoverMeasuredEdges
+                ? "Extend measured outer edges from matching original raw scans using local scanner-row wing fits and contiguous measured samples. Never fabricate, scale, interpolate or fill interior holes."
+                : "Use validated extracted input clouds without repeating outer-edge recovery. Preserve original source indices and rigidly transformed measurements; never fabricate or fill points.",
             provenance = "For prepared inputs, input_point_index maps to the original selected PLY (-1 for an added measurement); raw_point_index maps to the original raw PLY. source_point_index in stitched outputs maps to the effective input PLY.",
             coordinateQuantizationMm = .000001,
         };
         using var stream = new FileStream(Path.Combine(output, "job-report.json"), FileMode.CreateNew);
         JsonSerializer.Serialize(stream, report, ExtractionJson.Options);
-        return result;
     }
 
     private sealed class Row

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Globalization;
 using System.Text.Json;
 using PlyProcessor.Core;
 using ThreeDScan.Common;
@@ -11,6 +12,10 @@ namespace ThreeDScan.Models;
 public class HeadFeatureDisplayInfo : ViewModelBase
 {
     private bool _hasData;
+    private bool _hasHeadPoints;
+    private string _sourceLabel = "";
+    private string _sourceDescription = "";
+    private double? _modelThicknessMm;
     private string _kind = "";
     private CoordinateInfo _leftCorner = new();
     private CoordinateInfo _apex = new();
@@ -33,6 +38,12 @@ public class HeadFeatureDisplayInfo : ViewModelBase
             SetProperty(ref _hasData, value);
         }
     }
+
+    public bool HasHeadPoints { get => _hasHeadPoints; private set => SetProperty(ref _hasHeadPoints, value); }
+    public string SourceLabel { get => _sourceLabel; private set => SetProperty(ref _sourceLabel, value); }
+    public string SourceDescription { get => _sourceDescription; private set => SetProperty(ref _sourceDescription, value); }
+    /// <summary>任務採用的建模板厚，不能當成左右翼的量測厚度。</summary>
+    public double? ModelThicknessMm { get => _modelThicknessMm; private set => SetProperty(ref _modelThicknessMm, value); }
 
     public string Kind
     {
@@ -123,7 +134,11 @@ public class HeadFeatureDisplayInfo : ViewModelBase
 
     public void Clear()
     {
+        HasHeadPoints = false;
         HasData = false;
+        SourceLabel = "";
+        SourceDescription = "";
+        ModelThicknessMm = null;
         Kind = "";
         LeftCorner = new CoordinateInfo();
         Apex = new CoordinateInfo();
@@ -136,51 +151,182 @@ public class HeadFeatureDisplayInfo : ViewModelBase
         RidgeZDelta = null;
     }
 
-    /// <summary>三點優先 sidecar JSON；XYZ 尺寸一律用同目錄 PLY 包圍盒（與 PNG 同一批點）。</summary>
+    /// <summary>API artifact 優先讀 task.json 保存量測；尺寸取同 stem PLY 的完整包圍盒。</summary>
     public void LoadFromGlb(string glbPath)
     {
-        Clear();
-        if (string.IsNullOrWhiteSpace(glbPath))
-        {
-            return;
-        }
-
-        var dir = Path.GetDirectoryName(glbPath);
-        if (string.IsNullOrEmpty(dir))
-        {
-            return;
-        }
-
-        var jsonPath = Path.Combine(dir, "angle_steel_head_features.json");
-        var plyPath = Path.Combine(dir, "angle_steel.ply");
-        if (TryLoadFromJson(jsonPath, out var left, out var apex, out var right, out var kind))
-        {
-            ApplyPoints(left, apex, right, kind);
-            ApplyMeasuresFromJson(jsonPath);
-        }
-
-        if (!TryReadPlyPoints(plyPath, out var pts))
-        {
-            return;
-        }
-
-        ApplyAabb(pts);
-        if (!HasData)
-        {
-            TryApplyExtract(pts);
-        }
+        ApplyArtifactData(ReadArtifact(glbPath));
     }
 
     public void LoadFromPly(string plyPath)
     {
-        Clear();
-        if (!TryReadPlyPoints(plyPath, out var pts))
-        {
-            return;
-        }
+        ApplyArtifactData(ReadArtifact(plyPath));
+    }
 
-        ApplyAabb(pts);
-        TryApplyExtract(pts);
+    /// <summary>只讀小型 task.json；不讀點雲、不重新擬合已保存的 API 量測。</summary>
+    public static ArtifactFeatureData ReadTaskMetadataForArtifact(string artifactPath)
+    {
+        if (string.IsNullOrWhiteSpace(artifactPath)) return new();
+        var directory = Path.GetDirectoryName(Path.GetFullPath(artifactPath));
+        string? taskDirectory = null;
+        for (int i = 0; directory is not null && i < 8; i++, directory = Path.GetDirectoryName(directory))
+        {
+            if (Path.GetFileName(directory).StartsWith("SURFACE-", StringComparison.OrdinalIgnoreCase))
+            {
+                taskDirectory = directory;
+                break;
+            }
+        }
+        if (taskDirectory is null) return new();
+        var data = new ArtifactFeatureData
+        {
+            IsApiTask = true, SourceTaskId = Path.GetFileName(taskDirectory),
+            SourceLabel = "尚無可用的已保存前緣量測", SourceDescription = "來源：面掃描任務 " + Path.GetFileName(taskDirectory),
+        };
+        string taskPath = Path.Combine(taskDirectory, "task.json");
+        try
+        {
+            if (!File.Exists(taskPath) || new FileInfo(taskPath).Length > 4 * 1024 * 1024) return data;
+            using var json = JsonDocument.Parse(File.ReadAllText(taskPath));
+            var root = json.RootElement;
+            if (!root.TryGetProperty("kind", out var taskKind) || taskKind.GetString() != "Surface") return data;
+            if (!root.TryGetProperty("taskId", out var taskId)
+                || !string.Equals(taskId.GetString(), data.SourceTaskId, StringComparison.OrdinalIgnoreCase)) return data;
+            double? modelThickness = TryReadOptionalDouble(root, "materialThicknessMm");
+            if (!root.TryGetProperty("segments", out var segments) || segments.ValueKind != JsonValueKind.Array)
+                return data with { ModelThicknessMm = modelThickness };
+            int count = segments.GetArrayLength();
+            string merge = root.TryGetProperty("stitchMode", out var mode) && mode.GetString() == "NominalButtJoin"
+                ? "依公稱間隙對接" : "依相機位姿合併";
+            data = data with { SegmentCount = count, ModelThicknessMm = modelThickness,
+                SourceLabel = $"第1段前緣／共{count}段／{merge}" };
+            if (count == 0 || !segments[0].TryGetProperty("response", out var response)) return data;
+            string frame = response.TryGetProperty("coordinateFrame", out var frameValue) ? frameValue.GetString() ?? "" : "";
+            bool calibrated = response.TryGetProperty("absoluteCoordinatesCalibrated", out var calibratedValue)
+                && calibratedValue.ValueKind == JsonValueKind.True;
+            data = data with
+            {
+                ThicknessLeft = TryReadOptionalDouble(response, "thicknessLeft"),
+                ThicknessRight = TryReadOptionalDouble(response, "thicknessRight"),
+                RidgeZDelta = TryReadOptionalDouble(response, "segmentZDelta"),
+                SourceDescription = $"來源：{data.SourceTaskId}／第1段保存量測；{frame}，XYZ mm"
+                    + (calibrated ? "" : "（尚未經現場校正）"),
+            };
+            if (response.TryGetProperty("headFeatures", out var heads)
+                && TryReadCoord(heads, "leftCorner", out var left) && TryReadCoord(heads, "apex", out var apex)
+                && TryReadCoord(heads, "rightCorner", out var right))
+                data = data with { HasHeadPoints = true, LeftCorner = left, Apex = apex, RightCorner = right, Kind = "Saved API measurement" };
+            return data;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
+        {
+            return data;
+        }
+    }
+
+    /// <summary>背景讀取：API 特徵取保存量測，包圍盒則遍歷實際同 stem PLY 的全部有限頂點。</summary>
+    public static ArtifactFeatureData ReadArtifact(string artifactPath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var data = ReadTaskMetadataForArtifact(artifactPath);
+        if (string.IsNullOrWhiteSpace(artifactPath)) return data;
+        string ply = Path.ChangeExtension(artifactPath, ".ply");
+        if (!data.IsApiTask)
+        {
+            string? directory = Path.GetDirectoryName(artifactPath);
+            string sidecar = Path.Combine(directory ?? "", "angle_steel_head_features.json");
+            if (TryLoadFromJson(sidecar, out var left, out var apex, out var right, out var kind))
+            {
+                data = data with { HasHeadPoints = true, LeftCorner = left, Apex = apex, RightCorner = right, Kind = kind,
+                    SourceLabel = "前緣特徵", SourceDescription = "來源：既有特徵檔" };
+                using var json = JsonDocument.Parse(File.ReadAllText(sidecar));
+                data = data with { ThicknessLeft = TryReadOptionalDouble(json.RootElement, "thicknessLeft"),
+                    ThicknessRight = TryReadOptionalDouble(json.RootElement, "thicknessRight"),
+                    RidgeZDelta = TryReadOptionalDouble(json.RootElement, "ridgeZDelta") };
+            }
+            else if (TryReadPlyPoints(ply, out var points))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var extracted = HeadFeatureExtractor.Extract(points);
+                if (extracted is not null)
+                    data = data with { HasHeadPoints = true,
+                        LeftCorner = new(extracted.LeftX, extracted.LeftY, extracted.LeftZ),
+                        Apex = new(extracted.ApexX, extracted.ApexY, extracted.ApexZ),
+                        RightCorner = new(extracted.RightX, extracted.RightY, extracted.RightZ), Kind = extracted.Kind,
+                        RidgeZDelta = extracted.RidgeZDelta, SourceLabel = "前緣特徵", SourceDescription = "來源：舊版點雲特徵估計" };
+            }
+        }
+        try { return ReadPlyBounds(ply, data, cancellationToken); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return data; }
+    }
+
+    public void ApplyArtifactData(ArtifactFeatureData data)
+    {
+        Clear();
+        SourceLabel = data.SourceLabel;
+        SourceDescription = data.SourceDescription;
+        ModelThicknessMm = data.ModelThicknessMm;
+        ThicknessLeft = data.ThicknessLeft;
+        ThicknessRight = data.ThicknessRight;
+        RidgeZDelta = data.RidgeZDelta;
+        if (data.HasHeadPoints && data.LeftCorner is not null && data.Apex is not null && data.RightCorner is not null)
+            ApplyPoints(data.LeftCorner, data.Apex, data.RightCorner, data.Kind);
+        SizeX = data.SizeX; SizeY = data.SizeY; SizeZ = data.SizeZ;
+        HasData = HasHeadPoints || SizeX.HasValue || SizeY.HasValue || SizeZ.HasValue || ModelThicknessMm.HasValue;
+    }
+
+    private static ArtifactFeatureData ReadPlyBounds(string path, ArtifactFeatureData data, CancellationToken token)
+    {
+        if (!File.Exists(path)) return data;
+        bool header = true, vertexProperties = false, ascii = false;
+        int count = 0, read = 0, property = 0, ix = -1, iy = -1, iz = -1;
+        double minX = double.PositiveInfinity, minY = minX, minZ = minX;
+        double maxX = double.NegativeInfinity, maxY = maxX, maxZ = maxX;
+        foreach (string line in File.ReadLines(path))
+        {
+            if ((read & 255) == 0) token.ThrowIfCancellationRequested();
+            if (header)
+            {
+                var fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (line.StartsWith("format ascii ", StringComparison.Ordinal)) ascii = true;
+                if (fields.Length >= 3 && fields[0] == "element")
+                {
+                    vertexProperties = fields[1] == "vertex";
+                    if (vertexProperties && !int.TryParse(fields[2], out count)) return data;
+                }
+                if (vertexProperties && fields.Length == 3 && fields[0] == "property")
+                {
+                    if (fields[2] == "x") ix = property;
+                    if (fields[2] == "y") iy = property;
+                    if (fields[2] == "z") iz = property;
+                    property++;
+                }
+                if (line.Trim() == "end_header")
+                {
+                    if (!ascii || ix < 0 || iy < 0 || iz < 0) return data;
+                    header = false;
+                }
+                continue;
+            }
+            if (read++ >= count) break;
+            if (!ReadNumber(line, ix, out double x) || !ReadNumber(line, iy, out double y) || !ReadNumber(line, iz, out double z)) continue;
+            minX = Math.Min(minX, x); maxX = Math.Max(maxX, x);
+            minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
+            minZ = Math.Min(minZ, z); maxZ = Math.Max(maxZ, z);
+        }
+        return double.IsFinite(minX) ? data with { SizeX = maxX - minX, SizeY = maxY - minY, SizeZ = maxZ - minZ } : data;
+    }
+
+    private static bool ReadNumber(ReadOnlySpan<char> text, int column, out double value)
+    {
+        for (int i = 0; ; i++)
+        {
+            text = text.TrimStart();
+            int length = 0;
+            while (length < text.Length && !char.IsWhiteSpace(text[length])) length++;
+            if (length == 0) { value = 0; return false; }
+            if (i == column) return double.TryParse(text[..length], NumberStyles.Float, CultureInfo.InvariantCulture, out value) && double.IsFinite(value);
+            text = text[length..];
+        }
     }
 
     private void TryApplyExtract(PlyPoint[] pts)
@@ -209,6 +355,7 @@ public class HeadFeatureDisplayInfo : ViewModelBase
         Apex = apex;
         RightCorner = right;
         Kind = kind ?? "";
+        HasHeadPoints = true;
         HasData = true;
     }
 
@@ -326,7 +473,7 @@ public class HeadFeatureDisplayInfo : ViewModelBase
             return null;
         }
 
-        if (el.ValueKind == JsonValueKind.Number && el.TryGetDouble(out var value))
+        if (el.ValueKind == JsonValueKind.Number && el.TryGetDouble(out var value) && double.IsFinite(value))
         {
             return value;
         }
@@ -422,7 +569,30 @@ public class HeadFeatureDisplayInfo : ViewModelBase
             return false;
         }
 
+        if (!double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(z)) return false;
         coord = new CoordinateInfo(x, y, z);
         return true;
     }
+}
+
+/// <summary>背景讀取的獨立結果；由 UI dispatcher 一次套用，沒有 WPF 執行緒相依。</summary>
+public sealed record ArtifactFeatureData
+{
+    public bool IsApiTask { get; init; }
+    public bool HasHeadPoints { get; init; }
+    public string SourceTaskId { get; init; } = "";
+    public int SegmentCount { get; init; }
+    public string SourceLabel { get; init; } = "";
+    public string SourceDescription { get; init; } = "";
+    public string Kind { get; init; } = "";
+    public CoordinateInfo? LeftCorner { get; init; }
+    public CoordinateInfo? Apex { get; init; }
+    public CoordinateInfo? RightCorner { get; init; }
+    public double? ThicknessLeft { get; init; }
+    public double? ThicknessRight { get; init; }
+    public double? RidgeZDelta { get; init; }
+    public double? ModelThicknessMm { get; init; }
+    public double? SizeX { get; init; }
+    public double? SizeY { get; init; }
+    public double? SizeZ { get; init; }
 }

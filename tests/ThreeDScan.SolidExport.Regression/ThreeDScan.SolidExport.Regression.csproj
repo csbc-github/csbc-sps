@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../ThreeDScan.Domain/Models/*.cs" Link="Domain/%(Filename)%(Extension)" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/Models/*.cs" Link="Export/Models/%(Filename)%(Extension)" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/AngleSolidBuilder.cs" Link="Export/AngleSolidBuilder.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/AngleSolidOutlineFiller.cs" Link="Export/AngleSolidOutlineFiller.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/GeometryFitting.cs" Link="Export/GeometryFitting.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/WingPlaneSegmentation.cs" Link="Export/WingPlaneSegmentation.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/RigidTransforms.cs" Link="Export/RigidTransforms.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/StitchMath.cs" Link="Export/StitchMath.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/ScanPly.cs" Link="Export/ScanPly.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/SolidStepWriter.cs" Link="Export/SolidStepWriter.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/SolidGltfWriter.cs" Link="Export/SolidGltfWriter.cs" />
+  </ItemGroup>
+</Project>

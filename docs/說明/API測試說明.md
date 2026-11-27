@@ -45,7 +45,7 @@ JSON 為 camelCase；`Content-Type: application/json`。改設定後須重啟 Ap
 | POST | `/api/calibration/roller` | 待補充 |
 | POST | `/api/scan/surface` | 可測（連掃描器） |
 | GET | `/api/scan/surface/{taskId}/attachments` | 可測 |
-| POST | `/api/scan/hole` | 待補充 |
+| POST | `/api/scan/hole` | OneClick 擷取、全部孔緣與三種 JSON |
 
 <!--
 ### 2.1 POST `/api/calibration/instrument`（已停用）
@@ -163,7 +163,13 @@ Production 第二次 `data` 只有：`scannerId`、`compensation`、`rmseXY`、`
 
 ### 2.2 POST `/api/calibration/roller`
 
-待補充。路由已掛，回 **501** `SYS_NYI`。
+立即回 **202** 與 `taskId`，以 `GET /api/tasks/{taskId}/result` 查詢結果。請求必填 `scannerId`、`jobId`、`callbackUrl`、`cameraPosition`；回呼位址沿用現有系統允許的設定，`cameraPosition` 應填本次拍攝的已知實際位姿。
+
+孔洞使用 OneClick 的原生單張高度影像流程，最多取 1000 列並保留實際列數。`navigatorScanNo` 省略時沿用控制器目前程式；明確提供 1～16 才切換群組。預設分析整份原始點雲，不自動套用舊的站點 `HoleRoi`；需要限定範圍時，在請求明確提供 `roi`（`minX/maxX/minY/maxY/minZ/maxZ`，scanner XYZ mm）。
+
+完成結果只記錄驗證角鋼翼板上的 `features`、`detectedOpeningCount`、`closedHoleCount`、`partialHoleCount`，地面與支承板開口不列入孔數或三份 JSON。`holeScope` 提供角鋼選件及排除背景的證據；未確認可靠角鋼時不以背景代替。`featureBoundary` 維持單一已選完整孔，不能用它判斷總孔數；沒有完整孔時可為空陣列。`PARTIAL` 代表只量到部分孔緣，保留供檢視，未認證為完整孔或研磨路徑。`featureId` 可明確選角鋼上的孔；`holeType` 可指定 `Circle` 或 `Slot`，未通過指定孔型仍回品質錯誤。
+
+`pointCloudUrl` 提供原始 PLY；`holeCentersUrl`、`holeEdgesUrl`、`holeBoundariesUrl` 分別提供與參考孔洞程式一致的中心估計、逐掃描列兩側端點、實測周界 JSON。三種 JSON 及 `features[].scannerBoundary` 保留來源 PLY 座標；公開 `features[].boundary` 與 `featureBoundary` 則依本次相機位姿換算。OneClick 的 local-grid 原點先接回 SDK scanner 原點，再套用外參；`absoluteCoordinatesCalibrated` 獨立標示外參是否已驗證。每個孔保持獨立邊界及來源頂點索引。
 
 ### 2.3 POST `/api/scan/surface`
 

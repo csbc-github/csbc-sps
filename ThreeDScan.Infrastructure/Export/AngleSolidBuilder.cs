@@ -6,7 +6,7 @@ namespace ThreeDScan.Infrastructure.Export;
 /// 擬合兩量測面、把足跡投影到規則網格、保留已解析孔洞，並把摺疊板擠成封閉實體。
 /// 角平分線位移為 t/cos(面角)，因此每面偏移 t。
 /// </summary>
-/// <remarks>由 Hank Scan3D 的 AngleSolidBuilder 搬入，邏輯不改。</remarks>
+/// <remarks>使用獨立量測翼板及完整三維基底；網格、孔洞與封閉實體規則沿用既有建模流程。</remarks>
 public static class AngleSolidBuilder
 {
     /// <summary>由單一點集建立實體。</summary>
@@ -43,33 +43,67 @@ public static class AngleSolidBuilder
         }
 
         double cell = model.Options.CellMm;
-        double ridge = StitchMath.Median(points.GroupBy(p => (long)Math.Floor(p.Y / 4)).Select(g => g.MaxBy(p => p.Z).X));
-        var left = StitchMath.FitPlane(points.Where(p => p.X < ridge - 3).ToArray(), .1);
-        var right = StitchMath.FitPlane(points.Where(p => p.X > ridge + 3).ToArray(), .1);
-        if (left.A - right.A < .2)
+        // Model construction uses the same independently supported plane test as
+        // head geometry. Scanner X/Y are not assumed to be cross/longitudinal axes.
+        if (!GeometryFitting.TryFitWings(points, Enumerable.Range(0, points.Length).ToArray(), .5,
+            out var fitted, out var reason))
         {
-            throw new InvalidDataException("模型未辨識到凸角鋼的兩個翼板。");
+            throw new InvalidDataException("模型未辨識到凸角鋼的兩個翼板：" + reason);
         }
-
-        double dx = -(left.B - right.B) / (left.A - right.A), intercept = -(left.C - right.C) / (left.A - right.A);
-        double y = StitchMath.Median(points.Select(p => p.Y)), x = dx * y + intercept;
-        var origin = new ScanVector(x, y, left.A * x + left.B * y + left.C);
-        var axis = new ScanVector(dx, 1, left.A * dx + left.B).Normalize();
-        var nl = new ScanVector(-left.A, -left.B, 1).Normalize();
-        var nr = new ScanVector(-right.A, -right.B, 1).Normalize();
+        var fit = fitted!;
+        var axis = fit.LongAxis;
+        ScanVector WingRay(PlaneFit wing)
+        {
+            var direction = wing.Normal.Cross(axis).Normalize();
+            int stride = Math.Max(1, wing.Indices.Length / 8192);
+            double observed = GeometryFitting.Quantile(wing.Indices.Where((_, i) => i % stride == 0)
+                .Select(i => (points[i] - fit.RidgeOrigin).Dot(direction)), .5);
+            if (Math.Abs(observed) < 1e-9) throw new InvalidDataException("翼板沒有可辨識的稜線外延方向。");
+            return direction.Scale(observed > 0 ? 1 : -1);
+        }
+        var rayA = WingRay(fit.Left);
+        var rayB = WingRay(fit.Right);
+        // Both observed wings must extend downward from the ridge in this local
+        // basis. Normal.Z is not an outward-side test for vertical/rolled wings.
+        var up = (rayA + rayB).Normalize().Scale(-1);
+        var cross = axis.Cross(up).Normalize();
+        up = cross.Cross(axis).Normalize();
+        if (rayA.Dot(up) >= -1e-6 || rayB.Dot(up) >= -1e-6 || rayA.Dot(cross) * rayB.Dot(cross) >= 0)
+            throw new InvalidDataException("實測兩翼不支持同一凸折面方向。");
+        var left = rayA.Dot(cross) < 0 ? fit.Left : fit.Right;
+        var right = rayA.Dot(cross) < 0 ? fit.Right : fit.Left;
+        var nl = left.Normal.Dot(up) >= 0 ? left.Normal : left.Normal.Scale(-1);
+        var nr = right.Normal.Dot(up) >= 0 ? right.Normal : right.Normal.Scale(-1);
         double normalCos = nl.Dot(nr);
         if (normalCos < Math.Cos(150 * Math.PI / 180) || normalCos > Math.Cos(30 * Math.PI / 180))
         {
             throw new InvalidDataException("翼板夾角不符合可輸出的角鋼。");
         }
 
-        var up = (nl + nr).Normalize();
-        var cross = axis.Cross(up).Normalize();
-        up = cross.Cross(axis).Normalize();
+        double station = StitchMath.Median(points.Select(p => (p - fit.RidgeOrigin).Dot(axis)));
+        var origin = fit.RidgeOrigin + axis.Scale(station);
         double slope = Math.Abs(nl.Dot(cross) / nl.Dot(up));
         double depth = model.Options.ThicknessMm * Math.Sqrt(1 + slope * slope);
-        var uv = points.Select(p =>
+        // Only the independently observed wing surfaces define a planar model
+        // footprint. End faces/contact/noise points remain in the measured PLY,
+        // but must not create extra CAD islands when projected onto a wing.
+        var supportedWing = new bool[points.Length];
+        foreach (int index in fit.Left.Indices.Concat(fit.Right.Indices)) supportedWing[index] = true;
+        // Preserve measured rounded-bend samples within the material/cell ridge
+        // neighbourhood. They need not lie on either extrapolated flat wing;
+        // dropping them would split two observed wings at their real bend.
+        // This selects actual samples only and never fills an empty ridge.
+        double ridgeRadius = Math.Max(model.Options.ThicknessMm, Math.Max(2 * cell, 3 * Math.Max(left.Rms, right.Rms)));
+        var measuredWingIndices = Enumerable.Range(0, points.Length).Where(i =>
         {
+            if (supportedWing[i]) return true;
+            var d = points[i] - fit.RidgeOrigin;
+            double u = d.Dot(cross), w = d.Dot(up);
+            return u * u + w * w <= ridgeRadius * ridgeRadius;
+        }).ToArray();
+        var uv = measuredWingIndices.Select(i =>
+        {
+            var p = points[i];
             var d = p - origin;
             return new ScanVector(d.Dot(cross), d.Dot(axis), d.Dot(up));
         }).ToArray();
@@ -287,7 +321,12 @@ public static class AngleSolidBuilder
 
         model.Reconstructions.Add(new SolidReconstruction(
             origin, cross, axis, up, slope, model.Options.ThicknessMm, depth,
-            left.RmsMm, right.RmsMm, filled, ambiguous, small, occupiedCount));
+            left.Rms, right.Rms, filled, ambiguous, small, occupiedCount)
+        {
+            InputMeasurementCount = points.Length,
+            WingPlaneMeasurementCount = supportedWing.Count(value => value),
+            MeasuredRidgePointCount = measuredWingIndices.Length - supportedWing.Count(value => value),
+        });
         return;
 
         List<(int R, int C)> Flood(int startR, int startC, bool value, bool[,] visited)

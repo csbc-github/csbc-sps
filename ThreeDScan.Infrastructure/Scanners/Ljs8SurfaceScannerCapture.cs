@@ -12,7 +12,7 @@ namespace ThreeDScan.Infrastructure.Scanners;
 /// <summary>
 /// LJS8 擷取：校正走影像-only；UC-04 與 API 同走 C# Pipeline.Run。
 /// </summary>
-public sealed class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
+public sealed partial class Ljs8SurfaceScannerCapture : ISurfaceScannerCapture
 {
     private readonly ScannerEndpointOptions _endpoint;
     private readonly string _exportRoot;

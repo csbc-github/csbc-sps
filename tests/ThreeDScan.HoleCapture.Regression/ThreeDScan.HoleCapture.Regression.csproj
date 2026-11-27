@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Pure acquisition and native-buffer validation: no SDK, controller, WPF, DB or API. -->
+    <Compile Include="../../ThreeDScan.Infrastructure/Scanners/HoleCaptureAcquisition.cs" Link="Production/HoleCaptureAcquisition.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Scanners/HoleCaptureNativeStructures.cs" Link="Production/HoleCaptureNativeStructures.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Scanners/HoleCaptureFrameBuilder.cs" Link="Production/HoleCaptureFrameBuilder.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/HeightFramePlyExporter.cs" Link="Production/HeightFramePlyExporter.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/Models/HeightFrame.cs" Link="Production/HeightFrame.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/Models/HeightInfo.cs" Link="Production/HeightInfo.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/Models/PlyExportResult.cs" Link="Production/PlyExportResult.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/Models/PointCloudOrigin.cs" Link="Production/PointCloudOrigin.cs" />
+  </ItemGroup>
+</Project>

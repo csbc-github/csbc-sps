@@ -43,15 +43,23 @@
 
     <Border Padding="16" Background="Transparent">
         <Grid>
-            <TextBlock Text="尚無前緣特徵（載入掃描 GLB 後顯示）"
+            <TextBlock Text="尚無座標資料（載入面掃描結果後顯示）"
                        Foreground="{StaticResource TextSecondaryBrush}"
                        TextWrapping="Wrap"
                        Visibility="{Binding Features.HasData, ElementName=Root, Converter={StaticResource BoolToVisInvert}}"/>
 
             <StackPanel Visibility="{Binding Features.HasData, ElementName=Root, Converter={StaticResource BoolToVis}}">
-                <Grid Margin="0,0,0,16">
+                <TextBlock Text="{Binding Features.SourceLabel, ElementName=Root}"
+                           Style="{StaticResource PanelTitleStyle}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                <TextBlock Text="{Binding Features.SourceDescription, ElementName=Root}"
+                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                <TextBlock Text="此結果沒有可用的已保存前緣座標。"
+                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,10"
+                           Visibility="{Binding Features.HasHeadPoints, ElementName=Root, Converter={StaticResource BoolToVisInvert}}"/>
+                <Grid Margin="0,0,0,16"
+                      Visibility="{Binding Features.HasHeadPoints, ElementName=Root, Converter={StaticResource BoolToVis}}">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="92"/>
+                        <ColumnDefinition Width="128"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
@@ -78,20 +86,30 @@
                                Text="{Binding Features.RightCorner, ElementName=Root}"
                                Style="{StaticResource FieldValue}"/>
 
-                    <TextBlock Grid.Row="3" Grid.Column="0" Text="左側厚度" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="左側量測厚度" Style="{StaticResource FieldLabel}"/>
                     <TextBlock Grid.Row="3" Grid.Column="1"
                                Text="{Binding Features.ThicknessLeft, ElementName=Root, StringFormat={}{0:F2} mm, TargetNullValue=—, FallbackValue=—}"
                                Style="{StaticResource FieldValue}"/>
 
-                    <TextBlock Grid.Row="4" Grid.Column="0" Text="右側厚度" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="右側量測厚度" Style="{StaticResource FieldLabel}"/>
                     <TextBlock Grid.Row="4" Grid.Column="1"
                                Text="{Binding Features.ThicknessRight, ElementName=Root, StringFormat={}{0:F2} mm, TargetNullValue=—, FallbackValue=—}"
                                Style="{StaticResource FieldValue}"/>
 
-                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Z 軸差" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Grid.Row="5" Grid.Column="0" Text="頭尾稜線Z差" Style="{StaticResource FieldLabel}"/>
                     <TextBlock Grid.Row="5" Grid.Column="1"
                                Text="{Binding Features.RidgeZDelta, ElementName=Root, StringFormat={}{0:F2} mm, TargetNullValue=—, FallbackValue=—}"
                                Style="{StaticResource FieldValue}"/>
+                </Grid>
+
+                <Grid Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="建模採用板厚（任務設定）" Style="{StaticResource FieldLabel}" TextWrapping="Wrap"/>
+                    <TextBlock Grid.Column="1" Style="{StaticResource FieldValue}"
+                               Text="{Binding Features.ModelThicknessMm, ElementName=Root, StringFormat={}{0:F2} mm, TargetNullValue=—, FallbackValue=—}"/>
                 </Grid>
 
                 <TextBlock Text="包圍盒（與 2D 圖同一軸）" Style="{StaticResource PanelTitleStyle}"

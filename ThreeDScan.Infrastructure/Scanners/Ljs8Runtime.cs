@@ -32,9 +32,9 @@ internal static class Ljs8Runtime
     }
 
     /// <summary>取得全域裝置鎖。</summary>
-    public static void AcquireDevice()
+    public static void AcquireDevice(CancellationToken cancellationToken = default)
     {
-        DeviceGate.Wait();
+        DeviceGate.Wait(cancellationToken);
     }
 
     /// <summary>釋放全域裝置鎖。</summary>

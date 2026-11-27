@@ -3,6 +3,9 @@ namespace ThreeDScan.Domain.Models;
 /// <summary>Pushed to WPF when instrument calibration API completes (LJScanWinform 量測按鈕).</summary>
 public sealed class CalibrationPreview
 {
+    /// <summary>第一拍已記錄，尚未完成兩拍校正。</summary>
+    public const string StageAwaitingNextShot = "AwaitingNextShot";
+
     /// <summary>掃描器編號。</summary>
     public required string ScannerId { get; init; }
 
@@ -14,6 +17,9 @@ public sealed class CalibrationPreview
 
     /// <summary>校正是否成功。</summary>
     public bool Success { get; init; }
+
+    /// <summary>目前校正階段；第一拍成功不代表整體校正完成。</summary>
+    public string? Stage { get; init; }
 
     /// <summary>失敗時的說明。</summary>
     public string? ErrorMessage { get; init; }

@@ -350,14 +350,22 @@ public sealed class ScanOrchestrator : IScanOrchestrator
                     Mode = d.StitchMode,
                     NominalGapMm = d.NominalGapMm,
                     MeshCellMm = meshCell,
+                    FillOuterEdges = _surfaceScanFormal.FillOuterEdges,
+                    OuterEdgeRepairMinDepthMm = _surfaceScanFormal.OuterEdgeRepairMinDepthMm,
                 },
                 ct),
             ct).ConfigureAwait(false);
-        if (!result.ValidationPassed)
+        if (!StitchCompletionPolicy.CanCompletePointCloud(result, _surfaceScanFormal.RequireVerifiedStitchBoundaries))
         {
-            throw new ScanTaskException(422, "STITCH_QUALITY_FAILED", "拼接檢查未通過。", new { result.Warnings });
+            string message = result.ValidationFailures.Length == 0
+                ? "拼接檢查未通過。"
+                : "拼接檢查未通過：" + result.ValidationFailures[0].Message;
+            throw new ScanTaskException(422, "STITCH_QUALITY_FAILED", message,
+                new { result.Warnings, result.ValidationFailures, result.AlignmentValidationPassed, result.BoundaryValidationPassed });
         }
 
+        var completionWarnings = result.ValidationPassed ? result.Warnings : result.Warnings
+            .Append("翼緣完整性未確認；依目前設定保留警告並完成點雲拼接。").ToArray();
         var zip = await BuildAttachmentsAsync(d, result, ct).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         await _store.UpdateAsync(d.TaskId, x =>
@@ -400,17 +408,24 @@ public sealed class ScanOrchestrator : IScanOrchestrator
                 attachmentsAvailable = zip is not null,
                 attachmentsUrl = zip is null ? null : x.BaseUrl + $"/api/scan/surface/{d.TaskId}/attachments",
                 result.SegmentCount,
+                stitchMode = x.StitchMode.ToString(),
+                x.NominalGapMm,
                 result.PointCount,
                 result.AbsoluteCoordinatesCalibrated,
                 result.ThicknessMm,
-                result.Warnings,
+                warnings = completionWarnings,
+                result.ValidationPassed,
+                result.AlignmentValidationPassed,
+                result.BoundaryValidationPassed,
+                result.ValidationFailures,
+                boundaryVerificationRequired = _surfaceScanFormal.RequireVerifiedStitchBoundaries,
                 isReplay = x.IsReplay,
                 coordinateFrame = "ConfiguredAbsolute",
                 x.AttachmentsUnavailableReason,
             });
         }, ct).ConfigureAwait(false);
-        WriteGlbPointer(d, result.GlbPath);
-        WriteStatus("complete", d, d.Segments.Count, "拼接完成");
+        WriteGlbPointer(d, result.GlbPath ?? result.StitchedPlyPath);
+        WriteStatus("complete", d, d.Segments.Count, result.ValidationPassed ? "拼接完成" : "點雲拼接完成；翼緣完整性未確認");
     }
 
     /// <inheritdoc />
@@ -506,11 +521,9 @@ public sealed class ScanOrchestrator : IScanOrchestrator
             requestRoi = roiEl.Deserialize<ScannerRoi>(JsonDefaults.Options);
         }
 
+        // The reference hole app analyzes the supplied full scan. A legacy
+        // station ROI must not silently discard its other measured openings.
         var effectiveRoi = requestRoi;
-        if (effectiveRoi is null && _registry.TryGetHoleRoi(d.ScannerId, out var holeRoi))
-        {
-            effectiveRoi = holeRoi;
-        }
 
         ValidateRoi(effectiveRoi);
 
@@ -519,8 +532,12 @@ public sealed class ScanOrchestrator : IScanOrchestrator
         var rawPly = holeCapture.RawPlyPath;
         var capturedAt = DateTimeOffset.Now;
         var analysis = await Task.Run(
-            () => HoleAnalysis.AnalyzeFile(rawPly, holeType, ToFeatureRoi(effectiveRoi), ct),
+            () => HoleAnalysis.AnalyzeFile(rawPly, holeType,
+                ToFeatureRoi(HoleCaptureTransforms.ToCaptureRoi(effectiveRoi, holeCapture.Metadata)), ct,
+                angleSteelOnly: true),
             ct).ConfigureAwait(false);
+        var referenceExports = HoleExporter.Save(analysis,
+            Path.Combine(_store.TaskDirectory(d.TaskId), "holes"), rawPly, expectedHoleCount: null);
 
         FeatureOpeningModel? selected;
         if (featureId is null)
@@ -568,7 +585,7 @@ public sealed class ScanOrchestrator : IScanOrchestrator
         }
 
         var coordinates = d.CoordinatesSnapshot;
-        var matrix = RigidTransforms.FromPose(pose, coordinates);
+        var matrix = HoleCaptureTransforms.FromPose(pose, coordinates, holeCapture.Metadata);
 
         var warnings = analysis.Warnings.ToList();
         if (analysis.Features.Length == 0)
@@ -605,10 +622,20 @@ public sealed class ScanOrchestrator : IScanOrchestrator
             analysis.PointCount,
             analysis.ScanPitchXMm,
             analysis.ScanPitchYMm,
+            analysis.DetectedOpeningCount,
+            analysis.ClosedHoleCount,
+            analysis.PartialHoleCount,
+            holeScope = analysis.Scope,
+            capture = holeCapture.Metadata,
+            scannerCoordinateOrigin = holeCapture.Metadata?.CoordinateOrigin ?? "source-ply",
+            pointCloudUrl = $"{d.BaseUrl}/api/files/{d.TaskId}/raw",
+            holeCentersUrl = $"{d.BaseUrl}/api/files/{d.TaskId}/hole-centers",
+            holeEdgesUrl = $"{d.BaseUrl}/api/files/{d.TaskId}/hole-edges",
+            holeBoundariesUrl = $"{d.BaseUrl}/api/files/{d.TaskId}/hole-boundaries",
             coordinateFrame,
             absoluteCoordinatesCalibrated,
             warnings,
-            isReplay = d.IsReplay,
+            isReplay = holeCapture.IsReplay,
         };
 
         var reportPath = Path.Combine(_store.TaskDirectory(d.TaskId), "hole-result.json");
@@ -633,10 +660,22 @@ public sealed class ScanOrchestrator : IScanOrchestrator
                 ContentType = "application/octet-stream",
                 DownloadName = "raw-scanner.ply",
             };
+            foreach (var (id, path) in new[]
+            {
+                ("hole-centers", referenceExports.CentersJsonPath),
+                ("hole-edges", referenceExports.EdgesJsonPath),
+                ("hole-boundaries", referenceExports.BoundaryJsonPath),
+            })
+                x.Artifacts[id] = new ArtifactDocument
+                {
+                    Path = path, ContentType = "application/json", DownloadName = Path.GetFileName(path),
+                };
+            x.IsReplay = holeCapture.IsReplay;
             x.Result = JsonDefaults.Element(resultPayload);
         }, ct).ConfigureAwait(false);
         // 監看檔：右表座標 + WPF 研磨區左側 raw PLY 點雲路徑。
-        WriteHoleBoundary(d, capturedAt, featureBoundary, rawPly);
+        WriteHoleBoundary(d, capturedAt, featureBoundary, rawPly, selected?.Id, features,
+            holeCapture.Metadata?.CoordinateOrigin ?? "source-ply", analysis.Scope);
     }
 
     /// <inheritdoc />
@@ -761,7 +800,12 @@ public sealed class ScanOrchestrator : IScanOrchestrator
             doc.Status = "Failed";
             doc.Phase = "Failed";
             doc.Result = null;
-            doc.Error = new TaskApiError { Code = code, Message = message };
+            doc.Error = new TaskApiError
+            {
+                Code = code,
+                Message = message,
+                Details = (error as ScanTaskException)?.Details,
+            };
         });
     }
 
@@ -846,10 +890,17 @@ public sealed class ScanOrchestrator : IScanOrchestrator
             ct).ConfigureAwait(false);
         if (processed.Geometry is null)
         {
+            var reason = string.IsNullOrWhiteSpace(processed.GeometryError)
+                ? "未取得可靠的兩翼幾何，請核對 scanner ROI 或 componentRank。"
+                : processed.GeometryError.Replace('\r', ' ').Replace('\n', ' ').Trim();
+            var messagePrefix = $"未取得可用的兩翼角鋼量測（選取 rank {processed.SelectedComponentRank}）：";
+            var reasonLimit = 240 - messagePrefix.Length;
+            if (reason.Length > reasonLimit)
+                reason = reason[..(reasonLimit - 1)] + "…";
             throw new ScanTaskException(
                 422,
                 "SURF_GEOMETRY_UNAVAILABLE",
-                "未取得可用的兩翼角鋼量測。可調整 scanner ROI 或 componentRank。",
+                messagePrefix + reason,
                 new { d.TaskId, processed.GeometryError, processed.Candidates });
         }
 
@@ -988,6 +1039,18 @@ public sealed class ScanOrchestrator : IScanOrchestrator
         if (!_registry.TryGetEndpoint(d.ScannerId, out var endpoint))
         {
             throw new ScanTaskException(400, "CAL_CFG_001", "未知 scannerId。");
+        }
+
+        if (d.Kind == "Hole")
+        {
+            byte? explicitProgram = navigator.HasValue ? _registry.ResolveProgramNo(d.ScannerId, navigator) : null;
+            var hole = await _capture.GetCapture(d.ScannerId).CaptureHoleAsync(explicitProgram, ct).ConfigureAwait(false);
+            if (!string.Equals(Path.GetFullPath(hole.RawPlyPath), Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase))
+                File.Copy(hole.RawPlyPath, dest, overwrite: false);
+            return new SegmentRawCaptureResult
+            {
+                RawPlyPath = dest, IsReplay = hole.IsReplay, Metadata = hole.Metadata,
+            };
         }
 
         var programNo = _registry.ResolveProgramNo(d.ScannerId, navigator);
@@ -1273,7 +1336,13 @@ public sealed class ScanOrchestrator : IScanOrchestrator
                 f.Status,
                 f.Closed,
                 center = MapHolePoint(f.Center, matrix),
+                centerIsEstimated = true,
                 boundary = f.Boundary.Select(p => MapHolePoint(p, matrix)).ToArray(),
+                scannerBoundary = f.Boundary,
+                boundarySourcePointIndices = f.MeasuredBoundary.Select(p => p.SourcePointIndex).ToArray(),
+                f.BoundarySource,
+                f.Closure,
+                f.OpeningWidthRangeMm,
                 f.ShapeFitRmseMm,
                 f.WidthMm,
                 f.HeightMm,
@@ -1371,7 +1440,8 @@ public sealed class ScanOrchestrator : IScanOrchestrator
     /// <param name="capturedAt">擷取時間。</param>
     /// <param name="boundary">孔緣輪廓（公開絕對座標）。</param>
     /// <param name="rawPlyPath">本次孔洞擷取之 <c>capture\raw.ply</c> 絕對路徑（掃描器座標，供點雲顯示）。</param>
-    private void WriteHoleBoundary(TaskDocument d, DateTimeOffset capturedAt, FeaturePoint[] boundary, string rawPlyPath)
+    private void WriteHoleBoundary(TaskDocument d, DateTimeOffset capturedAt, FeaturePoint[] boundary, string rawPlyPath,
+        string? selectedFeatureId, object[] features, string scannerCoordinateOrigin, HoleScopeDiagnostics? scope)
     {
         try
         {
@@ -1389,6 +1459,12 @@ public sealed class ScanOrchestrator : IScanOrchestrator
                 scanId = "SCAN-" + d.TaskId,
                 capturedAt,
                 featureBoundary = boundary,
+                selectedFeatureId,
+                features,
+                holeScope = scope,
+                scannerCoordinateOrigin,
+                coordinateFrame = "ConfiguredAbsolute",
+                absoluteCoordinatesCalibrated = d.CoordinatesSnapshot.IsCalibrated,
                 rawPlyPath = Path.GetFullPath(rawPlyPath),
                 updatedAt = DateTimeOffset.Now,
             }, JsonDefaults.Options));

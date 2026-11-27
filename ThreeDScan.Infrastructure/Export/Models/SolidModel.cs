@@ -19,6 +19,9 @@ public sealed class SolidModel
     /// <summary>匯出參數。</summary>
     public required SolidExportOptions Options { get; init; }
 
+    /// <summary>外緣補平及推估材料紀錄；未啟用時為 null。</summary>
+    public OutlineFillReport? OutlineFill { get; set; }
+
     /// <summary>檢查封閉流形並回傳拓樸。</summary>
     public SolidTopology Validate()
     {

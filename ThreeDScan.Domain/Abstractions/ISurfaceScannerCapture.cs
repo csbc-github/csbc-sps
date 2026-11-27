@@ -13,4 +13,8 @@ public interface ISurfaceScannerCapture
 
     /// <summary>UC-04 面掃描：影像 + raw PLY → C# Pipeline.Run → ZIP／GLB／角度（與 API 同一條）。</summary>
     Task<ScannerCaptureResult> CaptureWithAngleSteelAsync(byte programNo, CancellationToken ct = default);
+
+    /// <summary>孔洞用 OneClick 擷取：最多 1000 列、保留原始高度、XY 區域格網；null 保持目前程式。</summary>
+    Task<HoleRawCaptureResult> CaptureHoleAsync(byte? programNo = null, CancellationToken ct = default)
+        => throw new NotSupportedException("此掃描器未提供 OneClick 孔洞擷取。");
 }

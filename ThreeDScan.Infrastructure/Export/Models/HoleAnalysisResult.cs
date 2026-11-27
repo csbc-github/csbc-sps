@@ -62,4 +62,21 @@ public sealed class HoleAnalysisResult
 
     /// <summary>Y 間距（mm）。</summary>
     public double ScanPitchYMm { get; init; }
+
+    /// <summary>完整原生掃描器分析，保留鋼面、閉合判定、孔緣與掃描列端點。</summary>
+    public HoleDetectionResult Detection { get; init; } = new();
+
+    /// <summary>分析陣列索引對應到輸入 PLY 的頂點索引；ROI 不改變量測來源。</summary>
+    public int[] AnalysisSourcePointIndices { get; init; } = [];
+
+    /// <summary>ROI 過濾前，來源 PLY 的頂點數。</summary>
+    public int SourcePointCount { get; init; }
+
+    public int DetectedOpeningCount => Features.Length;
+    public int ClosedHoleCount => Features.Count(f => f.Closed);
+    public int PartialHoleCount => Features.Count(f => !f.Closed);
+
+    /// <summary>角鋼板面篩選證據；null 表示直接分析完整來源點雲。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public HoleScopeDiagnostics? Scope { get; init; }
 }

@@ -11,4 +11,13 @@ public sealed class SurfaceScanOrchestratorOptions
     /// 預設 false，與既有現場相容。
     /// </summary>
     public bool RequireCalibratedCoordinates { get; set; }
+
+    /// <summary>true：完整翼緣也須驗證成功；false：對齊成功時可保留翼緣警告並完成點雲。</summary>
+    public bool RequireVerifiedStitchBoundaries { get; set; } = true;
+
+    /// <summary>後續拼接模型預設修補過大外緣缺口；內孔與原始 PLY 保留，補入幾何另行標記。</summary>
+    public bool FillOuterEdges { get; set; } = true;
+
+    /// <summary>外緣缺口深度超過此值才修補（mm）；預設 10 mm，0 為完整外框補平。</summary>
+    public double OuterEdgeRepairMinDepthMm { get; set; } = 10;
 }

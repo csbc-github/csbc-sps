@@ -8,8 +8,7 @@ using System.Windows.Media.Media3D;
 namespace ThreeDScan.Controls;
 
 /// <summary>
-/// 讀取 PlyProcessor GltfExporter 產出的簡易 GLB
-///（POSITION + NORMAL + indices，單一 mesh）。
+/// 讀取單一 mesh GLB；帶掃描匯出座標標記時，還原為與點雲一致的 XYZ 毫米供監看。
 /// </summary>
 public static class GlbMeshLoader
 {
@@ -88,6 +87,29 @@ public static class GlbMeshLoader
         var maxY = max[1].GetDouble();
         var maxZ = max[2].GetDouble();
         var bounds = new Rect3D(minX, minY, minZ, maxX - minX, maxY - minY, maxZ - minZ);
+
+        // The API solid exporter writes standard metre/Y-up glTF. The WPF
+        // point cloud and measured head features use scanner/world XYZ mm.
+        // Legacy PlyProcessor GLB files have no such marker and stay unchanged.
+        if (root.TryGetProperty("extras", out var extras) && extras.ValueKind == JsonValueKind.Object
+            && extras.TryGetProperty("scanMillimetresToGltfMetres", out var convention)
+            && convention.ValueKind == JsonValueKind.String
+            && convention.GetString() == "(x,y,z) -> (0.001*x,0.001*z,-0.001*y)")
+        {
+            bounds = Rect3D.Empty;
+            for (int i = 0; i < positions.Count; i++)
+            {
+                var p = positions[i];
+                var millimetres = new Point3D(p.X * 1000, -p.Z * 1000, p.Y * 1000);
+                positions[i] = millimetres;
+                bounds.Union(millimetres);
+            }
+            for (int i = 0; i < normals.Count; i++)
+            {
+                var n = normals[i];
+                normals[i] = new Vector3D(n.X, -n.Z, n.Y);
+            }
+        }
 
         return new MeshData(positions, normals, indices, bounds);
     }

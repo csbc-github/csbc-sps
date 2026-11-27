@@ -40,7 +40,7 @@ public sealed class ButtStitchOptions
     /// <summary>截面邊緣留白（mm）。</summary>
     public double ProfileEdgeMarginMm { get; init; } = 5;
 
-    /// <summary>稜線排除（mm）。</summary>
+    /// <summary>舊版依 scanner XY 切翼的稜線排除設定（mm）；保留設定相容，完整 XYZ 穩健兩翼擬合不再使用此啟發式分割。</summary>
     public double ApexExclusionMm { get; init; } = 3;
 
     /// <summary>平面容差下限（mm）。</summary>

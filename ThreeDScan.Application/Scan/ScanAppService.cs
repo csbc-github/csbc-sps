@@ -12,7 +12,7 @@ using ThreeDScan.Domain.Repositories;
 
 namespace ThreeDScan.Application.Scan;
 
-/// <summary>掃描應用服務：面掃描走 C# Pipeline；線掃描可選 Hank Python 或 C# 改寫；孔洞尚未實作。</summary>
+/// <summary>掃描應用服務：面掃描與孔洞走 C# 協調器；線掃描可選 Hank Python 或 C# 改寫。</summary>
 public sealed class ScanAppService : IScanAppService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -1985,25 +1985,7 @@ public sealed class ScanAppService : IScanAppService
                 return DasOperationResult<TaskResultData>.Fail("TASK_NOT_FOUND", "找不到對應的任務。");
             }
 
-            object? result = null;
-            TaskErrorDto? error = null;
-            if (doc.Status == "Completed")
-            {
-                result = doc.Result;
-            }
-            else if (doc.Status == "Failed" && doc.Error is not null)
-            {
-                error = new TaskErrorDto { Code = doc.Error.Code, Message = doc.Error.Message };
-            }
-
-            return DasOperationResult<TaskResultData>.Ok(new TaskResultData
-            {
-                TaskId = doc.TaskId,
-                Status = doc.Status,
-                Result = result,
-                Error = error,
-                TraceId = doc.TraceId,
-            });
+            return DasOperationResult<TaskResultData>.Ok(TaskResultDataMapper.FromDocument(doc));
         }
         catch (Exception ex)
         {

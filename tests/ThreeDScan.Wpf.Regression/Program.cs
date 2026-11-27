@@ -54,6 +54,8 @@ internal static class Program
 
     private static async Task RunAsync(Dispatcher dispatcher)
     {
+        await GlbDispatcherChecks.RunAsync();
+        await MergedPointCloudPreviewChecks.RunAsync();
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing", Args = [] });
         builder.Logging.ClearProviders();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
@@ -151,6 +153,7 @@ internal static class Program
                 "Result polling must display the failed task and actionable measurement error on the UI dispatcher.");
             Require(profileRequests == 4, "The selection test must execute four real asynchronous profile requests.");
             await VerifyPreviewRecoveryAsync(vm, preview);
+            await HoleMonitorChecks.RunAsync();
         }
         finally
         {

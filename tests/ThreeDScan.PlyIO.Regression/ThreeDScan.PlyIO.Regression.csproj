@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/ScanPly.cs" Link="Production/ScanPly.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/Models/ScanCloud.cs" Link="Models/ScanCloud.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/Models/SourceScanPoint.cs" Link="Models/SourceScanPoint.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/Models/ScanVector.cs" Link="Models/ScanVector.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/Models/CalibrationMathException.cs" Link="Models/CalibrationMathException.cs" />
+  </ItemGroup>
+</Project>

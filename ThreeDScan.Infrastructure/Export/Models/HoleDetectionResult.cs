@@ -31,6 +31,10 @@ public sealed class HoleDetectionResult
     /// <summary>診斷。</summary>
     public HoleDiagnostics[] Diagnostics { get; init; } = [];
 
+    /// <summary>被記錄開口的角鋼實測板面與來源點範圍。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public HoleScopeDiagnostics? Scope { get; init; }
+
     /// <summary>方法說明。</summary>
     public string Method { get; init; } = "Independent planar faces, original scan-row gaps, measured rim closure";
 

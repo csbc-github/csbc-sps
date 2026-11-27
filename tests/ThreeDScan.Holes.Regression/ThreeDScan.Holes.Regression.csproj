@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../ThreeDScan.Domain/Models/*.cs" Link="Domain/%(Filename)%(Extension)" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/Models/*.cs" Link="Export/Models/%(Filename)%(Extension)" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/HoleAnalysis.cs" Link="Export/HoleAnalysis.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/OrganizedHoleDetector.cs" Link="Export/OrganizedHoleDetector.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/ScannerPlyReader.cs" Link="Export/ScannerPlyReader.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/HoleExporter.cs" Link="Export/HoleExporter.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/AngleSteelHoleScope.cs" Link="Export/AngleSteelHoleScope.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/AngleSteelExtractor.cs" Link="Export/AngleSteelExtractor.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/GroundPlaneEstimator.cs" Link="Export/GroundPlaneEstimator.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/MeasuredSurfaceRecovery.cs" Link="Export/MeasuredSurfaceRecovery.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/LocalSupportPlaneSeparation.cs" Link="Export/LocalSupportPlaneSeparation.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/WingPlaneSegmentation.cs" Link="Export/WingPlaneSegmentation.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/GeometryFitting.cs" Link="Export/GeometryFitting.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/ScanPly.cs" Link="Export/ScanPly.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/RigidTransforms.cs" Link="Export/RigidTransforms.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/CompatibleGridSet.cs" Link="Export/CompatibleGridSet.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/GridCell.cs" Link="Export/GridCell.cs" />
+    <Compile Include="../../ThreeDScan.Infrastructure/Export/CalibrationMath.cs" Link="Export/CalibrationMath.cs" />
+  </ItemGroup>
+</Project>

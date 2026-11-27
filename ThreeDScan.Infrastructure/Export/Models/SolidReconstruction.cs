@@ -86,4 +86,24 @@ public sealed class SolidReconstruction
 
     /// <summary>佔用格數。</summary>
     public int OccupiedCells { get; init; }
+
+    /// <summary>建模前的原始量測點數；點雲輸出仍完整保留這些量測。</summary>
+    public int InputMeasurementCount { get; init; }
+
+    /// <summary>符合獨立兩翼平面的實測點數。</summary>
+    public int WingPlaneMeasurementCount { get; init; }
+
+    /// <summary>平面之外、仍位於板厚／兩格稜線鄰域的實測圓角點數。</summary>
+    public int MeasuredRidgePointCount { get; init; }
+
+    /// <summary>模型外緣已依門檻及保留實體原框修補，新增材料為推估幾何。</summary>
+    public bool OuterEdgesFilled { get; init; }
+
+    /// <summary>未投影為實體足跡的端面／雜點數；不從量測點雲刪除。</summary>
+    public int ExcludedFromFootprintMeasurementCount => Math.Max(0, InputMeasurementCount - WingPlaneMeasurementCount - MeasuredRidgePointCount);
+
+    /// <summary>足跡來源限制，不包含補造的量測點或跨接空白。</summary>
+    public string FootprintSelection => OuterEdgesFilled
+        ? "The initial footprint uses independently supported measured wings and measured rounded-ridge samples. Outer-edge notches are repaired against each retained solid's original UV envelope using the configured physical-depth threshold; this border material is inferred, not measured. Original enclosed hole cells and separate major solids are preserved. Original measurements remain unchanged in PLY."
+        : "Independently supported measured wing points plus actual rounded-ridge samples within max(material thickness, 2*mesh cell, 3*wing RMS) of the fitted ridge line. Other measurements remain in PLY but cannot create projected CAD islands. Empty seams/ridges and resolved holes are not bridged.";
 }

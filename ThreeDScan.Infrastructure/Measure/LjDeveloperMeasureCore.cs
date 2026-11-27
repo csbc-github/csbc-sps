@@ -3,13 +3,16 @@
 using Keyence.LjDevCommon;
 using Keyence.LjDevMeasure;
 using ThreeDScan.Domain.Models;
+using ThreeDScan.Infrastructure.Export;
+using ThreeDScan.Infrastructure.Export.Models;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
 
-// LJ Developer 1.5.0.26460 — 對齊 source\ljd_measure.cs：PM.Execute → Sphere.Execute(DeltaPosition)
+// PM 與視埠工具沿用 LJ Developer；實際球心／直徑由原始高度取樣的穩健球面擬合取得。
 
 /// <summary>LJ Developer 尋球／平面量測核心（對齊 ljd_measure）。</summary>
 internal sealed class LjDeveloperMeasureCore
@@ -26,7 +29,7 @@ internal sealed class LjDeveloperMeasureCore
             EndAngle = 40,
             ScoreThreshold = 30,
             Timeout = 5,
-            // 略多於 BallCount：同一顆球常佔多個角度槽，多抓再於 PM 階段去重。
+            // 重複角度與治具假候選會佔用排名；先抓滿候選，再去重及驗證球面。
             DetectCount = PatternDetectCount,
             FitDeformation = LPatternMatchFitDeformation.None,
         };
@@ -144,10 +147,16 @@ internal sealed class LjDeveloperMeasureCore
     #region 執行
 
     /// <summary>
-    /// 儀器校正量測：PatternMatch 找候選，只在該 XY 擬合；直徑及格才留，按 PM 分數順序取 BallCount 顆。
+    /// 儀器校正量測：PatternMatch 找候選，以原始高度取樣擬合並檢查外圈；按 PM 分數順序取 BallCount 顆。
     /// </summary>
-    public IList<ILToolInfo> Execute(LHeightImage inputHeightImage, LGrayImage inputGrayImage)
+    public IList<ILToolInfo> Execute(
+        LHeightImage inputHeightImage,
+        LGrayImage inputGrayImage,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        _keptSphereMeasurements.Clear();
+        var frame = HeightImageFrameAdapter.FromLHeightImage(inputHeightImage);
         var results = new List<ILToolInfo>();
         var unitDic = CreateUnitDictionary();
 
@@ -156,13 +165,14 @@ internal sealed class LjDeveloperMeasureCore
         log.AppendLine(
             $"BallCount={BallCount}, Ref=({_activeRefPatternX:F3}, {_activeRefPatternY:F3}), " +
             $"Expected={BallSettings.ExpectedBallDiameter}mm ±{BallSettings.MaxDiameterError}");
+        log.AppendLine("校正球心採標準尺寸球面及獨立取樣驗證；自由估徑保留實測診斷，SDK 3D 球圖示僅供輔助檢視。");
 
         _patternMatch.Execute(inputHeightImage);
 
         var patternMatchToolInfo = CreatePatternMatchToolInfo(unitDic);
         var pmEach = patternMatchToolInfo.ToolMeasureValues().EachValues;
-        var eachResults = _patternMatch.Result?.EachResults;
-        var rawPmCount = Math.Min(PatternDetectCount, eachResults?.Length ?? 0);
+        var eachResults = _patternMatch.Result?.EachResults ?? [];
+        var rawPmCount = Math.Min(PatternDetectCount, eachResults.Length);
 
         log.AppendLine($"PatternMatch 原始候選 {rawPmCount} 個 (DetectCount={PatternDetectCount}):");
         for (var i = 0; i < rawPmCount; i++)
@@ -181,13 +191,14 @@ internal sealed class LjDeveloperMeasureCore
 
         var sphereResultTypeList = CreateSphereResultTypeList();
         var sphereCandidates =
-            new List<(int Index, double X, double Y, double Z, double D, double PmScore, string DeltaSrc, LSphereToolInfo Info)>();
+            new List<(int Index, double X, double Y, double Z, double D, double PmScore, string DeltaSrc, LSphereToolInfo Info, RobustSphereFitResult Fit)>();
 
         log.AppendLine("Sphere 擬合:");
         EnsureSphereRegionsAtRef();
 
         foreach (var i in uniquePmIndices)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var pmScore = GetPmScore(pmEach, i);
             if (pmScore <= 0)
             {
@@ -199,6 +210,7 @@ internal sealed class LjDeveloperMeasureCore
                     i,
                     pmScore,
                     inputHeightImage,
+                    frame,
                     eachResults,
                     sphereResultTypeList,
                     unitDic,
@@ -208,21 +220,23 @@ internal sealed class LjDeveloperMeasureCore
                     out var d,
                     out var deltaSrc,
                     out var info,
-                    out var fitLog))
+                    out var fitLog,
+                    out var fit,
+                    cancellationToken))
             {
                 log.AppendLine(fitLog);
                 continue;
             }
 
             log.AppendLine(fitLog);
-            sphereCandidates.Add((i, x, y, z, d, pmScore, deltaSrc, info));
+            sphereCandidates.Add((i, x, y, z, d, pmScore, deltaSrc, info, fit));
         }
 
         var minSepSq = BallSettings.MinSphereCenterSeparationMm * BallSettings.MinSphereCenterSeparationMm;
         var keptCenters = new List<(double X, double Y)>();
         var keepCount = 0;
 
-        // 維持 PM 分數順序（uniquePmIndices 已排序）；直徑只在擬合時當及格與否。
+        // 維持 PM 分數順序；校正資格依球面模型驗證，直徑仍保留獨立診斷。
         foreach (var c in sphereCandidates)
         {
             var isDuplicate = keptCenters.Any(k =>
@@ -239,6 +253,7 @@ internal sealed class LjDeveloperMeasureCore
             }
 
             keptCenters.Add((c.X, c.Y));
+            _keptSphereMeasurements.Add(c.Info, c.Fit);
             results.Add(c.Info);
             keepCount++;
             log.AppendLine($"  [{c.Index}] delta={c.DeltaSrc} -> 最終保留 (score={c.PmScore:F1})");
@@ -266,13 +281,14 @@ internal sealed class LjDeveloperMeasureCore
     }
 
     /// <summary>
-    /// 對單一 PM 候選：只在 PM 回報的 XY 做一次球擬合。
-    /// 直徑只當及格與否；擬合球心須靠近該 PM 點。
+    /// 對單一 PM 候選做原始高度球面擬合；SDK 工具只保留視埠顯示。
+    /// 標準尺寸球心模型與獨立外圈須通過；自由估徑另作診斷。
     /// </summary>
     private bool TryFitSphereCandidate(
         int candidateIndex,
         double pmScore,
         LHeightImage inputHeightImage,
+        HeightFrame frame,
         LEachPatternMatchResult[] eachResults,
         Dictionary<LSphereResultType, string> sphereResultTypeList,
         Dictionary<LUnitType, string> unitDic,
@@ -282,21 +298,21 @@ internal sealed class LjDeveloperMeasureCore
         out double d,
         out string deltaSrc,
         out LSphereToolInfo info,
-        out string logLine)
+        out string logLine,
+        out RobustSphereFitResult fitResult,
+        CancellationToken cancellationToken = default)
     {
         x = y = z = d = 0;
-        deltaSrc = "PM@XY";
-        info = null;
+        deltaSrc = "RawSphere@PM";
+        info = null!;
         logLine = "";
+        fitResult = null!;
 
         var pmCenter = eachResults[candidateIndex].AbsolutePosition.CenterPosition;
         var pmX = pmCenter.X;
         var pmY = pmCenter.Y;
-        const double maxCenterDriftMm = 5.0;
-        var maxCenterDriftSq = maxCenterDriftMm * maxCenterDriftMm;
-
         var sphereParam = _spheres[candidateIndex].Param;
-        sphereParam.Name = $"[002]球_{candidateIndex}";
+        sphereParam.Name = $"[002]球_{candidateIndex}（SDK輔助圖示）";
         sphereParam.Region = new LCircle(pmX, pmY, BallSettings.SphereRadius);
         sphereParam.Method = LSphereMethod.LeastSquare;
         sphereParam.TargetData = LSphereTargetData.SampledDataInAllRegions;
@@ -307,47 +323,29 @@ internal sealed class LjDeveloperMeasureCore
         var candidateInfo = new LSphereToolInfo(
             _spheres[candidateIndex], sphereResultTypeList, unitDic, 2 + candidateIndex);
         var sv = candidateInfo.ToolMeasureValues().Values;
-        if (sv == null || sv.Length < 4)
+        double sdkDiameter = sv is { Length: >= 4 } ? sv[3].Value : double.NaN;
+        var fit = RobustSphereFitter.FitCalibrationSphere(
+            frame, pmX, pmY, BallSettings.ExpectedBallDiameter, BallSettings.MaxDiameterError, cancellationToken);
+        fitResult = fit;
+        if (!IsAcceptableRawSphere(fit, pmX, pmY, out var reason))
         {
-            logLine = $"  [{candidateIndex}] PM=({pmX:F2}, {pmY:F2}) 無法取得球擬合結果";
+            logLine = $"  [{candidateIndex}] PM=({pmX:F2}, {pmY:F2}), score={pmScore:F1}, " +
+                $"SDK D={sdkDiameter:F3} -> 丟棄(raw sphere: {reason}; {DescribeRawSphere(fit)})";
             return false;
         }
 
-        var cx = sv[0].Value;
-        var cy = sv[1].Value;
-        var cz = sv[2].Value;
-        var cd = sv[3].Value;
-        if (double.IsNaN(cd) || double.IsInfinity(cd))
-        {
-            logLine = $"  [{candidateIndex}] PM=({pmX:F2}, {pmY:F2}) 擬合直徑無效";
-            return false;
-        }
-
-        var driftX = cx - pmX;
-        var driftY = cy - pmY;
-        if (driftX * driftX + driftY * driftY > maxCenterDriftSq)
-        {
-            logLine =
-                $"  [{candidateIndex}] PM=({pmX:F2}, {pmY:F2}) 擬合球心=({cx:F2}, {cy:F2}) " +
-                $"偏離 > {maxCenterDriftMm:F0} mm -> 丟棄";
-            return false;
-        }
-
-        if (!BallSettings.IsAcceptableSphereDiameter(cd))
-        {
-            logLine =
-                $"  [{candidateIndex}] PM@XY X={cx:F2}, Y={cy:F2}, Z={cz:F2}, D={cd:F3}, " +
-                $"score={pmScore:F1} -> 丟棄(超過 MaxDiameterError)";
-            return false;
-        }
-
-        x = cx;
-        y = cy;
-        z = cz;
-        d = cd;
+        x = fit.X;
+        y = fit.Y;
+        z = fit.Z;
+        d = fit.DiameterMm;
+        deltaSrc = fit.UsesKnownRadius ? "KnownRadius@PM" : "RawSphere@PM";
         info = candidateInfo;
+        // SDK Result is a managed copy: assigning its Sphere does not change native Values().
+        // Preserve LSphereToolInfo for Lj3DView, and override its displayed numbers only.
+        UpdateSphereDisplay(candidateInfo, fit);
         logLine =
-            $"  [{candidateIndex}] PM@XY X={x:F2}, Y={y:F2}, Z={z:F2}, D={d:F3}, score={pmScore:F1} -> 候選保留";
+            $"  [{candidateIndex}] {deltaSrc} X={x:F2}, Y={y:F2}, Z={z:F2}, freeD={d:F3}, " +
+            $"score={pmScore:F1}, SDK D={sdkDiameter:F3}, {DescribeRawSphere(fit)} -> 候選保留";
         return true;
     }
 
@@ -446,7 +444,8 @@ internal sealed class LjDeveloperMeasureCore
         out double centerX,
         out double centerY,
         out double diameter,
-        out string message)
+        out string message,
+        CancellationToken cancellationToken = default)
     {
         var seedX = _activeRefPatternX;
         var seedY = _activeRefPatternY;
@@ -458,9 +457,11 @@ internal sealed class LjDeveloperMeasureCore
         AppendLog(
             $"---- {DateTime.Now:HH:mm:ss.fff} Ref 擬合開始：指定座標=({seedX:F3}, {seedY:F3}) ----");
 
-        if (!TryProbeSphereAt(inputHeightImage, seedX, seedY, out var fittedX, out var fittedY, out var fittedD))
+        if (!TryProbeSphereAt(
+                inputHeightImage, seedX, seedY,
+                out var fittedX, out var fittedY, out _, out var fittedD, out var detail, cancellationToken))
         {
-            message = $"球擬合失敗：無法在指定 Ref 座標 ({seedX:F3}, {seedY:F3}) 讀取量測值。";
+            message = $"球擬合失敗：指定 Ref 座標 ({seedX:F3}, {seedY:F3}) 的原始球面量測未通過：{detail}";
             AppendLog($"---- {DateTime.Now:HH:mm:ss.fff} {message} ----");
             return false;
         }
@@ -486,8 +487,7 @@ internal sealed class LjDeveloperMeasureCore
     }
 
     /// <summary>
-    /// 在指定 ROI 中心做一次球擬合，回傳擬合球心 XY 與直徑。
-    /// region 是指定的 Ref 座標；回傳的 fittedXY 是最小平方球心，可相對 region 微調。
+    /// 在指定 Ref 座標做與 Execute 相同的原始高度球面擬合及外圈驗證。
     /// </summary>
     private bool TryProbeSphereAt(
         LHeightImage inputHeightImage,
@@ -495,43 +495,31 @@ internal sealed class LjDeveloperMeasureCore
         double regionCenterY,
         out double fittedX,
         out double fittedY,
-        out double fittedD)
+        out double fittedZ,
+        out double fittedD,
+        out string detail,
+        CancellationToken cancellationToken = default)
     {
-        fittedX = fittedY = fittedD = double.NaN;
-
-        // 用臨時 SphereTool + 當前影像更新 reference，避免舊 baseline 影響校正尋球。
-        var probe = new LSphereTool();
-        var probeParam = probe.Param;
-        probeParam.Name = "[CAL]ProbeSphere";
-        probeParam.Region = new LCircle(regionCenterX, regionCenterY, BallSettings.SphereRadius);
-        probeParam.Method = LSphereMethod.LeastSquare;
-        probeParam.TargetData = LSphereTargetData.SampledDataInAllRegions;
-        probe.Param = probeParam;
-
-        probe.UpdateReference(inputHeightImage);
-        probe.Execute(
-            inputHeightImage,
-            new LDeltaPosition
-            {
-                Enable = true,
-                X = 0,
-                Y = 0,
-                Theta = 0,
-                Center = new LDPoint2D { X = regionCenterX, Y = regionCenterY },
-            });
-
-        var info = new LSphereToolInfo(probe, CreateSphereResultTypeList(), CreateUnitDictionary(), 2);
-        var values = info.ToolMeasureValues().Values;
-        if (values == null || values.Length < 4) return false;
-
-        fittedX = values[0].Value;
-        fittedY = values[1].Value;
-        fittedD = values[3].Value;
-        return !(double.IsNaN(fittedD) || double.IsInfinity(fittedD));
+        cancellationToken.ThrowIfCancellationRequested();
+        fittedX = fittedY = fittedZ = fittedD = double.NaN;
+        var frame = HeightImageFrameAdapter.FromLHeightImage(inputHeightImage);
+        var fit = RobustSphereFitter.Fit(
+            frame, regionCenterX, regionCenterY,
+            BallSettings.ExpectedBallDiameter, BallSettings.MaxDiameterError, cancellationToken);
+        bool acceptable = IsAcceptableRawSphere(fit, regionCenterX, regionCenterY, out var reason);
+        detail = acceptable ? DescribeRawSphere(fit) : reason + "; " + DescribeRawSphere(fit);
+        AppendLog($"---- {DateTime.Now:HH:mm:ss.fff} RawSphere probe " +
+            $"seed=({regionCenterX:F3},{regionCenterY:F3}), accepted={acceptable}, {detail} ----");
+        if (!acceptable) return false;
+        fittedX = fit.X;
+        fittedY = fit.Y;
+        fittedZ = fit.Z;
+        fittedD = fit.DiameterMm;
+        return true;
     }
 
     /// <summary>
-    /// 校正後驗證：在已 UpdateReference 的 _spheres[0] 上以 Zero@Ref 直接探測（與尋球探測一致）。
+    /// 校正後驗證：以相同原始高度擬合與外圈品質檢查，避免回頭採用 SDK 球徑。
     /// </summary>
     public bool TryValidateCalibrationProbe(
         LHeightImage inputHeightImage,
@@ -539,51 +527,36 @@ internal sealed class LjDeveloperMeasureCore
         out double centerY,
         out double centerZ,
         out double diameter,
-        out string message)
+        out string message,
+        CancellationToken cancellationToken = default)
     {
         centerX = centerY = centerZ = diameter = 0;
-        EnsureSphereRegionsAtRef();
-        _spheres[0].Execute(inputHeightImage, CreateZeroDeltaAt(_activeRefPatternX, _activeRefPatternY));
-
-        var info = new LSphereToolInfo(_spheres[0], CreateSphereResultTypeList(), CreateUnitDictionary(), 2);
-        var values = info.ToolMeasureValues().Values;
-        if (values == null || values.Length < 4)
+        if (!TryProbeSphereAt(
+                inputHeightImage, _activeRefPatternX, _activeRefPatternY,
+                out centerX, out centerY, out centerZ, out diameter, out var detail, cancellationToken))
         {
-            message = "球擬合驗證失敗：無法讀取量測值。";
-            return false;
-        }
-
-        centerX = values[0].Value;
-        centerY = values[1].Value;
-        centerZ = values[2].Value;
-        diameter = values[3].Value;
-
-        if (!BallSettings.IsAcceptableSphereDiameter(diameter))
-        {
-            message =
-                $"球擬合驗證失敗：Zero@Ref 量得 D={diameter:F3} mm（預期 {BallSettings.ExpectedBallDiameter}±{BallSettings.MaxDiameterError}）。";
-            AppendLog($"---- {DateTime.Now:HH:mm:ss.fff} {message} ----");
+            message = "球擬合驗證失敗：" + detail;
             return false;
         }
 
         message =
-            $"球擬合驗證通過：({centerX:F2}, {centerY:F2})，Z={centerZ:F2}，D={diameter:F3} mm（Zero@Ref）。";
+            $"球擬合驗證通過：({centerX:F2}, {centerY:F2})，Z={centerZ:F2}，D={diameter:F3} mm（原始球面與外圈驗證）。";
         AppendLog($"---- {DateTime.Now:HH:mm:ss.fff} {message} ----");
         return true;
     }
 
-    /// <summary>校正後驗證：Execute 至少保留一顆直徑合理的球。</summary>
+    /// <summary>校正後驗證：Execute 至少保留一顆通過球心模型品質的球。</summary>
     public bool TryValidateCalibrationExecute(IList<ILToolInfo> results, out string message)
     {
         if (TryGetFirstKeptSphere(results, out var x, out var y, out var z, out var d, out var count))
         {
             message =
-                $"球擬合驗證通過：保留 {count} 顆，代表球心 ({x:F2}, {y:F2}, {z:F2})，D={d:F3} mm。";
+                $"球擬合驗證通過：保留 {count} 顆，代表球心 ({x:F2}, {y:F2}, {z:F2})，自由估徑={d:F3} mm。";
             return true;
         }
 
         message =
-            $"球擬合驗證失敗：無直徑 {BallSettings.ExpectedBallDiameter}±{BallSettings.MaxDiameterError} mm 的球。"
+            $"球擬合驗證失敗：無通過標準尺寸 {BallSettings.ExpectedBallDiameter} mm 球心模型及獨立取樣驗證的球。"
             + "請確認 Scan 參數、球在視野內，且 RefPattern 接近球心。";
         return false;
     }
@@ -602,25 +575,103 @@ internal sealed class LjDeveloperMeasureCore
 
         foreach (var result in results)
         {
-            if (!(result is LSphereToolInfo sphereInfo)) continue;
-
-            var values = sphereInfo.ToolMeasureValues().Values;
-            if (values == null || values.Length < 4) continue;
-
-            var d = values[3].Value;
-            if (!BallSettings.IsAcceptableSphereDiameter(d)) continue;
+            if (!TryReadKeptSphere(result, out var x, out var y, out var z, out var d)) continue;
 
             keptCount++;
             if (keptCount == 1)
             {
-                centerX = values[0].Value;
-                centerY = values[1].Value;
-                centerZ = values[2].Value;
+                centerX = x;
+                centerY = y;
+                centerZ = z;
                 diameter = d;
             }
         }
 
         return keptCount >= 1;
+    }
+
+    /// <summary>
+    /// 讀本次 Execute 最終保留的原始球面量測；SDK ToolMeasureValues 僅供工具繪圖，不作 API 數值來源。
+    /// </summary>
+    public bool TryReadKeptSphere(
+        ILToolInfo info, out double x, out double y, out double z, out double diameter)
+    {
+        x = y = z = diameter = 0;
+        if (!_keptSphereMeasurements.TryGetValue(info, out var measured)) return false;
+        x = measured.X;
+        y = measured.Y;
+        z = measured.Z;
+        diameter = measured.DiameterMm;
+        return true;
+    }
+
+    /// <summary>讀取校正球心模型及未改寫的自由估徑診斷。</summary>
+    public bool TryReadKeptSphereFit(ILToolInfo info, out RobustSphereFitResult fit)
+    {
+        return _keptSphereMeasurements.TryGetValue(info, out fit!);
+    }
+
+    private static bool IsAcceptableRawSphere(
+        RobustSphereFitResult fit, double seedX, double seedY, out string reason)
+    {
+        if (!fit.Success)
+        {
+            reason = fit.FailureReason ?? "原始球面擬合或外圈驗證失敗";
+            return false;
+        }
+        if (!double.IsFinite(fit.X) || !double.IsFinite(fit.Y) || !double.IsFinite(fit.Z)
+            || !double.IsFinite(fit.DiameterMm))
+        {
+            reason = "原始球面量測包含非有限數值";
+            return false;
+        }
+        double dx = fit.X - seedX, dy = fit.Y - seedY;
+        if (dx * dx + dy * dy > 25)
+        {
+            reason = "原始擬合球心偏離 PM／Ref 超過 5 mm";
+            return false;
+        }
+        // Reference/probe measurements retain their free-diameter gate. A validated
+        // standard-ball centre keeps the independent free diameter as a diagnostic.
+        if (!fit.UsesKnownRadius && !BallSettings.IsAcceptableSphereDiameter(fit.DiameterMm))
+        {
+            reason = "超過 MaxDiameterError";
+            return false;
+        }
+        reason = "";
+        return true;
+    }
+
+    private static string DescribeRawSphere(RobustSphereFitResult fit)
+    {
+        string method = fit.UsesKnownRadius
+            ? $"centre=KnownRadiusCenter nominalD={fit.NominalDiameterMm:F3}, freeDWithinMaxError={fit.IsDiameterWithinTolerance}, "
+              + $"trainingN={fit.TrainingPointCount}, holdoutN={fit.HoldoutPointCount}, comparisonFreeD={fit.ComparisonFreeDiameterMm:F3}, "
+            : "centre=FreeRadiusRobust, ";
+        return method + $"rawQualityPassed={fit.IsGeometryValid}, sourceSupportPassed={fit.HasValidSourceSupport}, " +
+            $"localizedValidation={fit.UsedLocalizedOutlierValidation}, centerSensitivity={fit.CenterSensitivityMm:F4}mm, " +
+            $"fullFreeCoreRMS={fit.FullFreeCoreRmsMm:F4}, fullFreeCoreP95={fit.FullFreeCoreP95Mm:F4}, " +
+            $"fullFreeOuterRMS={fit.FullFreeValidationRmsMm:F4}, fullFreeOuterP95={fit.FullFreeValidationP95Mm:F4}, " +
+            $"boundedCoreRMS={fit.BoundedCoreRmsMm:F4}, boundedOuterRMS={fit.BoundedValidationRmsMm:F4}, " +
+            $"coreGrossOutlierFraction={fit.CoreGrossOutlierFraction:P2}, outerGrossOutlierFraction={fit.ValidationGrossOutlierFraction:P2}, " +
+            $"outerGrossWarning={fit.ValidationGrossOutlierFraction > .02}, outerInlierFraction={fit.ValidationInlierFraction:P2}, " +
+            $"free D={fit.DiameterMm:F3}, coreRMS={fit.CoreRmsMm:F4}, " +
+            $"outerRMS={fit.ValidationRmsMm:F4}, coreN={fit.CorePointCount}, " +
+            $"outerN={fit.ValidationPointCount}, inliers={fit.InlierFraction:P1}";
+    }
+
+    private static void UpdateSphereDisplay(LSphereToolInfo info, RobustSphereFitResult fit)
+    {
+        string centerMethod = fit.UsesKnownRadius ? "標準尺寸求球心" : "穩健自由擬合";
+        string diameterStatus = fit.IsGeometryValid
+            ? BallSettings.IsExpectedDiameter(fit.DiameterMm) ? "合格" : "超差"
+            : $"品質警告，{(BallSettings.IsExpectedDiameter(fit.DiameterMm) ? "數值區間內" : "超差")}";
+        if (fit.UsedLocalizedOutlierValidation)
+            centerMethod += $"；局部點品質警告；球心穩定性檢查通過，變動 {fit.CenterSensitivityMm:F3} mm";
+        info.OverwriteValuesText(LSphereResultType.DetectSphereSphereCenterX, "X=" + fit.X.ToString("F3", CultureInfo.InvariantCulture) + " mm (" + centerMethod + ")");
+        info.OverwriteValuesText(LSphereResultType.DetectSphereSphereCenterY, "Y=" + fit.Y.ToString("F3", CultureInfo.InvariantCulture) + " mm (" + centerMethod + ")");
+        info.OverwriteValuesText(LSphereResultType.DetectSphereSphereCenterZ, "Z=" + fit.Z.ToString("F3", CultureInfo.InvariantCulture) + " mm (" + centerMethod + ")");
+        info.OverwriteValuesText(LSphereResultType.DetectSphereSphereDiameter, "自由估徑=" + fit.DiameterMm.ToString("F3", CultureInfo.InvariantCulture) + " mm (" + diameterStatus + ")");
     }
 
     #endregion
@@ -662,7 +713,7 @@ internal sealed class LjDeveloperMeasureCore
         return results.Select(result => result.DisplayText()).ToArray();
     }
 
-    /// <summary>工具量測數值。</summary>
+    /// <summary>SDK 原生工具數值；校正球心／球徑須使用 TryReadKeptSphere。</summary>
     public ILToolMeasureValues[] GetMeasureValues(IList<ILToolInfo> results)
     {
         return results.Select(result => result.ToolMeasureValues()).ToArray();
@@ -768,7 +819,6 @@ internal sealed class LjDeveloperMeasureCore
             unique.Add(index);
         }
 
-        unique.Sort();
         return unique;
     }
 
@@ -823,8 +873,8 @@ internal sealed class LjDeveloperMeasureCore
     #region 實例
 
     private readonly int BallCount = BallSettings.BallCount;
-    /// <summary>PM 偵測上限：略多於 BallCount，留給同一顆球的重複角度命中。</summary>
-    private readonly int PatternDetectCount = Math.Min(10, BallSettings.BallCount + 2);
+    /// <summary>PM 固定搜尋 10 個候選，避免真球被重複角度或治具候選擠出；最終仍只保留 BallCount 顆。</summary>
+    private const int PatternDetectCount = 10;
     private readonly double RefPatternX = BallSettings.RefPatternX;
     private readonly double RefPatternY = BallSettings.RefPatternY;
     private readonly double RefSphereX = BallSettings.RefSphereX;
@@ -838,6 +888,8 @@ internal sealed class LjDeveloperMeasureCore
     private readonly LPatternMatchTool _patternMatch = new LPatternMatchTool();
     private readonly LPlaneTool _datumPlane = new();
     private readonly LSphereTool[] _spheres;
+    private readonly Dictionary<ILToolInfo, RobustSphereFitResult> _keptSphereMeasurements
+        = new(ReferenceEqualityComparer.Instance);
 
     #endregion
 }

@@ -23,7 +23,7 @@
             <StackPanel Grid.Row="0" Margin="0,0,0,12">
                 <TextBlock Text="儀器校正監看（LJ 3D）"
                            Style="{StaticResource PanelTitleStyle}"/>
-                <TextBlock Text="對齊 LJScanWinform 量測按鈕：Lj3DView + SetToolInfo。"
+                <TextBlock Text="球心與球徑以量測清單為準；3D 球形僅作位置參考。"
                            FontSize="{StaticResource FontSizeSmall}"
                            Foreground="{StaticResource TextSecondaryBrush}"
                            TextWrapping="Wrap"
@@ -61,7 +61,7 @@
                     <ItemsControl ItemsSource="{Binding Balls}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Line}" Margin="0,2"/>
+                                <TextBlock Text="{Binding Line}" Margin="0,2" TextWrapping="Wrap"/>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

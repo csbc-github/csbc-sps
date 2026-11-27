@@ -35,6 +35,30 @@ public partial class PointCloudViewport : UserControl
     private Point3D _cloudMax;
     private Vector3D _orbitUp = new Vector3D(0, 1, 0);
     private bool _autoLookHeadPending;
+    private readonly ModelVisual3D _highlightVisual = new();
+    private GeometryModel3D? _highlightModel;
+    private IReadOnlyList<Point3D> _highlightPoints = Array.Empty<Point3D>();
+
+    /// <summary>與點雲相同座標系的實測標記；不連接不同孔洞或補畫缺失邊界。</summary>
+    public static readonly DependencyProperty HighlightPointsProperty = DependencyProperty.Register(
+        nameof(HighlightPoints), typeof(IReadOnlyList<Point3D>), typeof(PointCloudViewport),
+        new PropertyMetadata(null, OnHighlightChanged));
+
+    public IReadOnlyList<Point3D>? HighlightPoints
+    {
+        get => (IReadOnlyList<Point3D>?)GetValue(HighlightPointsProperty);
+        set => SetValue(HighlightPointsProperty, value);
+    }
+
+    public static readonly DependencyProperty HighlightIsClosedProperty = DependencyProperty.Register(
+        nameof(HighlightIsClosed), typeof(bool), typeof(PointCloudViewport),
+        new PropertyMetadata(false, OnHighlightChanged));
+
+    public bool HighlightIsClosed
+    {
+        get => (bool)GetValue(HighlightIsClosedProperty);
+        set => SetValue(HighlightIsClosedProperty, value);
+    }
 
     public static readonly DependencyProperty VerticesProperty = DependencyProperty.Register(
         nameof(Vertices),
@@ -89,6 +113,31 @@ public partial class PointCloudViewport : UserControl
             self.RenderVertices();
     }
 
+    private static void OnHighlightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PointCloudViewport self) self.RenderHighlight();
+    }
+
+    private void RenderHighlight()
+    {
+        _highlightPoints = HighlightPoints?.Where(p => double.IsFinite(p.X) && double.IsFinite(p.Y) && double.IsFinite(p.Z)).ToArray()
+            ?? Array.Empty<Point3D>();
+        _highlightModel = null;
+        Viewport.Children.Remove(_highlightVisual);
+        if (!_hasOrbitScene || _highlightPoints.Count == 0 || Viewport.Camera is not PerspectiveCamera camera) return;
+        var brush = new SolidColorBrush(HighlightIsClosed ? Color.FromRgb(100, 255, 135) : Color.FromRgb(255, 155, 60));
+        brush.Freeze();
+        var material = new EmissiveMaterial(brush);
+        material.Freeze();
+        _highlightModel = new GeometryModel3D
+        {
+            Material = material, BackMaterial = material,
+            Geometry = BuildBillboardMesh(_highlightPoints, Math.Max(_splatHalfSize * 4, _orbitDiagonal * .0008), camera),
+        };
+        _highlightVisual.Content = _highlightModel;
+        Viewport.Children.Add(_highlightVisual);
+    }
+
     private static void OnHeadFeaturesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not PointCloudViewport self)
@@ -120,6 +169,7 @@ public partial class PointCloudViewport : UserControl
     {
         Viewport.Children.Clear();
         _pointLayers.Clear();
+        _highlightModel = null;
         _allPoints.Clear();
         _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
         _annotations.ClearAll();
@@ -215,6 +265,7 @@ public partial class PointCloudViewport : UserControl
             Viewport.Children.Add(new ModelVisual3D { Content = geo });
         }
 
+        RenderHighlight();
         RebuildBillboardMeshes();
         _autoLookHeadPending = true;
         ApplyHeadFeatures();
@@ -403,6 +454,9 @@ public partial class PointCloudViewport : UserControl
         {
             layer.Model.Geometry = BuildBillboardMesh(layer.Points, _splatHalfSize, cam);
         }
+        if (_highlightModel is not null)
+            _highlightModel.Geometry = BuildBillboardMesh(_highlightPoints,
+                Math.Max(_splatHalfSize * 4, _orbitDiagonal * .0008), cam);
     }
 
     /// <summary>每點兩個小三角形朝向相機（小點）。</summary>

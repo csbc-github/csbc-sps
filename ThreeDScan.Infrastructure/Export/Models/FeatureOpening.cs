@@ -80,4 +80,15 @@ public sealed class FeatureOpening
 
     /// <summary>原因。</summary>
     public string? Reason { get; init; }
+
+    /// <summary>原始 scanner XYZ、面內 U/V 及來源 PLY 頂點索引；不使用擬合點取代實測孔緣。</summary>
+    public BoundaryPoint[] MeasuredBoundary { get; init; } = [];
+
+    /// <summary>每條掃描列的左右實測孔緣端點，來源索引指向輸入 PLY。</summary>
+    public HoleEdgePair[] EdgePairs { get; init; } = [];
+
+    public BoundaryBox? BoundaryBox { get; init; }
+    public HoleClosure? Closure { get; init; }
+    public OpeningWidthRange? OpeningWidthRangeMm { get; init; }
+    public string BoundarySource { get; init; } = "Measured scan-row gap endpoints and measured closing-rim points";
 }

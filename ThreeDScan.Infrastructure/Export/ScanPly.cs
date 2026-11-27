@@ -6,17 +6,26 @@ using ThreeDScan.Infrastructure.Export.Models;
 namespace ThreeDScan.Infrastructure.Export;
 
 /// <summary>ASCII 掃描器 PLY 讀寫。</summary>
-/// <remarks>由 Hank Scan3D 的 ScanPly 搬入，邏輯不改。</remarks>
+/// <remarks>保留數值、額外欄位及原始位元組雜湊；以 span 解析與格式化減少逐點配置。</remarks>
 public static class ScanPly
 {
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
+    // A raw height capture commonly has only one extra byte-intensity column.
+    // Share only the exact canonical spellings; "001" and other attributes
+    // keep their original token text.
+    private static readonly string[] SmallExtraValues = Enumerable.Range(0, 256)
+        .Select(value => value.ToString(Invariant)).ToArray();
 
     /// <summary>讀取前三欄為 x y z 的 ASCII PLY。</summary>
     /// <remarks>來自 Hank Scan3D 的 <c>Scan3D.Processing.Legacy.Extraction.ScanPly</c>。</remarks>
     /// <param name="path">檔案路徑。</param>
     public static ScanCloud Read(string path)
     {
-        using var reader = new StreamReader(path, Encoding.UTF8, true, 1024 * 1024);
+        using var checksum = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            1024 * 1024, FileOptions.SequentialScan);
+        using var hashed = new HashingReadStream(source, checksum);
+        using var reader = new StreamReader(hashed, Encoding.UTF8, true, 1024 * 1024, leaveOpen: true);
         var header = new List<string>();
         var properties = new List<string>();
         int vertexCount = -1;
@@ -86,26 +95,15 @@ public static class ScanPly
                 throw new InvalidDataException($"PLY 頂點不足：預期 {vertexCount}，讀到 {i}。");
             }
 
-            var fields = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-            if (fields.Length < properties.Count)
-            {
-                throw new InvalidDataException($"第 {i + 1} 個頂點缺少欄位。");
-            }
-
-            double x = double.Parse(fields[0], Invariant);
-            double y = double.Parse(fields[1], Invariant);
-            double z = double.Parse(fields[2], Invariant);
-            if (!double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(z))
-            {
-                throw new InvalidDataException("點雲包含無效座標。");
-            }
-
-            points[i] = new SourceScanPoint(i, new ScanVector(x, y, z), string.Join(' ', fields.Skip(3)));
+            points[i] = ParsePoint(line, properties.Count, i);
         }
 
-        using var checksumStream = File.OpenRead(path);
-        string checksum = Convert.ToHexStringLower(SHA256.HashData(checksumStream));
-        return new ScanCloud(header.ToArray(), points, checksum);
+        // StreamReader may have read ahead past the declared vertices. Those
+        // original bytes are already hashed; drain only bytes not yet read so
+        // comments/trailing elements/BOM/line endings remain in the full SHA.
+        hashed.CopyTo(Stream.Null);
+        string sourceChecksum = Convert.ToHexStringLower(checksum.GetHashAndReset());
+        return new ScanCloud(header.ToArray(), points, sourceChecksum);
     }
 
     /// <summary>量化到小數六位。</summary>
@@ -113,7 +111,13 @@ public static class ScanPly
     /// <param name="value">數值。</param>
     public static double Quantize(double value)
     {
-        return double.Parse(value.ToString("F6", Invariant), Invariant);
+        // Scanner-scale fixed-point values fit here. Extreme IEEE values use
+        // the original formatter rather than clearing a large stack buffer on
+        // every coordinate of a multi-million-point capture.
+        Span<char> buffer = stackalloc char[32];
+        if (!value.TryFormat(buffer, out int written, "F6", Invariant))
+            return double.Parse(value.ToString("F6", Invariant), Invariant);
+        return double.Parse(buffer[..written], Invariant);
     }
 
     /// <summary>量化向量到小數六位。</summary>
@@ -165,20 +169,14 @@ public static class ScanPly
                 }
 
                 int written = 0;
+                Span<char> coordinateBuffer = stackalloc char[384];
                 foreach (var (p, extra) in points)
                 {
-                    string Coordinate(double value)
-                    {
-                        return preserveCoordinatePrecision && Quantize(value) != value
-                            ? value.ToString("R", Invariant)
-                            : value.ToString("F6", Invariant);
-                    }
-
-                    writer.Write(Coordinate(p.X));
+                    WriteCoordinate(writer, p.X, preserveCoordinatePrecision, coordinateBuffer);
                     writer.Write(' ');
-                    writer.Write(Coordinate(p.Y));
+                    WriteCoordinate(writer, p.Y, preserveCoordinatePrecision, coordinateBuffer);
                     writer.Write(' ');
-                    writer.Write(Coordinate(p.Z));
+                    WriteCoordinate(writer, p.Z, preserveCoordinatePrecision, coordinateBuffer);
                     if (extra.Length > 0)
                     {
                         writer.Write(' ');
@@ -204,5 +202,124 @@ public static class ScanPly
                 File.Delete(temporary);
             }
         }
+    }
+
+    private static SourceScanPoint ParsePoint(string line, int requiredFields, int index)
+    {
+        ReadOnlySpan<char> text = line.AsSpan();
+        Span<Range> coordinates = stackalloc Range[3];
+        int cursor = 0, count = 0, extraStart = -1, previousEnd = 0, extraEnd = 0;
+        int normalizedExtraLength = 0;
+        bool canonicalExtraSeparators = true;
+        while (cursor < text.Length)
+        {
+            while (cursor < text.Length && char.IsWhiteSpace(text[cursor])) cursor++;
+            if (cursor == text.Length) break;
+            int start = cursor;
+            while (cursor < text.Length && !char.IsWhiteSpace(text[cursor])) cursor++;
+            int length = cursor - start;
+            if (count < 3)
+            {
+                coordinates[count] = start..cursor;
+            }
+            else
+            {
+                if (count == 3) extraStart = start;
+                else
+                {
+                    normalizedExtraLength++;
+                    if (start != previousEnd + 1 || text[previousEnd] != ' ')
+                        canonicalExtraSeparators = false;
+                }
+                normalizedExtraLength += length;
+                extraEnd = cursor;
+            }
+            previousEnd = cursor;
+            count++;
+        }
+        // Keep the original error ordering: a short record is rejected before
+        // any numeric token is parsed.
+        if (count < requiredFields)
+            throw new InvalidDataException($"第 {index + 1} 個頂點缺少欄位。");
+        double x = double.Parse(text[coordinates[0]], Invariant);
+        double y = double.Parse(text[coordinates[1]], Invariant);
+        double z = double.Parse(text[coordinates[2]], Invariant);
+        if (!double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(z))
+            throw new InvalidDataException("點雲包含無效座標。");
+
+        string extra = "";
+        if (extraStart >= 0)
+        {
+            ReadOnlySpan<char> extraText = text[extraStart..extraEnd];
+            if (count == 4 && TrySharedExtra(extraText, out var shared)) extra = shared;
+            else if (canonicalExtraSeparators) extra = extraText.ToString();
+            else extra = string.Create(normalizedExtraLength, (line, extraStart, extraEnd),
+                static (destination, state) =>
+                {
+                    var sourceText = state.line.AsSpan(state.extraStart, state.extraEnd - state.extraStart);
+                    int read = 0, write = 0;
+                    while (read < sourceText.Length)
+                    {
+                        while (read < sourceText.Length && char.IsWhiteSpace(sourceText[read])) read++;
+                        if (read == sourceText.Length) break;
+                        if (write > 0) destination[write++] = ' ';
+                        while (read < sourceText.Length && !char.IsWhiteSpace(sourceText[read]))
+                            destination[write++] = sourceText[read++];
+                    }
+                });
+        }
+        return new SourceScanPoint(index, new ScanVector(x, y, z), extra);
+    }
+
+    private static bool TrySharedExtra(ReadOnlySpan<char> token, out string value)
+    {
+        value = "";
+        if (token.Length is < 1 or > 3 || token.Length > 1 && token[0] == '0') return false;
+        int number = 0;
+        foreach (char c in token)
+        {
+            if (c is < '0' or > '9') return false;
+            number = number * 10 + c - '0';
+        }
+        if (number >= SmallExtraValues.Length) return false;
+        value = SmallExtraValues[number];
+        return true;
+    }
+
+    private static void WriteCoordinate(StreamWriter writer, double value, bool preserve, Span<char> buffer)
+    {
+        if (!value.TryFormat(buffer, out int written, "F6", Invariant))
+        {
+            writer.Write(preserve && Quantize(value) != value ? value.ToString("R", Invariant) : value.ToString("F6", Invariant));
+            return;
+        }
+        if (preserve && double.Parse(buffer[..written], Invariant) != value)
+            value.TryFormat(buffer, out written, "R", Invariant);
+        writer.Write(buffer[..written]);
+    }
+
+    private sealed class HashingReadStream(Stream source, IncrementalHash checksum) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => source.Length;
+        public override long Position { get => source.Position; set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            int read = source.Read(buffer, offset, count);
+            checksum.AppendData(buffer, offset, read);
+            return read;
+        }
+        public override int Read(Span<byte> buffer)
+        {
+            int read = source.Read(buffer);
+            checksum.AppendData(buffer[..read]);
+            return read;
+        }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

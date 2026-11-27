@@ -36,11 +36,6 @@
                            HorizontalAlignment="Center"
                            Margin="0,4,0,0"
                            Foreground="{StaticResource TextSecondaryBrush}"/>
-                <TextBlock Text="（請放入實際示意圖 / 日後接入 2D／3D 繪圖）"
-                           FontSize="{StaticResource FontSizeSmall}"
-                           HorizontalAlignment="Center"
-                           Margin="0,8,0,0"
-                           Foreground="{StaticResource TextSecondaryBrush}"/>
             </StackPanel>
         </Grid>
     </Border>

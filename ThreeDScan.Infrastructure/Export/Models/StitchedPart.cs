@@ -36,6 +36,12 @@ public sealed class StitchedPart
     /// <summary>驗證索引。</summary>
     public required int[] ValidationIndices { get; init; }
 
+    /// <summary>端部驗證帶原有的保留點數，包含未符合訓練翼板面的端面／雜點。</summary>
+    public int ValidationCandidatePointCount { get; init; }
+
+    /// <summary>未納入截面驗證的非翼板點數；不因此從輸出量測點雲刪除。</summary>
+    public int ValidationRejectedOffWingPointCount => Math.Max(0, ValidationCandidatePointCount - ValidationIndices.Length);
+
     /// <summary>來源點數。</summary>
     public int SourcePointCount
     {

@@ -1,7 +1,7 @@
 namespace ThreeDScan.Infrastructure.Export.Models;
 
 /// <summary>抽取用地面／邊緣校正（僅供物件分離，不是物理外參）。</summary>
-/// <remarks>由 Hank Scan3D 的 ScanCalibration 搬入，邏輯不改。</remarks>
+/// <remarks>保留既有報告與還原介面；分離座標不可用於物理距離、翼板幾何或掃描器外參。</remarks>
 public sealed class ScanCalibration
 {
     /// <summary>建立校正結果。</summary>
@@ -99,7 +99,7 @@ public sealed class ScanCalibration
     /// <summary>地面方法名稱。</summary>
     public string GroundMethod { get; init; }
 
-    /// <summary>四角點數。</summary>
+    /// <summary>四個周邊角區的地面估計樣本點數。</summary>
     public int[] CornerPointCounts { get; init; }
 
     /// <summary>地面取樣數。</summary>
@@ -108,10 +108,13 @@ public sealed class ScanCalibration
     /// <summary>地面殘差 RMS（mm）。</summary>
     public double GroundResidualRmseMm { get; init; }
 
+    /// <summary>分區地面估計的支持證據；不是物理外參校正。</summary>
+    public GroundPlaneDiagnostics? GroundDiagnostics { get; init; }
+
     /// <summary>對齊後包圍盒。</summary>
     public ScanBounds AlignedBounds { get; init; }
 
-    /// <summary>原版後端校正：先換基底再減平面（仿射剪切）。</summary>
+    /// <summary>僅供分離的高度座標：先換基底再減地面平面（非歐氏仿射，不用於物理量測）。</summary>
     /// <param name="raw">原始掃描器座標。</param>
     public ScanVector Transform(ScanVector raw)
     {
@@ -122,7 +125,7 @@ public sealed class ScanCalibration
         return new ScanVector(x, y, z - (GroundA * x + GroundB * y + GroundC) - ZZeroMm);
     }
 
-    /// <summary>校正座標還原為掃描器座標。</summary>
+    /// <summary>將分離用的校正座標還原為原始掃描器座標。</summary>
     /// <param name="corrected">校正後座標。</param>
     public ScanVector ToScanner(ScanVector corrected)
     {
@@ -130,7 +133,7 @@ public sealed class ScanCalibration
             + ZAxis.Scale(corrected.Z + GroundA * corrected.X + GroundB * corrected.Y + GroundC + ZZeroMm);
     }
 
-    /// <summary>原始→校正 4×4。</summary>
+    /// <summary>僅供分離的原始→校正 4×4（不是剛體外參矩陣）。</summary>
     public double[][] RawToCalibratedMatrix
     {
         get

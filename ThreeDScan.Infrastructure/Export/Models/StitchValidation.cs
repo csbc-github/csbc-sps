@@ -104,4 +104,28 @@ public sealed class StitchValidation
 
     /// <summary>全寬檢查。</summary>
     public SectionEdgeCheck? FullSection { get; init; }
+
+    /// <summary>未排除稀疏尾端分箱的原始截面邊界，供比對診斷；所有原始點仍留在量測輸出。</summary>
+    public SectionEdgeCheck? UnfilteredFullSection { get; init; }
+
+    /// <summary>邊界支承方法；RMS／P95 仍使用原始翼板留出截面。</summary>
+    public string EdgeSamplingRule => "Measured transverse bins with >=3 points, longitudinal span >= half the band, and a three-column median of occupied longitudinal cells >= half the typical occupancy of their own wing; physical cell size is ProfileBinMm and measured neighbour gap is at most 1.5 mm. Independent end/interior bands use the same rule. Endpoints remain actual measured bin medians. Boundary filtering does not change the retained measurement output.";
+
+    /// <summary>左端相對自身獨立內側訓練帶的橫向全翼寬檢查，投影至 U 軸、Z 設為零。</summary>
+    public SectionEdgeCheck? LeftEndInteriorCoverage { get; init; }
+
+    /// <summary>右端相對自身獨立內側訓練帶的橫向全翼寬檢查，投影至 U 軸、Z 設為零。</summary>
+    public SectionEdgeCheck? RightEndInteriorCoverage { get; init; }
+
+    /// <summary>內側翼寬檢查僅評估橫向投影；實際端對端高度另由 FullSection 與 RMS／P95 檢查。</summary>
+    public string InteriorCoverageCoordinateFrame => "Transverse U projection only; Z=0 in own-interior width checks. FullSection compares actual measured end-to-end U/Z profiles.";
+
+    /// <summary>左端驗證帶中符合訓練翼板平面的量測點比例；至少 70%。</summary>
+    public double LeftEndWingSupportFraction { get; init; } = 1;
+
+    /// <summary>右端驗證帶中符合訓練翼板平面的量測點比例；至少 70%。</summary>
+    public double RightEndWingSupportFraction { get; init; } = 1;
+
+    /// <summary>驗證點只依訓練平面分類，不能以端面雜點代替翼板外緣。</summary>
+    public string WingSupportRule => "Corresponding left/right training wing selected by local transverse side: orthogonal distance <= max(MinimumPlaneToleranceMm, 3*wing RMS); no refitting on held-out points. At least 70% held-out support and each end's own interior-width check are required. Excluded profile noise remains in the retained measured point cloud.";
 }

@@ -5,6 +5,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
+using System.Text.Json;
+using System.Windows.Threading;
 using ThreeDScan.Models;
 
 namespace ThreeDScan.Controls;
@@ -26,6 +28,9 @@ public partial class GlbMeshViewport : UserControl
     private ViewportBoundsAnnotations? _annotations;
     private GeometryModel3D? _meshModel;
     private bool _loading;
+    private bool _presentationQueued;
+    private bool _pathLoadRequested;
+    private string? _requestedPath;
     private Vector3D _orbitUp = new Vector3D(0, 1, 0);
     private bool _autoLookHeadPending;
     private Point3D _cloudMin;
@@ -42,6 +47,9 @@ public partial class GlbMeshViewport : UserControl
         get => (string?)GetValue(GlbPathProperty);
         set => SetValue(GlbPathProperty, value);
     }
+
+    /// <summary>目前模型載入錯誤；顯示在預覽區，避免版面配置期間啟動模態訊息迴圈。</summary>
+    public string? LoadError { get; private set; }
 
     public static readonly DependencyProperty HeadFeaturesProperty = DependencyProperty.Register(
         nameof(HeadFeatures),
@@ -69,11 +77,7 @@ public partial class GlbMeshViewport : UserControl
             _orbitDragging = false;
             _didDrag = false;
         };
-        Loaded += (_, _) =>
-        {
-            _annotations ??= new ViewportBoundsAnnotations(Viewport, AnnotationOverlay);
-            RefreshPresentation();
-        };
+        Loaded += (_, _) => RefreshPresentation();
         SizeChanged += (_, _) => RefreshPresentation();
         IsVisibleChanged += (_, _) =>
         {
@@ -119,30 +123,47 @@ public partial class GlbMeshViewport : UserControl
 
     private void RefreshPresentation()
     {
-        if (_loading || !IsVisible || ActualWidth < 2 || ActualHeight < 2)
+        if (_presentationQueued || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
         {
             return;
         }
 
-        if (_hasOrbitScene)
+        // Size/visibility/property callbacks can run while WPF has disabled
+        // dispatcher processing. Perform file loading and visual changes only
+        // after those callbacks have unwound, and coalesce layout notifications.
+        _presentationQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(ApplyPendingPresentation));
+    }
+
+    private void ApplyPendingPresentation()
+    {
+        _presentationQueued = false;
+        if (_loading) return;
+        if (_pathLoadRequested)
+        {
+            _pathLoadRequested = false;
+            LoadPathCore(_requestedPath);
+            return;
+        }
+
+        // A resize must not repeatedly parse a failed model. An explicit path
+        // change or LoadPath call is the only way to request a load/retry.
+        if (_hasOrbitScene && IsVisible && ActualWidth >= 2 && ActualHeight >= 2)
         {
             ApplyOrbitCamera();
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(GlbPath) && File.Exists(GlbPath))
-        {
-            LoadPath(GlbPath);
         }
     }
 
     public void LoadPath(string? path)
     {
-        if (_loading)
-        {
-            return;
-        }
+        Dispatcher.VerifyAccess();
+        _requestedPath = path;
+        _pathLoadRequested = true;
+        RefreshPresentation();
+    }
 
+    private void LoadPathCore(string? path)
+    {
         _loading = true;
         try
         {
@@ -153,36 +174,78 @@ public partial class GlbMeshViewport : UserControl
             _hasOrbitScene = false;
             _orbitDragging = false;
             _didDrag = false;
+            _autoLookHeadPending = false;
             MouseLayer.ReleaseMouseCapture();
+            LookHeadButton.Visibility = Visibility.Collapsed;
+            SetLoadError(null);
 
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            if (string.IsNullOrWhiteSpace(path))
             {
-                EmptyHint.Visibility = Visibility.Visible;
-                MouseLayer.Cursor = Cursors.Arrow;
-                LookHeadButton.Visibility = Visibility.Collapsed;
-                _autoLookHeadPending = false;
                 return;
             }
 
-            var mesh = GlbMeshLoader.LoadFromFile(path);
+            if (!string.Equals(Path.GetExtension(path), ".glb", StringComparison.OrdinalIgnoreCase))
+            {
+                SetLoadError("不支援的模型格式；請使用 .glb 檔案。PLY 請在「3D 點雲」檢視。");
+                return;
+            }
+            if (!File.Exists(path))
+            {
+                SetLoadError("找不到 GLB 檔案：" + path);
+                return;
+            }
+
+            GlbMeshLoader.MeshData mesh;
+            try
+            {
+                mesh = GlbMeshLoader.LoadFromFile(path);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException
+                or InvalidOperationException or ArgumentException or KeyNotFoundException or IndexOutOfRangeException or OverflowException or FormatException)
+            {
+                SetLoadError(ex.Message);
+                return;
+            }
+            if (mesh.Positions.Count == 0 || mesh.Bounds.IsEmpty)
+            {
+                SetLoadError("GLB 沒有可顯示的頂點或有效邊界。");
+                return;
+            }
+            if (!HasFiniteBounds(mesh.Bounds))
+            {
+                SetLoadError("GLB 邊界包含無效或超出範圍的座標，無法顯示模型。");
+                return;
+            }
             ShowMesh(mesh);
-        }
-        catch (Exception ex)
-        {
-            EmptyHint.Visibility = Visibility.Visible;
-            MouseLayer.Cursor = Cursors.Arrow;
-            MessageBox.Show(ex.Message, "GLB 載入失敗", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
             _loading = false;
-            if (_hasOrbitScene)
+            if (_pathLoadRequested || _hasOrbitScene)
             {
-                Dispatcher.BeginInvoke(
-                    System.Windows.Threading.DispatcherPriority.Loaded,
-                    ApplyOrbitCamera);
+                RefreshPresentation();
             }
         }
+    }
+
+    private static bool HasFiniteBounds(Rect3D bounds)
+    {
+        static bool FiniteAxis(double origin, double size) =>
+            double.IsFinite(origin) && double.IsFinite(size) && double.IsFinite(origin + size);
+
+        return FiniteAxis(bounds.X, bounds.SizeX)
+            && FiniteAxis(bounds.Y, bounds.SizeY)
+            && FiniteAxis(bounds.Z, bounds.SizeZ)
+            && double.IsFinite(new Vector3D(bounds.SizeX, bounds.SizeY, bounds.SizeZ).Length);
+    }
+
+    private void SetLoadError(string? message)
+    {
+        LoadError = message;
+        EmptyHintTitle.Text = message is null ? "角鋼 GLB 網格" : "GLB 載入失敗";
+        EmptyHintDescription.Text = message ?? "掃描完成後顯示 ZIP 內的 .glb；點一下顯示座標";
+        EmptyHint.Visibility = Visibility.Visible;
+        MouseLayer.Cursor = Cursors.Arrow;
     }
 
     private void ShowMesh(GlbMeshLoader.MeshData data)

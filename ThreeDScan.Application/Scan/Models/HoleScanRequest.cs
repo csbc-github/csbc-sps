@@ -26,13 +26,13 @@ public sealed class HoleScanRequest
     [Required]
     public CameraPoseDto? CameraPosition { get; set; }
 
-    /// <summary>規格 v1.1 未列，由 Hank 搬入。掃描器 ROI。</summary>
+    /// <summary>掃描器 XYZ 範圍；省略時辨識完整原始掃描，不自動套用舊站點 ROI。</summary>
     public ScannerRoi? Roi { get; set; }
 
     /// <summary>規格 v1.1 未列，由 Hank 搬入。指定特徵。</summary>
     public string? FeatureId { get; set; }
 
-    /// <summary>規格 v1.1 未列，由 Hank 搬入。拍攝群組 1～16。</summary>
+    /// <summary>拍攝群組 1～16；省略時沿用控制器目前程式，與 OneClick 相同。</summary>
     [Range(1, 16)]
     public int? NavigatorScanNo { get; set; }
 }

@@ -14,4 +14,42 @@ public sealed class HoleBoundarySnapshot
 
     /// <summary>本次擷取的 raw PLY 絕對路徑（掃描器座標）；供 WPF 3D 點雲顯示。</summary>
     public string? RawPlyPath { get; init; }
+
+    /// <summary>可選的物件顯示點雲；仍須保留掃描器 XYZ。</summary>
+    public string? ExtractedPlyPath { get; init; }
+
+    /// <summary>本次量測的所有開口；各孔邊界獨立保存。</summary>
+    public IReadOnlyList<HoleFeatureSnapshot> Features { get; init; } = Array.Empty<HoleFeatureSnapshot>();
+
+    public string? SelectedFeatureId { get; init; }
+
+    public string? TaskId { get; init; }
+
+    public DateTimeOffset? CapturedAt { get; init; }
+
+    public string? CoordinateFrame { get; init; }
+
+    public bool AngleSteelOnly { get; init; }
+    public bool WorkpieceIdentified { get; init; }
+    public string? ScopeReason { get; init; }
+
+    /// <summary>null 表示舊版監看資料未提供驗證狀態。</summary>
+    public bool? AbsoluteCoordinatesCalibrated { get; init; }
+
+    public IReadOnlyList<string> Warnings { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>一個開口的公開座標與原始掃描器座標，兩者不可互相替代。</summary>
+public sealed class HoleFeatureSnapshot
+{
+    public string Id { get; init; } = "";
+    public string FaceId { get; init; } = "";
+    public string Type { get; init; } = "Unknown";
+    public string Status { get; init; } = "PARTIAL";
+    public bool Closed { get; init; }
+    public double? WidthMm { get; init; }
+    public double? HeightMm { get; init; }
+    public string? Reason { get; init; }
+    public IReadOnlyList<CoordinateDto> Boundary { get; init; } = Array.Empty<CoordinateDto>();
+    public IReadOnlyList<CoordinateDto> ScannerBoundary { get; init; } = Array.Empty<CoordinateDto>();
 }

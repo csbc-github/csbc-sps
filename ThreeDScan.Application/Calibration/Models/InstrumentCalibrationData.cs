@@ -40,7 +40,7 @@ public sealed class InstrumentCalibrationData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CalibratedAt { get; init; }
 
-    /// <summary>SDK 量測到的所有保留球。</summary>
+    /// <summary>有校正資格的量測球；自由估徑與標準尺寸球心資格分開標記。</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<MeasuredBallDto>? Balls { get; init; }
 

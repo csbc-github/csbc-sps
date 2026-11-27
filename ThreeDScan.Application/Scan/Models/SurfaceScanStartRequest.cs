@@ -38,9 +38,9 @@ public sealed class SurfaceScanStartRequest
     /// <summary>規格 v1.1 未列，由 Hank 搬入。候選物件 rank。</summary>
     public int? ComponentRank { get; set; }
 
-    /// <summary>規格 v1.1 未列，由 Hank 搬入。拼接模式。</summary>
-    public StitchMode StitchMode { get; set; }
+    /// <summary>拼接模式；省略時依拍攝順序首尾對接。1＝NominalButtJoin；0＝CameraPose，依相機位姿保留位置。</summary>
+    public StitchMode StitchMode { get; set; } = StitchMode.NominalButtJoin;
 
-    /// <summary>規格 v1.1 未列，由 Hank 搬入。公稱對接間隙（mm）。</summary>
+    /// <summary>首尾對接的公稱間隙（mm）；預設 0。此設定不代表已驗證工件物理總長。</summary>
     public double NominalGapMm { get; set; }
 }

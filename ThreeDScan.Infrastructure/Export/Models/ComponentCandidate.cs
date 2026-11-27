@@ -6,6 +6,9 @@ public sealed class ComponentCandidate
     /// <summary>抽取 rank。</summary>
     public int Rank { get; init; }
 
+    /// <summary>從支承板上方分離時的原候選 rank；一般候選為 null。</summary>
+    public int? ParentComponentRank { get; init; }
+
     /// <summary>點數。</summary>
     public int PointCount { get; init; }
 

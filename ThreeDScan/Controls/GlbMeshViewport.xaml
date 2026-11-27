@@ -44,14 +44,17 @@
                         HorizontalAlignment="Center"
                         IsHitTestVisible="False"
                         Panel.ZIndex="1">
-                <TextBlock Text="角鋼 GLB 網格"
+                <TextBlock x:Name="EmptyHintTitle" Text="角鋼 GLB 網格"
                            FontSize="{StaticResource FontSizeLarge}"
                            FontWeight="SemiBold"
                            HorizontalAlignment="Center"
                            Foreground="#D8DEE8"/>
-                <TextBlock Text="掃描完成後顯示 ZIP 內的 .glb；點一下顯示座標"
+                <TextBlock x:Name="EmptyHintDescription" Text="掃描完成後顯示 ZIP 內的 .glb；點一下顯示座標"
                            FontSize="{StaticResource FontSizeSmall}"
                            Margin="0,4,0,0"
+                           MaxWidth="460"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
                            HorizontalAlignment="Center"
                            Foreground="#9CA6B5"/>
             </StackPanel>

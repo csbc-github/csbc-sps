@@ -12,26 +12,30 @@ public static class StitchPlyPreviewRenderer
     /// <param name="path">輸出 PNG 路徑。</param>
     /// <param name="view">視角名稱：top、front、side。</param>
     public static void Render(ScanCloud cloud, string path, string view)
+        => Render(cloud.Points.Select(point => point.Position), path, view);
+
+    /// <summary>從本次拼接已計算的原始精度座標建立相同預覽，免再解析正式 PLY。</summary>
+    public static void Render(IEnumerable<ScanVector> positions, string path, string view)
     {
         const int width = 1200;
         const int height = 760;
         const int margin = 35;
-        (double X, double Y) Project(SourceScanPoint p)
+        (double X, double Y) Project(ScanVector p)
         {
             if (view == "top")
             {
-                return (p.Position.X, p.Position.Y);
+                return (p.X, p.Y);
             }
 
             if (view == "front")
             {
-                return (p.Position.X, p.Position.Z);
+                return (p.X, p.Z);
             }
 
-            return (p.Position.Y, p.Position.Z);
+            return (p.Y, p.Z);
         }
 
-        var points = cloud.Points.Select(Project).ToArray();
+        var points = positions.Select(Project).ToArray();
         double minX = points.Min(p => p.X);
         double maxX = points.Max(p => p.X);
         double minY = points.Min(p => p.Y);

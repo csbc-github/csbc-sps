@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using Microsoft.AspNetCore.SignalR.Client;
+using ThreeDScan.Application.Calibration;
 using ThreeDScan.Common;
 using ThreeDScan.Domain.Abstractions;
 using ThreeDScan.Domain.Models;
@@ -171,19 +172,17 @@ public class CalibrationMonitorViewModel : ViewModelBase, IAsyncDisposable
         System.Windows.Application.Current.Dispatcher.Invoke(() =>
         {
             LastScannerId = msg.ScannerId;
-            StatusText = msg.Success
-                ? $"[{msg.ScannerId}] 儀器校正成功 · {msg.Timestamp:HH:mm:ss}"
-                : $"[{msg.ScannerId}] 儀器校正失敗 · {msg.ErrorMessage}";
+            StatusText = FormatPreviewStatus(msg);
 
             Balls.Clear();
             if (_isDebugMode && msg.Balls is not null)
             {
-                foreach (var b in msg.Balls.Where(b => b.IsWithinTolerance))
+                foreach (var b in msg.Balls.Where(IsBallEligible))
                 {
                     Balls.Add(new BallRow
                     {
                         Index = b.Index,
-                        Line = $"球[{b.Index}] X={b.X:F2} Y={b.Y:F2} Z={b.Z:F2} D={b.Diameter:F3} ✓",
+                        Line = FormatBallLine(b),
                     });
                 }
             }
@@ -281,6 +280,42 @@ public class CalibrationMonitorViewModel : ViewModelBase, IAsyncDisposable
         System.Windows.Application.Current.Dispatcher.Invoke(() => ViewportStatus = text);
     }
 
+    internal static string FormatPreviewStatus(CalibrationPreviewMessage msg)
+    {
+        if (msg.Stage == CalibrationPreview.StageAwaitingNextShot)
+        {
+            string text = $"[{msg.ScannerId}] 第一拍已記錄，等待第二拍；尚未完成校正";
+            if (msg.Rmse is double rmse && rmse >= InstrumentCalibrationService.RmseThresholdMm)
+                text += $"\n球距 RMSE {rmse:F3} mm，請核對已知球位。";
+            return text;
+        }
+        return msg.Success
+            ? $"[{msg.ScannerId}] 儀器校正成功 · {msg.Timestamp:HH:mm:ss}"
+            : $"[{msg.ScannerId}] 儀器校正失敗 · {msg.ErrorMessage}";
+    }
+
+    internal static bool IsBallEligible(BallDto ball) => ball.EligibleForCalibration
+        ?? ((ball.IsWithinTolerance && ball.FreeMeasurementQualityPassed != false) || ball.KnownRadiusModelValidated);
+
+    internal static string FormatBallLine(BallDto ball)
+    {
+        string centerMethod = ball.UsesKnownRadius
+            ? ball.NominalDiameterMm is double nominal
+                ? $"標準尺寸 {nominal:F3} mm 求球心"
+                : "標準尺寸求球心"
+            : "自由球面擬合求球心";
+        string diameterStatus = ball.FreeMeasurementQualityPassed == false
+            ? $"；品質警告（{(ball.IsWithinTolerance ? "數值區間內" : "超差")}）"
+            : ball.IsWithinTolerance ? "（合格）" : "（超差）";
+        string stability = ball.UsedLocalizedOutlierValidation
+            ? ball.CenterSensitivityMm is double sensitivity
+                ? $"\n局部點品質警告；球心穩定性檢查通過，變動 {sensitivity:F3} mm"
+                : "\n局部點品質警告；球心穩定性檢查通過"
+            : "";
+        return $"球[{ball.Index}] X={ball.X:F2} Y={ball.Y:F2} Z={ball.Z:F2}\n" +
+            $"{centerMethod}；自由估徑 {ball.Diameter:F3} mm{diameterStatus}" + stability;
+    }
+
     /// <summary>3D 預覽沿用 Api 本次量測的 DB 合併參數，避免 WPF appsettings 仍為 24.9。</summary>
     private LjCalibrationParameters BuildViewportParams(CalibrationPreviewMessage msg)
     {
@@ -333,6 +368,7 @@ public class CalibrationMonitorViewModel : ViewModelBase, IAsyncDisposable
         public string TraceId { get; set; } = "";
         public DateTimeOffset Timestamp { get; set; }
         public bool Success { get; set; }
+        public string? Stage { get; set; }
         public string? ErrorMessage { get; set; }
         public IReadOnlyList<BallDto>? Balls { get; set; }
         public double? CompensationOffsetX { get; set; }
@@ -371,5 +407,13 @@ public class CalibrationMonitorViewModel : ViewModelBase, IAsyncDisposable
         public double Z { get; set; }
         public double Diameter { get; set; }
         public bool IsWithinTolerance { get; set; }
+        public bool? EligibleForCalibration { get; set; }
+        public bool KnownRadiusModelValidated { get; set; }
+        public string SphereFitMethod { get; set; } = "FreeRadiusRobust";
+        public bool UsesKnownRadius { get; set; }
+        public double? NominalDiameterMm { get; set; }
+        public bool? FreeMeasurementQualityPassed { get; set; }
+        public bool UsedLocalizedOutlierValidation { get; set; }
+        public double? CenterSensitivityMm { get; set; }
     }
 }

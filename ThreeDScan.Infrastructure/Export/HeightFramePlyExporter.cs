@@ -95,6 +95,22 @@ public static class HeightFramePlyExporter
         var originX = origin == PointCloudOrigin.Scanner ? frame.Info.XStart / 100000d : 0;
         var originY = origin == PointCloudOrigin.Scanner ? frame.Info.YStart / 100000d : 0;
         var invariant = CultureInfo.InvariantCulture;
+        // Coordinate grids and 16-bit heights repeat across millions of pixels.
+        // Format the identical values once; the PLY bytes and F6 rounding stay unchanged.
+        var xText = new string[frame.Info.XPointCount];
+        var yText = new string[frame.ProfileCount];
+        var zText = new string[ushort.MaxValue + 1];
+        for (int x = 0; x < xText.Length; x++)
+            xText[x] = (originX + x * pitchX).ToString("F6", invariant);
+        for (int y = 0; y < yText.Length; y++)
+            yText[y] = (originY + (frame.FirstProfileNo + y) * pitchY).ToString("F6", invariant);
+        for (int raw = 0; raw < zText.Length; raw++)
+        {
+            if ((raw & 4095) == 0) cancellationToken.ThrowIfCancellationRequested();
+            zText[raw] = ((raw - 32768) * pitchZ).ToString("F6", invariant);
+        }
+        var intensityText = frame.Luminance is null ? null
+            : Enumerable.Range(0, byte.MaxValue + 1).Select(value => value.ToString(invariant)).ToArray();
         try
         {
             using (var writer = new StreamWriter(temporary, false, new UTF8Encoding(false), 1024 * 1024))
@@ -128,15 +144,15 @@ public static class HeightFramePlyExporter
                             continue;
                         }
 
-                        writer.Write((originX + x * pitchX).ToString("F6", invariant));
+                        writer.Write(xText[x]);
                         writer.Write(' ');
-                        writer.Write((originY + (frame.FirstProfileNo + y) * pitchY).ToString("F6", invariant));
+                        writer.Write(yText[y]);
                         writer.Write(' ');
-                        writer.Write(((raw - 32768) * pitchZ).ToString("F6", invariant));
+                        writer.Write(zText[raw]);
                         if (frame.Luminance is not null)
                         {
                             writer.Write(' ');
-                            writer.Write(frame.Luminance[index].ToString(invariant));
+                            writer.Write(intensityText![frame.Luminance[index]]);
                         }
 
                         writer.WriteLine();

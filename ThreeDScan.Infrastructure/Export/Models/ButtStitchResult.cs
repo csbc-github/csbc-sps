@@ -46,9 +46,10 @@ public sealed class ButtStitchResult
     /// <summary>假設說明。</summary>
     public string[] Assumptions { get; init; } =
     [
-        "The inputs scan two contiguous parts of the same workpiece with no spatial overlap, as confirmed by the user.",
-        "Join A maximum scanner-Y end to B minimum scanner-Y end; the unknown physical longitudinal gap is assumed to be the configured nominal gap.",
-        "Trim oblique scan boundaries to transverse join planes. Keep the complete transformed scans in a separate file; do not fabricate or fill points.",
+        "The caller selected a nominal end-to-end assembly of the two angle-steel scans; physical adjacency and capture overlap were not independently verified.",
+        "Find each workpiece's longitudinal direction from its independently supported XYZ wing planes, oriented toward scanner +Y (+X when Y is zero); join A's upper fitted-axis end to B's lower fitted-axis end at the configured nominal gap. End-frame Y is not scanner Y.",
+        "Trim oblique scan boundaries to transverse join planes. Original input PLY files retain every measurement; optional diagnostic exports retain the complete transformed scans. Do not fabricate or fill points.",
+        "Classify end-section measurements against independently trained wing planes; off-wing noise stays in the measured output but cannot define a wing edge. Each end must also cover its own interior measured wing width.",
         "Only rigid transforms are applied. Held-out cross-section agreement does not verify physical total length or the unknown motion between captures.",
     ];
 }

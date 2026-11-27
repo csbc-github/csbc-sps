@@ -21,18 +21,23 @@
                                 PrimaryMinHeight="280" SecondaryMinHeight="260">
         <controls:AdaptiveSplitView.PrimaryContent>
             <DockPanel Margin="12">
-                <TextBlock DockPanel.Dock="Top" Text="3D 點雲（掃描器座標）"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           Margin="0,0,0,8"/>
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <TextBlock Text="3D 點雲與選取孔緣（來源 PLY 座標）"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="綠色標記：封閉孔緣　橘色標記：部分開口"
+                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="{StaticResource FontSizeSmall}"/>
+                </StackPanel>
 
                 <Grid>
                     <controls:PreviewPlaceholder
                         Visibility="{Binding HasPointCloud, Converter={StaticResource BoolToVisInvert}}"
                         Title="尚無點雲"
-                        SubTitle="孔洞掃描完成後顯示 capture\raw.ply"/>
+                        SubTitle=""/>
                     <controls:PointCloudViewport
                         Visibility="{Binding HasPointCloud, Converter={StaticResource BoolToVis}}"
-                        Vertices="{Binding PointCloudVertices}"/>
+                        Vertices="{Binding PointCloudVertices}"
+                        HighlightPoints="{Binding ScannerBoundaryPoints}"
+                        HighlightIsClosed="{Binding SelectedFeatureIsClosed}"/>
                 </Grid>
             </DockPanel>
         </controls:AdaptiveSplitView.PrimaryContent>
@@ -40,15 +45,26 @@
         <controls:AdaptiveSplitView.SecondaryContent>
             <Border Background="{StaticResource SurfaceBrush}">
                 <DockPanel>
-                    <DockPanel DockPanel.Dock="Top" Margin="16,12" LastChildFill="False">
-                        <TextBlock Text="研磨路徑座標序列" Style="{StaticResource PanelTitleStyle}"/>
-                        <Border DockPanel.Dock="Right" Background="{StaticResource SurfaceAltBrush}"
-                                CornerRadius="12" Padding="10,3">
-                            <TextBlock Text="{Binding PathPoints.Count, StringFormat={}{0} 節點}"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       FontSize="{StaticResource FontSizeSmall}"/>
-                        </Border>
-                    </DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Margin="16,12,16,8">
+                        <TextBlock Text="孔洞量測結果" Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="{Binding MeasurementSourceCaption}" ToolTip="{Binding MeasurementSourceTooltip}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="{StaticResource FontSizeSmall}"/>
+                        <TextBlock Text="{Binding ScopeStatus}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding HoleSummary}" Margin="0,8,0,8" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding CoordinateStatus}" TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="{StaticResource FontSizeSmall}"/>
+                        <ComboBox ItemsSource="{Binding Features}" SelectedItem="{Binding SelectedFeature}"
+                                  DisplayMemberPath="Label" IsEnabled="{Binding HasFeatureSelections}"
+                                  AutomationProperties.Name="選取孔洞或部分開口" MinHeight="32"/>
+                        <TextBlock Text="{Binding SelectedFeatureStatus}" TextWrapping="Wrap" Margin="0,8,0,12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <DockPanel LastChildFill="False">
+                            <TextBlock Text="孔緣 XYZ（絕對座標 mm）"/>
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding PathPoints.Count, StringFormat={}{0} 點}"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </DockPanel>
+                    </StackPanel>
 
                     <DataGrid ItemsSource="{Binding PathPoints}"
                               SelectedItem="{Binding SelectedPathPoint}"
